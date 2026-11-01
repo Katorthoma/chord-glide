@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Chord Glide</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='52' x2='0' y2='12'%3E%3Cstop offset='0' stop-color='%2300e2a2'/%3E%3Cstop offset='.38' stop-color='%2319c6ff'/%3E%3Cstop offset='.7' stop-color='%238b6cff'/%3E%3Cstop offset='1' stop-color='%23ff5ccf'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%2303060c'/%3E%3Cg fill='none' stroke='url(%23g)' stroke-width='4.6' stroke-linecap='round'%3E%3Cpath d='M13 32C31 32 33 14 51 14'/%3E%3Cpath d='M13 32C31 32 33 23 51 23'/%3E%3Cpath d='M13 32C31 32 33 32 51 32'/%3E%3Cpath d='M13 32C31 32 33 41 51 41'/%3E%3Cpath d='M13 32C31 32 33 50 51 50'/%3E%3C/g%3E%3Ccircle cx='13' cy='32' r='5' fill='%23fff'/%3E%3C/svg%3E">
+<meta name="description" content="Write chords and hear them as gliding voices. Lock what you like and reroll the rest. Exports WAV, MP3, MIDI (MPE), MusicXML and video. Free and open source, and runs in your browser.">
+<meta name="theme-color" content="#19c6ff">
 <style>html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}</style>
 </head>
 <body>
@@ -326,7 +328,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 3.8.2 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 3.8.4 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -750,6 +752,12 @@ figure.vl circle { fill: var(--ink); }
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
 
+          <h4><span class="step ver">3.8.4</span>Website and source links<span class="when">1 Nov 2026</span></h4>
+          <p>Chord Glide lives at chord-glide.noizgenie.com, and its source code is on GitHub. The About page links to both, and link previews now include the preview image.</p>
+
+          <h4><span class="step ver">3.8.3</span>Link previews<span class="when">1 Nov 2026</span></h4>
+          <p>The page describes itself for search results, and the website build adds link previews, so a shared link shows Chord Glide's name, description and a preview image in Discord, Slack, iMessage and social sites.</p>
+
           <h4><span class="step ver">3.8.2</span>Review fixes<span class="when">1 Nov 2026</span></h4>
           <p>The About page's privacy section no longer makes a claim a hosting page could contradict: what Chord Glide itself does is stated first, then where this copy keeps your Library. The Guide's tabs tell screen readers whether they run down the side or across the top.</p>
 
@@ -860,13 +868,14 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-about" role="tabpanel" aria-labelledby="gt-about" hidden>
           <h3>About</h3>
           <p class="lede">Chord Glide is a songwriting instrument by Noizgenie. Write chords, hear them as gliding voices, and shape how they move.</p>
+          <p>Use it online at <a href="https://chord-glide.noizgenie.com" target="_blank" rel="noopener noreferrer">chord-glide.noizgenie.com</a>, or get the source code and the downloadable app on <a href="https://github.com/Katorthoma/chord-glide" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
 
           <h4>Privacy</h4>
           <p>Chord Glide itself has no accounts, ads, analytics or tracking, and sets no cookies. The voicing, the sound, the video and every export are made in your browser, and Chord Glide never uploads what you write or play. Exported files go straight to your computer.</p>
           <p id="about-where"></p>
 
           <h4>License</h4>
-          <p>&copy; 2026 Noizgenie. Chord Glide is free and open source under the MIT License. You can use, change and share it, including commercially, as long as the copyright and license notice stay with it.</p>
+          <p>&copy; 2026 Noizgenie. Chord Glide is free and <a href="https://github.com/Katorthoma/chord-glide" target="_blank" rel="noopener noreferrer">open source</a> under the MIT License. You can use, change and share it, including commercially, as long as the copyright and license notice stay with it.</p>
           <details class="license-text"><summary>Read the MIT License</summary><pre>MIT License
 
 Copyright (c) 2026 Noizgenie
@@ -1528,7 +1537,7 @@ function musicXml(built, { tempo = 60, title = 'Piece' } = {}) {
 }
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '3.8.2';
+const APP_VERSION = '3.8.4';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',

@@ -1,8 +1,10 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 3.8.2
+# Chord Glide 3.8.4
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
+
+**Use it online: [chord-glide.noizgenie.com](https://chord-glide.noizgenie.com)**
 
 Chord Glide is a single web page. Run it from a file on your computer or host it as a website. It has no accounts, and opened from a file it makes no network requests at all.
 
@@ -25,6 +27,14 @@ Chord Glide is a single web page. Run it from a file on your computer or host it
 
 - **Upload by hand:** in the Cloudflare dashboard, create a Pages project and choose to upload assets directly, then drop in the `dist` folder. Or, from Terminal: `npx wrangler pages deploy dist --project-name chord-glide`.
 - **Deploy from GitHub:** connect the repository to a Pages project with build command `node source/build.js` and output folder `dist`. Every push then rebuilds the site.
+
+**Link previews.** Discord, Slack, iMessage and social sites show a preview image only if the page gives its full address. Once you know your site's address, put it in `source/site.json`:
+
+```json
+{ "url": "https://chord-glide.noizgenie.com" }
+```
+
+and rebuild (or, for one build, run `SITE_URL=https://… node source/build.js`). Without it, previews still show the name and description, just no image. The preview image is `source/og-image.jpg` (1200 × 630).
 
 `dist/` is left out of git, because the build recreates it. On another host, upload the same folder; `_headers` is Cloudflare's format, so set equivalent headers there if you want them.
 
@@ -60,7 +70,7 @@ node cli/chord-glide-export.js "My piece.json" --musicxml --tempo 72
 | `LICENSE` | MIT License for Chord Glide's own code |
 | `LICENSES/` | The lamejs notice, plus the full LGPL-3.0 and GPL-3.0 texts that its license requires alongside it |
 | `cli/` | Command-line exporter, plus the engine and file writers it uses |
-| `source/` | Source files, build script, tests, and the logo (`logo.svg`, `apple-touch-icon.png`) |
+| `source/` | Source files, build and release scripts, tests, the logo (`logo.svg`, `apple-touch-icon.png`), the link-preview image (`og-image.jpg`) and `site.json` |
 | `dist/` | The website folder the build writes (not in git) |
 | `CHANGES.md` | What changed in each version |
 

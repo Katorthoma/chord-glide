@@ -1,3 +1,14 @@
+# Chord Glide 3.8.4 · 1 Nov 2026
+
+- **Website and source links.** `source/site.json` points at https://chord-glide.noizgenie.com, so link previews now include the preview image and the page gives its canonical address. The About page links to the website and to the source code on GitHub, and the README links to the website.
+
+# Chord Glide 3.8.3 · 1 Nov 2026
+
+- **Link previews.** The website build adds Open Graph and Twitter card tags, so a shared link shows the name, description and a 1200 × 630 preview image (`source/og-image.jpg`, glide traces drawn by the engine) in Discord, Slack, iMessage and social sites. Discord's embed bar uses the theme colour.
+- **Site address.** Preview images need the site's full address: set `"url"` in `source/site.json`, or `SITE_URL` for one build. Without it the build still works and says that previews will have no image.
+- **Both pages** now carry a description for search results and a theme colour.
+- **`.gitignore`** keeps ignoring piece files (`*.json`) but lets `source/site.json` through.
+
 # Chord Glide 3.8.2 · 1 Nov 2026
 
 Fixes from a review of 3.8. Engine 3.1 and file format 3 are unchanged.

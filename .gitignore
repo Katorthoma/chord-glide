@@ -12,6 +12,7 @@
 
 # piece files are your compositions; keep them out of the public repo
 *.json
+!source/site.json
 
 # website build output (recreated by node source/build.js)
 dist/
