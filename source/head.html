@@ -147,9 +147,17 @@ canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display:
 #play.playing .i-pause { display: inline; }
 #fullscreen .i-exit, #fullscreen.on .i-enter { display: none; }
 #fullscreen.on .i-exit { display: inline; }
-.viewwrap { position: relative; }
+.viewwrap, .volwrap { position: relative; }
+.pop.volpop { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; } /* after .pop in specificity, so it wins */
+.volpop input[type=range] { width: 170px; max-width: 100%; }
+.volpop output { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
+.volpop .note { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.volpop .vicon { width: 34px; height: 30px; }
+#volbtn .i-mute, #mute .i-mute, #volbtn.muted .i-vol, #mute.muted .i-vol { display: none; }
+#volbtn.muted .i-mute, #mute.muted .i-mute { display: block; }
+#volbtn.quiet .w2, #mute.quiet .w2 { display: none; }
 #viewbtn[aria-expanded="true"] { border-color: var(--ink); }
-.pop { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30; display: grid; grid-template-columns: auto auto; gap: 10px 12px; align-items: center;
+.pop { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 8px); z-index: 30; display: grid; grid-template-columns: auto auto; gap: 10px 12px; align-items: center;
   padding: 12px; background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18); width: max-content; max-width: calc(100vw - 40px); }
 .pop .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 
@@ -318,7 +326,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 3.8.4 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 3.9 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -379,6 +387,14 @@ figure.vl circle { fill: var(--ink); }
         <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position in the piece">
         <span id="time" class="time">0:00 / 0:00</span>
         <div class="screen-btns">
+          <div class="volwrap">
+            <button id="volbtn" class="icon" type="button" aria-label="Volume" aria-expanded="false" aria-controls="volpop" title="Volume (M mutes)"><svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M18 7a7 7 0 0 1 0 10"/></svg><svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 10l4 4M20 10l-4 4"/></svg></button>
+            <div id="volpop" class="pop volpop" role="group" aria-label="Volume" hidden>
+              <button type="button" id="mute" class="icon vicon" aria-label="Mute" title="Mute (M)"><svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M18 7a7 7 0 0 1 0 10"/></svg><svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 10l4 4M20 10l-4 4"/></svg></button>
+              <input id="vol" type="range" min="0" max="1" step="0.01" aria-label="Volume"><output id="o-vol" for="vol"></output>
+              <span class="note">For listening only; not saved with the piece.</span>
+            </div>
+          </div>
           <div class="viewwrap">
             <button id="viewbtn" class="icon" type="button" aria-label="View options" aria-expanded="false" aria-controls="viewpop" title="View options (V cycles the view)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2.5 12s3.6-6.5 9.5-6.5S21.5 12 21.5 12s-3.6 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
             <div id="viewpop" class="pop" role="group" aria-label="View options" hidden>
@@ -498,7 +514,6 @@ figure.vl circle { fill: var(--ink); }
         <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
         <div class="slider"><label for="reverb">Reverb</label><output id="o-reverb"></output><input id="reverb" type="range" min="0" max="100" step="1"></div>
         <div class="slider"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
-        <div class="slider"><label for="vol">Listening volume</label><output id="o-vol"></output><input id="vol" type="range" min="0" max="1" step="0.01"><span class="ends"><span>not saved with the piece</span></span></div>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-export" aria-labelledby="t-export" hidden>
@@ -726,7 +741,7 @@ figure.vl circle { fill: var(--ink); }
           <p class="lede">Keys for the things you do most. They work whenever you're not typing in a text box. On Windows and Linux, use <kbd>Ctrl</kbd> wherever you see <kbd>⌘</kbd>.</p>
 
           <h4><span class="step">▶</span>Playback</h4>
-          <dl class="keylist"><dt><kbd>Space</kbd></dt><dd>Play or pause</dd></dl>
+          <dl class="keylist"><dt><kbd>Space</kbd></dt><dd>Play or pause</dd><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></dl>
 
           <h4><span class="step">◐</span>View</h4>
           <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
@@ -741,6 +756,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">3.9</span>Smoother video, volume in the player<span class="when">1 Nov 2026</span></h4>
+          <p>Video recording draws each frame once instead of twice, draws the soft glow at half resolution, and reuses the background, so frames take less than half the work during the opening and the zooms. The audio is prepared before recording starts, with a brief still lead-in, so the start no longer stutters. Volume moved from the Sound tab to the player bar and works like a video player: with a mouse, hover over the speaker for the slider and click it to mute; on a touch screen, tap it for the slider. <kbd>M</kbd> mutes too.</p>
 
           <h4><span class="step ver">3.8.4</span>Website and source links<span class="when">1 Nov 2026</span></h4>
           <p>Chord Glide lives at chord-glide.noizgenie.com, and its source code is on GitHub. The About page links to both, and link previews now include the preview image.</p>

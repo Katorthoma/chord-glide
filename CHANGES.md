@@ -1,3 +1,16 @@
+# Chord Glide 3.9 · 1 Nov 2026
+
+Engine 3.1 and file format 3 are unchanged.
+
+- **Smoother video.**
+  - While recording, each frame is drawn once, on the video canvas, and shown scaled on the stage. Before, the stage and the video were both drawn every frame.
+  - The soft glow is drawn on a half-resolution layer and added in one step, with a lighter path (every fourth point, bevel joins, two passes instead of three). The sharp line and its core are unchanged.
+  - The background and its vignette are drawn once per look and size, then reused.
+  - Measured on a 1920 × 1080 Aurora video of a 5-minute piece (software rendering, so the absolute times are slower than on a real GPU): a full recording frame went from 153 to 58 ms in the opening whole view, 93 to 39 ms mid-zoom, and 39 to 30 ms while scrolling.
+  - The audio graph is built before recording starts, and playback begins 0.6 s later, so the encoder starts on a still opening frame instead of during the busiest moment.
+- **Volume in the player bar**, working like a video player's. With a mouse, hovering over the speaker shows the slider and clicking the speaker mutes or unmutes; on a touch screen, tapping it opens the slider. The panel has a speaker icon that mutes, the slider and the percentage, all fixed in size so nothing shifts. Dragging to 0 also mutes, and the icons show muted and quiet states. **M** mutes and unmutes. It left the Sound tab, and it's still remembered in this browser and never saved with a piece.
+- Opening one player-bar popup closes the other; Escape and clicking outside close them.
+
 # Chord Glide 3.8.4 · 1 Nov 2026
 
 - **Website and source links.** `source/site.json` points at https://chord-glide.noizgenie.com, so link previews now include the preview image and the page gives its canonical address. The About page links to the website and to the source code on GitHub, and the README links to the website.

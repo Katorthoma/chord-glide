@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '3.8.4';
+const APP_VERSION = '3.9';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -78,7 +78,7 @@ function syncUI() {
   }
   $('rerollall').disabled = LAYERS.every(L => piece.locks[L]);
   $('v-' + piece.view.mode).checked = true; $('l-' + piece.view.labels).checked = true;
-  $('vol').value = volume; $('o-vol').textContent = pct(volume * 100);
+  showVolume();
   updateStatus(); updateUndo(); if (typeof syncLook === 'function') syncLook();
 }
 
@@ -279,10 +279,10 @@ function impulse(ctx, seed) {
   return buf;
 }
 /* One graph for live playback, recording and offline export */
-function buildGraph(ctx, b, from, outs, level, offline) {
+function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const P = b.piece, S = P.sound, N = b.N, T = b.total;
   const span = Math.max(0.05, T - from);
-  const now = offline ? 0 : ctx.currentTime + 0.08;
+  const now = offline ? 0 : ctx.currentTime + lead;
   const master = ctx.createGain();
   master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(level, now + (from > 0 ? 0.15 : 0.4));
   master.gain.setValueAtTime(level, now + span); master.gain.linearRampToValueAtTime(0, now + span + 2.8);
@@ -329,10 +329,10 @@ function stopAudio(fade = 0.2) {
   setTimeout(() => { try { L.master.disconnect(); } catch (e) {} }, (fade + 0.3) * 1000);
   live = null;
 }
-function startAudio(from, extraOut) {
+function startAudio(from, extraOut, lead) {
   ensureCtx(); stopAudio(0.06);
   if (from >= built.total - 0.05) from = 0;
-  live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false);
+  live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false, lead);
   startAt = live.now - from;
 }
 function currentT() { return playing && actx && live ? Math.max(0, actx.currentTime - startAt) : offset; }
@@ -403,12 +403,28 @@ function tracePalette(tr) {
   return { bg: L.bg, dark: true, glow, weight, text: L.text, title: L.core || '#ffffff', accent: L.accent, stops: L.stops || null, vignette: true, core: L.core,
     line: (v, N) => L.hue ? `hsl(${Math.round(190 + 300 * v / Math.max(1, N - 1)) % 360}, 100%, 62%)` : L.alt ? L.alt[v % L.alt.length] : L.glow };
 }
-/* Stroke one path with a glow: wide faint passes, then the colored line, then a hot core */
-function glowStroke(g, path, color, core, pal, d, fade) {
+/* The soft glow is drawn at half resolution on its own layer, then added on top in one step.
+   It is blurry by nature, so this looks the same and costs about a quarter as much as drawing it at full size. */
+const glowLayers = new WeakMap();
+function glowLayer(g, W, H) {
+  const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
+  let L = glowLayers.get(g);
+  if (!L || L.c.width !== w || L.c.height !== h) {
+    const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+    L = { c, gg: c.getContext('2d') }; glowLayers.set(g, L);
+  }
+  const gg = L.gg;
+  gg.setTransform(1, 0, 0, 1, 0, 0); gg.clearRect(0, 0, w, h); gg.setTransform(0.5, 0, 0, 0.5, 0, 0);
+  gg.lineJoin = 'bevel'; gg.lineCap = 'round'; gg.globalCompositeOperation = 'lighter'; // bevel joins: cheaper, and invisible under the blur
+  return L;
+}
+/* Stroke one path with a glow: wide faint passes (on the glow layer when given), then the colored line, then a hot core */
+function glowStroke(g, path, color, core, pal, d, fade, gl, glowColor, soft) {
   const w = pal.weight * d;
   if (pal.dark && pal.glow > 0) {
+    const gp = gl ? gl.gg : g, gc = gl ? glowColor : color, sp = soft || path;
     g.globalCompositeOperation = 'lighter';
-    for (const [k, a] of [[13, 0.035], [7, 0.085], [3.4, 0.24]]) { g.strokeStyle = color; g.lineWidth = k * w; g.globalAlpha = a * pal.glow * fade; g.stroke(path); }
+    for (const [k, a] of (gl ? [[11, 0.07], [4, 0.26]] : [[13, 0.035], [7, 0.085], [3.4, 0.24]])) { gp.strokeStyle = gc; gp.lineWidth = k * w; gp.globalAlpha = a * pal.glow * fade; gp.stroke(sp); }
     g.strokeStyle = color; g.lineWidth = 1.9 * w; g.globalAlpha = 0.95 * fade; g.stroke(path);
     if (core) { g.strokeStyle = core; g.lineWidth = 0.8 * w; g.globalAlpha = (0.5 + 0.4 * pal.glow) * fade; g.stroke(path); }
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
@@ -416,13 +432,22 @@ function glowStroke(g, path, color, core, pal, d, fade) {
     g.strokeStyle = color; g.lineWidth = 2.1 * w; g.globalAlpha = fade; g.stroke(path); g.globalAlpha = 1;
   }
 }
+const bgCache = new Map(); // backgrounds only change with the look and the canvas size, so draw each one once
 function paintBackground(g, W, H, pal) {
-  g.fillStyle = pal.bg; g.fillRect(0, 0, W, H);
-  if (pal.vignette && pal.glow > 0) { // faint screen glow toward the middle
-    const r = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+  if (!(pal.vignette && pal.glow > 0)) { g.fillStyle = pal.bg; g.fillRect(0, 0, W, H); return; }
+  const key = W + 'x' + H + pal.bg + pal.accent + pal.glow;
+  let c = bgCache.get(key);
+  if (!c) {
+    c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
+    const b = c.getContext('2d');
+    b.fillStyle = pal.bg; b.fillRect(0, 0, W, H);
+    const r = b.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7); // faint screen glow toward the middle
     r.addColorStop(0, pal.accent); r.addColorStop(1, pal.bg);
-    g.globalAlpha = 0.09 * pal.glow; g.fillStyle = r; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
+    b.globalAlpha = 0.09 * pal.glow; b.fillStyle = r; b.fillRect(0, 0, W, H);
+    if (bgCache.size > 6) bgCache.delete(bgCache.keys().next().value);
+    bgCache.set(key, c);
   }
+  g.drawImage(c, 0, 0);
 }
 /* Colors tied to pitch (not screen position), so they stay put while the view zooms */
 function pitchGradient(g, pal, Y) {
@@ -458,6 +483,8 @@ function drawScene(g, W, H, d, t, cam, video) {
   const px = X(tc);
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   const colorOf = v => grad || pal.line(v, N);
+  const gl = pal.dark && pal.glow > 0 ? glowLayer(g, W, H) : null;
+  const glowGrad = gl && pal.stops ? pitchGradient(gl.gg, pal, Y) : null;
   const coreOf = v => pal.core;
   g.lineJoin = 'round'; g.lineCap = 'round';
   const step = 2 * d;
@@ -466,16 +493,21 @@ function drawScene(g, W, H, d, t, cam, video) {
     const xa = future ? px : x0, xb = future ? xEnd : px;
     if (xb - xa < 0.5) continue;
     for (let v = 0; v < N; v++) {
-      const path = new Path2D();
-      for (let x = xa, first = true; x <= xb + 0.5; x += step, first = false) {
+      // the sharp line follows every point; the blurry glow only needs every fourth, which makes it much cheaper to stroke
+      const path = new Path2D(), soft = gl ? new Path2D() : null;
+      let i = 0, lx = 0, ly = 0;
+      for (let x = xa; x <= xb + 0.5; x += step, i++) {
         const xx = Math.min(x, xb);
         const tt = Math.max(0, Math.min(T, tA + (tB - tA) * (xx - x0) / (xEnd - x0)));
         const y = Y(pitchAt(b, v, tt));
-        if (first) path.moveTo(xx, y); else path.lineTo(xx, y);
+        if (i === 0) { path.moveTo(xx, y); if (soft) soft.moveTo(xx, y); } else { path.lineTo(xx, y); if (soft && i % 4 === 0) soft.lineTo(xx, y); }
+        lx = xx; ly = y;
       }
-      glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
+      if (soft && i % 4 !== 1) soft.lineTo(lx, ly);
+      glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1, gl, glowGrad || pal.line(v, N), soft);
     }
   }
+  if (gl) { g.globalCompositeOperation = 'lighter'; g.drawImage(gl.c, 0, 0, W, H); g.globalCompositeOperation = 'source-over'; } // add the glow (additive, so order doesn't matter)
   if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
   // dots and labels
   const groups = new Map();
@@ -542,11 +574,13 @@ function frame() {
     if (recording) { finishRecording(); }
     offset = built.total; stopAudio(0.05); playing = false; setPlayIcon(); t = built.total;
   }
-  const { cur, idx } = drawScene(g2, cv.width, cv.height, dpr, t, screenCam, false);
-  if (recording) {
-    const vc = $('vcanvas'); drawScene(recording.g, vc.width, vc.height, recording.d, t, recording.cam, true);
+  let cur, idx;
+  if (recording) { // draw the video frame once, then show it scaled on the stage
+    const vc = $('vcanvas'); ({ cur, idx } = drawScene(recording.g, vc.width, vc.height, recording.d, t, recording.cam, true));
+    const k = Math.min(cv.width / vc.width, cv.height / vc.height), w = vc.width * k, h = vc.height * k;
+    g2.fillStyle = tracePalette(piece.view.trace).bg; g2.fillRect(0, 0, cv.width, cv.height); g2.drawImage(vc, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
     $('vprog').value = Math.min(1, t / (built.total + TAIL));
-  }
+  } else ({ cur, idx } = drawScene(g2, cv.width, cv.height, dpr, t, screenCam, false));
   const tc = Math.min(t, built.total), e = built.events[idx], nx = built.events[idx + 1];
   setText($('r-chord'), (e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label);
   setText($('r-next'), nx ? (nx.kind === 'note' ? '→ ' : '') + nx.label : 'end');
@@ -699,8 +733,10 @@ function startRecording() {
   };
   drawScene(recording.g, w, h, recording.d, 0, recording.cam, true);
   lockUI(true); $('vrecord').textContent = 'Cancel recording'; xstatus('Recording… the piece plays once.');
+  // Prepare the whole audio graph first, and give the encoder a moment on the opening frame
+  // before anything moves, so the start of the video doesn't stutter.
+  startAudio(0, dest, 0.6); playing = true; setPlayIcon();
   mr.start(500);
-  startAudio(0, dest); playing = true; setPlayIcon();
 }
 function finishRecording(cancel = false) {
   if (!recording) return;
@@ -744,11 +780,24 @@ $('rerollall').addEventListener('click', () => {
 });
 document.querySelectorAll('input[name=view]').forEach(r => r.addEventListener('change', () => { piece.view.mode = r.value; screenCam.snap = true; commit(); }));
 document.querySelectorAll('input[name=labels]').forEach(r => r.addEventListener('change', () => { piece.view.labels = r.value; commit(); }));
-$('vol').addEventListener('input', () => {
-  volume = +$('vol').value; $('o-vol').textContent = pct(volume * 100); lsSet('cge.volume', String(volume));
-  if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.05);
+/* Listening volume: in the player bar, remembered in this browser, never saved with a piece */
+let unmuteTo = null; // the volume to return to after muting
+const hoverUI = matchMedia('(hover: hover) and (pointer: fine)'); // mouse: hover shows the slider and a click mutes, like a video player
+function showVolume() {
+  $('vol').value = volume; $('o-vol').textContent = pct(volume * 100);
+  const m = volume <= 0.001;
+  for (const b of [$('volbtn'), $('mute')]) { b.classList.toggle('muted', m); b.classList.toggle('quiet', !m && volume < 0.4); }
+  $('volbtn').setAttribute('aria-label', (hoverUI.matches ? (m ? 'Unmute' : 'Mute') : 'Volume') + (m ? ' (muted)' : ', ' + pct(volume * 100)));
+  $('mute').setAttribute('aria-label', m ? 'Unmute' : 'Mute'); $('mute').title = (m ? 'Unmute' : 'Mute') + ' (M)';
+}
+function setVolume(v) {
+  volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
+  if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.03);
     const end = startAt + built.total; if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); } }
-});
+}
+function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
+$('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
+$('mute').addEventListener('click', toggleMute);
 $('play').addEventListener('click', () => setPlaying(!playing));
 $('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
 $('scrub').addEventListener('input', () => { offset = built.total * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
@@ -827,18 +876,38 @@ async function setFull(on) {
 }
 function updateFull() { const b = $('fullscreen'), on = isFull(); b.classList.toggle('on', on); b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); b.title = (on ? 'Exit full screen' : 'Full screen') + ' (F)'; screenCam.snap = true; }
 /* view options popup */
-const viewPop = $('viewpop'), viewBtn = $('viewbtn');
-function setViewPop(open) {
-  viewPop.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open));
-  viewPop.style.transform = '';
-  if (open) { // keep the popup inside the window on narrow screens
-    const r = viewPop.getBoundingClientRect(), m = 8;
-    const dx = r.left < m ? m - r.left : r.right > innerWidth - m ? innerWidth - m - r.right : 0;
-    if (dx) viewPop.style.transform = 'translateX(' + dx + 'px)';
+const viewPop = $('viewpop'), viewBtn = $('viewbtn'), volPop = $('volpop'), volBtn = $('volbtn');
+const POPS = [[viewPop, viewBtn], [volPop, volBtn]];
+function setPop(pop, btn, open) {
+  if (open) POPS.forEach(([p, b]) => { if (p !== pop && !p.hidden) setPop(p, b, false); });
+  pop.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+  pop.style.transform = '';
+  if (open) { // popups are centred over their button, then nudged sideways to stay inside the stage and the window
+    const r = pop.getBoundingClientRect(), st = stageEl.getBoundingClientRect(), m = 8;
+    const lo = Math.max(m, st.left + m), hi = Math.min(innerWidth - m, st.right - m);
+    const dx = r.width > hi - lo ? lo - r.left : r.left < lo ? lo - r.left : r.right > hi ? hi - r.right : 0;
+    if (dx) pop.style.transform = 'translateX(calc(-50% + ' + dx + 'px))';
   }
 }
-viewBtn.addEventListener('click', e => { e.stopPropagation(); setViewPop(viewPop.hidden); });
-document.addEventListener('pointerdown', e => { if (!viewPop.hidden && !viewPop.contains(e.target) && e.target !== viewBtn && !viewBtn.contains(e.target)) setViewPop(false); });
+const setViewPop = open => setPop(viewPop, viewBtn, open);
+for (const [pop, btn] of POPS) {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (pop === volPop && hoverUI.matches) { toggleMute(); return; } // with a mouse, the speaker mutes; hovering shows the slider
+    setPop(pop, btn, pop.hidden); if (!pop.hidden && pop === volPop) $('vol').focus();
+  });
+  document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) setPop(pop, btn, false); });
+}
+{ // Volume with a mouse: the slider appears while the pointer or keyboard focus is on the speaker or the slider
+  const wrap = volBtn.parentElement; let hideTimer = null;
+  const show = () => { if (!hoverUI.matches) return; clearTimeout(hideTimer); if (volPop.hidden) setPop(volPop, volBtn, true); };
+  const hideSoon = () => { if (!hoverUI.matches) return; clearTimeout(hideTimer); hideTimer = setTimeout(() => { if (!wrap.matches(':hover') && !wrap.querySelector(':focus-visible')) setPop(volPop, volBtn, false); }, 350); }; // stays open for keyboard focus, not for a mouse click
+  wrap.addEventListener('pointerenter', show); wrap.addEventListener('pointerleave', hideSoon);
+  wrap.addEventListener('focusin', show); wrap.addEventListener('focusout', hideSoon);
+  $('vol').addEventListener('pointerup', hideSoon);
+  const label = () => { volBtn.title = hoverUI.matches ? 'Mute (M)' : 'Volume (M mutes)'; showVolume(); };
+  label(); hoverUI.addEventListener('change', label);
+}
 function cycleView() { const order = ['auto', 'scroll', 'whole']; piece.view.mode = order[(order.indexOf(piece.view.mode) + 1) % 3]; $('v-' + piece.view.mode).checked = true; screenCam.snap = true; commit();
   setStatus('View: ' + { auto: 'auto zoom', scroll: 'scrolling', whole: 'whole piece' }[piece.view.mode]); }
 document.addEventListener('fullscreenchange', updateFull);
@@ -944,9 +1013,10 @@ $('guidebtn').addEventListener('click', () => openGuide());
 aboutDlg.addEventListener('click', e => { if (e.target === aboutDlg) aboutDlg.close(); }); // click on the backdrop
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
-  if (e.key === 'Escape' && !viewPop.hidden) { setViewPop(false); viewBtn.focus(); return; }
+  for (const [pop, btn] of POPS) if (e.key === 'Escape' && !pop.hidden) { setPop(pop, btn, false); btn.focus(); return; }
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || recording) return;
   if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
+  if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }
   if (e.key === '?') { e.preventDefault(); openGuide(); return; }
   if (e.key === 'l' || e.key === 'L') { e.preventDefault(); $('libtoggle').click(); return; }
   if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
