@@ -1,0 +1,30 @@
+lamejs 1.2.1 — lame.min.js
+
+A JavaScript port of the LAME MP3 encoder, by Alex Zhukov and contributors:
+https://github.com/zhuker/lamejs
+Based on LAME (https://lame.sourceforge.net/).
+
+Licensed under the GNU Lesser General Public License, version 3 (LGPL-3.0).
+The full license texts are in this folder: LGPL-3.0.txt and GPL-3.0.txt
+(the LGPL builds on the GPL, so both are included).
+
+lame.min.js is shipped as a separate, unmodified file, exactly as published
+in the lamejs 1.2.1 npm package. You can replace it with another build of
+lamejs and Chord Glide will load that instead.
+
+The upstream notice included with lamejs 1.2.1 follows.
+
+----------------------------------------------------------------------
+
+Can I use LAME in my commercial program?  
+
+Yes, you can, under the restrictions of the LGPL.  The easiest
+way to do this is to:
+
+1. Link to LAME as separate jar (lame.min.js or lame.all.js)
+
+2. Fully acknowledge that you are using LAME, and give a link
+   to our web site, lame.sourceforge.net
+
+3. If you make modifications to LAME, you *must* release these
+   these modifications back to the LAME project, under the LGPL.

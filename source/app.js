@@ -1,0 +1,1062 @@
+
+/* ===== App: pieces, library, controls, audio, drawing, exports ===== */
+const APP_VERSION = '3.8.2';
+const EXAMPLES = [
+  { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
+    chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
+    timing: { chordSec: 5, glide: 1.8, easing: 'smooth', tempo: 60 }, voicing: { variation: 25, spread: 100 }, motion: { order: 'together', stagger: 0 }, sound: { tone: 'soft' } },
+  { name: 'Slow Orbit', voices: 9, seeds: { harmony: 0x13C0FFEE, voicing: 0x6B2D9F04, motion: 0x3A7712E5, sound: 0x48B1C9D6 },
+    chords: '=E6:1\nAm9\nFmaj9\nCmaj7/E\nDm11\nG9sus4\nEm7\nFmaj7#11\nE7sus4\nAm(add9):3.5\n=A5',
+    timing: { chordSec: 6, glide: 2.6, easing: 'smoother', tempo: 60 }, voicing: { variation: 35, spread: 30, stacking: 40 }, motion: { order: 'high-low', stagger: 55 }, sound: { tone: 'warm', reverb: 50 } },
+  { name: 'Glasshouse', voices: 14, seeds: { harmony: 0x77E01234, voicing: 0x0BADF00D, motion: 0x1EAF5A2B, sound: 0x5C3E9D11 },
+    chords: '=F#6:0.6\nBmaj9\nG#m11\nEmaj9\nGmaj7#11\nC#m9\nF#13sus4\nD#m7\nGmaj9\nF#9sus4\nBmaj9:3\n=D#6',
+    timing: { chordSec: 4, glide: 1.3, easing: 'smooth', tempo: 60 }, voicing: { variation: 20, spread: 85, coverage: 65 }, motion: { order: 'low-high', stagger: 70 }, sound: { tone: 'glass', detune: 6, brightness: 6000 } }
+];
+const TONES = { pure: [0, 1], soft: [0, 1, .2, .06, .02], warm: [0, 1, .5, .25, .12, .06, .03], glass: [0, 1, 0, .32, 0, .16, 0, .08], reed: [0, 1, .6, .45, .3, .2, .12, .08, .05] };
+const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
+
+const $ = id => document.getElementById(id);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const lerp = (a, b, z) => a + (b - a) * z;
+const fmtSeed = v => '0x' + (v >>> 0).toString(16).toUpperCase().padStart(8, '0');
+const parseSeed = s => { s = String(s).trim(); const v = /^0x/i.test(s) ? parseInt(s, 16) : parseInt(s, 10); return Number.isFinite(v) ? v >>> 0 : null; };
+const randSeed = () => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0]; };
+const fmtClock = t => { t = Math.max(0, t); return Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); };
+const safeName = s => (String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)) || 'Untitled piece';
+const getPath = (o, p) => p.split('.').reduce((a, k) => a[k], o);
+const setPath = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+/* Some browsers refuse or forget storage for pages opened straight from disk: test it for real before promising a library */
+const STORAGE_OK = (() => { try { const k = 'cge.probe.' + Math.random().toString(36).slice(2); localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; } catch (e) { return false; } })();
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+function defaultLook() { try { const v = JSON.parse(lsGet('cge.look') || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
+function examplePiece(ex) {
+  const p = defaultPiece();
+  const dl = defaultLook(); if (dl) p.view.trace = dl;
+  p.name = ex.name; p.voices = ex.voices; p.chords = ex.chords; p.seeds = Object.assign({}, ex.seeds);
+  Object.assign(p.timing, ex.timing); Object.assign(p.voicing, ex.voicing); Object.assign(p.motion, ex.motion); Object.assign(p.sound, ex.sound);
+  p.created = new Date().toISOString();
+  return normalizePiece(p);
+}
+
+/* ---------- State ---------- */
+let piece = null, built = null, marks = null;
+let currentLibId = null, savedJSON = null;
+let undoStack = [], redoStack = [], committed = null;
+let offset = 0, playing = false, startAt = 0;
+let actx = null, live = null;
+let recording = null;
+const screenCam = { slo: 50, shi: 80, snap: true };
+
+/* ---------- Controls ---------- */
+const pct = v => Math.round(v) + '%';
+const SLIDERS = [
+  ['chordsec', 'timing.chordSec', v => (+v).toFixed(1) + ' s'], ['voices', 'voices', v => String(v)],
+  ['continuity', 'voicing.continuity', pct], ['coverage', 'voicing.coverage', pct], ['stacking', 'voicing.stacking', pct],
+  ['spacing', 'voicing.spacing', pct], ['variation', 'voicing.variation', pct], ['spread', 'voicing.spread', pct],
+  ['glide', 'timing.glide', v => (+v).toFixed(1) + ' s'], ['stagger', 'motion.stagger', pct],
+  ['detune', 'sound.detune', v => (+v).toFixed(1) + ' ¢'], ['width', 'sound.width', pct], ['reverb', 'sound.reverb', pct],
+  ['brightness', 'sound.brightness', v => (v / 1000).toFixed(1) + ' kHz'], ['tempo', 'timing.tempo', v => v + ' BPM']
+];
+const SELECTS = [['top', 'voicing.top', Number], ['bassoct', 'voicing.bassOctave', Number], ['bassmode', 'voicing.bassMode', String],
+  ['easing', 'timing.easing', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String]];
+(() => { const sel = $('top'); for (let m = 96; m >= 67; m--) { const o = document.createElement('option'); o.value = m; o.textContent = noteName(m); sel.appendChild(o); } })();
+
+function syncUI() {
+  $('name').value = piece.name;
+  if (document.activeElement !== $('chords')) $('chords').value = piece.chords;
+  for (const [id, path, fmt] of SLIDERS) { $(id).value = getPath(piece, path); $('o-' + id).textContent = fmt(getPath(piece, path)); }
+  for (const [id, path] of SELECTS) $(id).value = String(getPath(piece, path));
+  for (const L of LAYERS) {
+    if (document.activeElement !== $('seed-' + L)) $('seed-' + L).value = fmtSeed(piece.seeds[L]);
+    const lk = piece.locks[L]; $('lock-' + L).setAttribute('aria-pressed', String(lk)); $('lock-' + L).textContent = lk ? 'Locked' : 'Unlocked';
+    $('roll-' + L).disabled = lk;
+    const chip = document.querySelector('.layerlock[data-layer="' + L + '"]');
+    chip.setAttribute('aria-pressed', String(lk));
+    chip.title = L[0].toUpperCase() + L.slice(1) + (lk ? ' is locked: rerolls keep it. Click to unlock.' : ' is unlocked: Reroll changes it. Click to lock.');
+  }
+  $('rerollall').disabled = LAYERS.every(L => piece.locks[L]);
+  $('v-' + piece.view.mode).checked = true; $('l-' + piece.view.labels).checked = true;
+  $('vol').value = volume; $('o-vol').textContent = pct(volume * 100);
+  updateStatus(); updateUndo(); if (typeof syncLook === 'function') syncLook();
+}
+
+/* ---------- Build ---------- */
+function rebuild(keepTime = true) {
+  const { items, errors } = parseProgression(piece.chords);
+  const msgs = [];
+  if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6.');
+  if (!items.length) { msgs.push('Add at least one chord to hear something.'); showErr(msgs); return; }
+  const t = currentT();
+  built = isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece);
+  marks = landmarks(built);
+  $('revoice').hidden = !isFrozen();
+  if (isFrozen()) msgs.unshift('Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were. Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
+  if (built.warnings.length) msgs.push('The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.');
+  showErr(msgs);
+  offset = keepTime ? Math.min(t, built.total) : 0;
+  screenCam.snap = true;
+  if (playing && !recording) startAudio(offset);
+}
+const isFrozen = () => !!(piece && piece.realization && piece.realization.engine !== ENGINE_VERSION && validRealization(piece.realization));
+/* Normalize, and drop a saved realization from this same engine: the settings reproduce it exactly */
+function prepPiece(p) { const q = normalizePiece(p); if (q.realization && q.realization.engine === ENGINE_VERSION) delete q.realization; return q; }
+function unfreeze() { if (piece.realization) { delete piece.realization; setStatus('Re-voiced with engine ' + ENGINE_VERSION); } }
+function showErr(msgs) { $('err').hidden = !msgs.length; $('err').textContent = msgs.join(' '); }
+let rebuildTimer = null;
+const rebuildSoon = () => { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(() => rebuild(true), 180); };
+
+/* ---------- History, draft, status ---------- */
+function commit() {
+  const s = JSON.stringify(piece);
+  if (s === committed) return;
+  if (committed !== null) { undoStack.push(committed); if (undoStack.length > 100) undoStack.shift(); }
+  committed = s; redoStack = [];
+  updateUndo(); updateStatus(); saveDraftSoon();
+}
+function applyPiece(p, { record = true, keepTime = false } = {}) {
+  piece = prepPiece(p);
+  syncUI(); rebuild(keepTime);
+  if (record) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
+}
+function undo() { if (!undoStack.length) return; redoStack.push(committed); const s = undoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
+function redo() { if (!redoStack.length) return; undoStack.push(committed); const s = redoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
+function updateUndo() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
+let draftTimer = null;
+const saveDraftNow = () => { clearTimeout(draftTimer); if (piece) lsSet('cge.draft', JSON.stringify({ piece, libId: currentLibId, savedJSON })); };
+function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraftNow, 600); }
+window.addEventListener('pagehide', saveDraftNow);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDraftNow(); });
+let statusNote = '', statusWarn = false;
+let statusTimer = null;
+/* Event messages fade after a few seconds (warnings stay a little longer), leaving just the save state */
+function setStatus(msg, warn = false) {
+  statusNote = msg; statusWarn = warn; updateStatus();
+  clearTimeout(statusTimer);
+  if (msg) statusTimer = setTimeout(() => { statusNote = ''; statusWarn = false; updateStatus(); }, warn ? 9000 : 4500);
+}
+function updateStatus() {
+  const dirty = savedJSON === null ? (currentLibId ? false : true) : JSON.stringify(piece) !== savedJSON;
+  const base = currentLibId ? (dirty ? 'Unsaved changes' : 'Saved') : 'Not saved yet';
+  $('status').textContent = statusNote ? statusNote + ' · ' + base : base;
+  const dot = $('savedot'); dot.className = 'savedot ' + (currentLibId ? (dirty ? 'dirty' : 'saved') : 'new'); dot.title = base; dot.setAttribute('aria-label', base);
+  $('status').classList.toggle('warn', statusWarn);
+}
+
+/* ---------- Host ----------
+   Chord Glide is a self-contained browser page: files download normally and the Library lives in this
+   browser's storage. A page that embeds it may define window.CHORD_GLIDE_HOST before this script to send
+   saved pieces and files somewhere else. Every field is optional:
+     library()        resolves to a store { subscribe(onItems(items, live), onError), put(id|null, body) -> id, remove(id) }, or null
+     libraryNote      Library caption when that store is in use; localLibraryNote when it isn't
+     saver()          resolves to a function ({ filename, data }) -> Promise, or null; files of several types then go in one .zip
+     saveHint         Export caption when the saver is in use
+     mp3Encoder       URL of lame.min.js (default: the file beside this page); mp3Error: message if it fails to load
+     aboutText        the About page's line about where this copy runs */
+const HOST = (typeof window.CHORD_GLIDE_HOST === 'object' && window.CHORD_GLIDE_HOST) || null;
+
+/* ---------- Library (this browser's storage, or the host's store) ---------- */
+const lib = { mode: 'loading', items: [], store: null };
+let confirmDelete = null;
+async function initLibrary() {
+  let store = null;
+  try { if (HOST && typeof HOST.library === 'function') store = await HOST.library(); } catch (e) { store = null; }
+  if (store) {
+    try {
+      lib.store = store;
+      lib.mode = 'host';
+      const timer = setTimeout(() => { $('lib-note').textContent = 'Your library is taking a while to load. Pieces will appear when it connects.'; }, 10000);
+      store.subscribe((items, live) => {
+        if (live) clearTimeout(timer);
+        lib.items = items;
+        renderLibrary();
+      }, err => { clearTimeout(timer); lib.mode = 'local'; loadLocal(); renderLibrary(); setStatus('Library storage stopped responding; saving to this browser instead.', true); });
+    } catch (e) { lib.mode = 'local'; loadLocal(); }
+  } else { lib.mode = 'local'; loadLocal(); }
+  renderLibrary();
+}
+function loadLocal() { if (!STORAGE_OK) { lib.mode = 'none'; lib.items = []; return; } try { lib.items = JSON.parse(lsGet('cge.library') || '[]'); } catch (e) { lib.items = []; } }
+/* Write the library and read it back; throw if the browser didn't keep it */
+function storeLocal() {
+  const s = JSON.stringify(lib.items);
+  try { localStorage.setItem('cge.library', s); } catch (e) { throw Object.assign(new Error('storage'), { code: e && e.name === 'QuotaExceededError' ? 'quota_exceeded' : 'storage_unavailable' }); }
+  if (localStorage.getItem('cge.library') !== s) throw Object.assign(new Error('storage'), { code: 'storage_unavailable' });
+}
+function renderLibrary() {
+  $('lib-note').textContent = lib.mode === 'host' ? (HOST.libraryNote || 'Saved by the page that hosts Chord Glide.')
+    : lib.mode === 'none' ? (location.protocol === 'file:'
+      ? 'This browser won\'t keep saved pieces for a page opened straight from a file, so the library is off. Use Export → Piece file to save your work, and open it again from here. (Another browser, or serving the folder from a local web server, may allow the library.)'
+      : 'This browser isn\'t keeping saved pieces for this page, so the library is off. Use Export → Piece file to save your work, and open it again from here.')
+    : lib.mode === 'local' ? ((HOST && HOST.localLibraryNote) || 'Saved in this browser\'s storage on this computer. Export piece files to back them up or move them.') : 'Loading your library…';
+  const ul = $('lib-list'); ul.textContent = '';
+  const items = [...lib.items].sort((a, b) => String(b.modified).localeCompare(String(a.modified)));
+  if (!items.length) { const li = document.createElement('li'); li.innerHTML = '<span class="hint">No saved pieces yet. Press Save to keep the one you\'re working on.</span>'; ul.appendChild(li); }
+  for (const it of items) {
+    const li = document.createElement('li'); if (it.id === currentLibId) li.className = 'current';
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name || 'Untitled piece';
+    const dt = document.createElement('div'); dt.className = 'dt'; dt.textContent = it.modified ? new Date(it.modified).toLocaleString() : '';
+    meta.append(nm, dt);
+    const acts = document.createElement('div'); acts.className = 'acts';
+    const open = document.createElement('button'); open.className = 'small'; open.type = 'button'; open.textContent = 'Open';
+    open.onclick = () => openFromLibrary(it);
+    const del = document.createElement('button'); del.className = 'small danger'; del.type = 'button';
+    del.textContent = confirmDelete === it.id ? 'Confirm delete' : 'Delete';
+    del.onclick = () => deleteFromLibrary(it);
+    acts.append(open, del); li.append(meta, acts); ul.appendChild(li);
+  }
+}
+/* What to say about the engine a piece came from */
+function openNote(src) {
+  if (isFrozen()) return ', playing the notes saved by engine ' + piece.realization.engine + '. Use “Re-voice with this engine” to update it';
+  if (src && src.engine && src.engine !== ENGINE_VERSION) return ' (made with engine ' + src.engine + ' before notes were saved with pieces, so voicings may differ slightly)';
+  return '';
+}
+function openFromLibrary(it) {
+  let p;
+  try { p = prepPiece(it.piece); } catch (e) { setStatus(e.message, true); return; }
+  setPlaying(false);
+  currentLibId = it.id;
+  savedJSON = JSON.stringify(p);
+  applyPiece(p);
+  setStatus('Opened “' + p.name + '”' + openNote(it.piece));
+  renderLibrary();
+}
+async function deleteFromLibrary(it) {
+  if (confirmDelete !== it.id) { confirmDelete = it.id; renderLibrary(); setTimeout(() => { if (confirmDelete === it.id) { confirmDelete = null; renderLibrary(); } }, 4000); return; }
+  confirmDelete = null;
+  try {
+    if (lib.mode === 'host') await lib.store.remove(it.id);
+    else { lib.items = lib.items.filter(x => x.id !== it.id); storeLocal(); }
+    if (currentLibId === it.id) { currentLibId = null; savedJSON = null; }
+    setStatus('Deleted “' + (it.name || 'Untitled piece') + '”'); renderLibrary();
+  } catch (e) { setStatus('Couldn\'t delete that piece (' + (e && e.code || 'error') + ').', true); }
+}
+async function savePiece(asNew) {
+  if (lib.mode === 'none') { setStatus('The library isn\'t available here. Use Export → Piece file to save your work.', true); return; }
+  piece.name = safeName($('name').value);
+  if (!piece.created) piece.created = new Date().toISOString();
+  piece.modified = new Date().toISOString();
+  const p = withRealization();
+  const body = { name: p.name, modified: p.modified, piece: p };
+  try {
+    if (lib.mode === 'host') currentLibId = await lib.store.put(!asNew && currentLibId ? currentLibId : null, body);
+    else {
+      if (asNew || !currentLibId || !lib.items.some(x => x.id === currentLibId)) { currentLibId = 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); lib.items.push(Object.assign({ id: currentLibId }, body)); }
+      else lib.items = lib.items.map(x => x.id === currentLibId ? Object.assign({ id: x.id }, body) : x);
+      storeLocal();
+    }
+    savedJSON = JSON.stringify(piece);
+    committed = savedJSON;
+    setStatus((asNew ? 'Saved a new copy: “' : 'Saved “') + p.name + '”' + (lib.mode === 'local' ? ' in this browser' : ''));
+    renderLibrary(); saveDraftNow();
+  } catch (e) {
+    const c = e && e.code;
+    setStatus(c === 'storage_unavailable' ? 'This browser didn\'t keep the save. Use Export → Piece file to save your work.' : c === 'quota_exceeded' ? 'Your library is full. Delete a piece and try again.' : c === 'invalid_argument' ? 'You can\'t save pieces in this view. Export a piece file instead.' : 'Couldn\'t save (' + (c || 'error') + ').', true);
+  }
+}
+
+/* ---------- Seeds ---------- */
+function reroll(layer) {
+  if (piece.locks[layer]) return;
+  if (layer !== 'sound') unfreeze();
+  piece.seeds[layer] = randSeed();
+  if (layer === 'harmony') piece.chords = composeFromSeed(piece.seeds.harmony, piece.timing.chordSec);
+}
+function afterChange({ keepTime = true } = {}) { syncUI(); rebuild(keepTime); commit(); }
+
+/* ---------- Audio ---------- */
+let volume = (() => { const v = parseFloat(lsGet('cge.volume')); return Number.isFinite(v) ? v : 0.6; })();
+const irCache = new Map();
+function impulse(ctx, seed) {
+  const key = seed + ':' + ctx.sampleRate;
+  if (irCache.has(key) && irCache.get(key).ctx === ctx) return irCache.get(key).buf;
+  const r = mulberry32((seed ^ 0x3C6EF372) >>> 0);
+  const len = Math.floor(ctx.sampleRate * 3.4), buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (r() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+  irCache.set(key, { ctx, buf });
+  return buf;
+}
+/* One graph for live playback, recording and offline export */
+function buildGraph(ctx, b, from, outs, level, offline) {
+  const P = b.piece, S = P.sound, N = b.N, T = b.total;
+  const span = Math.max(0.05, T - from);
+  const now = offline ? 0 : ctx.currentTime + 0.08;
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(level, now + (from > 0 ? 0.15 : 0.4));
+  master.gain.setValueAtTime(level, now + span); master.gain.linearRampToValueAtTime(0, now + span + 2.8);
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
+  const bus = ctx.createGain();
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
+  const wetAmt = S.reverb / 100;
+  const dry = ctx.createGain(); dry.gain.value = 1 - wetAmt * 0.35;
+  const wet = ctx.createGain(); wet.gain.value = wetAmt;
+  const conv = ctx.createConvolver(); conv.buffer = impulse(ctx, P.seeds.sound);
+  bus.connect(lp); lp.connect(dry); lp.connect(conv); conv.connect(wet);
+  dry.connect(comp); wet.connect(comp); comp.connect(master);
+  for (const o of outs) master.connect(o);
+  const imag = new Float32Array(TONES[S.tone] || TONES.soft);
+  const wave = ctx.createPeriodicWave(new Float32Array(imag.length), imag);
+  const r = mulberry32((P.seeds.sound ^ 0xA5A5A5A5) >>> 0);
+  const rate = span > 120 ? 60 : 120, n = Math.max(2, Math.ceil(span * rate) + 1);
+  const oscs = [];
+  const hasBass = P.voicing.bassMode !== 'none';
+  for (let v = 0; v < N; v++) {
+    const dz = r() * 2 - 1, pz = r() * 2 - 1;
+    const osc = ctx.createOscillator(); osc.setPeriodicWave(wave);
+    osc.detune.value = dz * S.detune;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) curve[i] = hz(pitchAt(b, v, from + span * i / (n - 1)));
+    osc.frequency.value = curve[0];
+    osc.frequency.setValueCurveAtTime(curve, now, span);
+    const g = ctx.createGain(); g.gain.value = 1.5 / N;
+    osc.connect(g);
+    if (ctx.createStereoPanner) { const pan = ctx.createStereoPanner(); pan.pan.value = (hasBass && v === 0) ? 0 : pz * (S.width / 100); g.connect(pan); pan.connect(bus); }
+    else g.connect(bus);
+    osc.start(now); osc.stop(now + span + 3);
+    oscs.push(osc);
+  }
+  return { master, oscs, now };
+}
+function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
+function stopAudio(fade = 0.2) {
+  if (!live || !actx) return;
+  const now = actx.currentTime, g = live.master.gain;
+  if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); }
+  g.linearRampToValueAtTime(0, now + fade);
+  const L = live; L.oscs.forEach(o => { try { o.stop(now + fade + 0.05); } catch (e) {} });
+  setTimeout(() => { try { L.master.disconnect(); } catch (e) {} }, (fade + 0.3) * 1000);
+  live = null;
+}
+function startAudio(from, extraOut) {
+  ensureCtx(); stopAudio(0.06);
+  if (from >= built.total - 0.05) from = 0;
+  live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false);
+  startAt = live.now - from;
+}
+function currentT() { return playing && actx && live ? Math.max(0, actx.currentTime - startAt) : offset; }
+function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; }
+function setPlaying(on) {
+  if (on === playing || !built) return;
+  if (on) { if (offset >= built.total - 0.05) offset = 0; startAudio(offset); playing = true; }
+  else { offset = Math.min(currentT(), built.total); stopAudio(); playing = false; }
+  setPlayIcon();
+}
+
+const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, same as the audio render
+/* ---------- Drawing ---------- */
+const cv = $('cv'), g2 = cv.getContext('2d');
+let colors = {}, colorTick = 0, dpr = 1;
+function readColors() {
+  const cs = getComputedStyle(document.documentElement), v = k => cs.getPropertyValue(k).trim();
+  colors = { stage: v('--stage'), ink: v('--ink'), muted: v('--muted'), accent: v('--accent'), rule: v('--rule'), data: v('--font-data'), display: v('--font-display') };
+}
+function fit() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect();
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (w && h && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
+}
+new ResizeObserver(fit).observe(cv);
+function cameraZ(t) {
+  const m = piece.view.mode;
+  if (m === 'scroll') return 1;
+  if (m === 'whole') return 0;
+  const e = x => x * x * (3 - 2 * x), L = marks;
+  const a = L.inEnd > L.inStart ? clamp01((t - L.inStart) / (L.inEnd - L.inStart)) : (t >= L.inEnd ? 1 : 0);
+  const b = L.outEnd - L.outStart > 0.3 ? clamp01((t - L.outStart) / (L.outEnd - L.outStart)) : 0;
+  return e(a) * (1 - e(b));
+}
+function pitchLabel(p) {
+  if (piece.view.labels === 'hz') return hz(p).toFixed(2) + ' Hz';
+  const r = Math.round(p), c = Math.round((p - r) * 100);
+  return noteName(r) + (Math.abs(c) >= 3 ? (c > 0 ? ' +' : ' −') + Math.abs(c) + '¢' : '');
+}
+/* ---------- Trace looks ---------- */
+const TRACE_LOOKS = {
+  theme:     { name: 'Match interface' },
+  phosphor:  { name: 'Phosphor', bg: '#010805', glow: '#22ff7a', core: '#e2ffec', text: '#86ffb8', accent: '#22ff7a' },
+  laserred:  { name: 'Laser red', bg: '#070102', glow: '#ff1f36', core: '#ffe8ea', text: '#ff8590', accent: '#ff1f36' },
+  laserblue: { name: 'Laser blue', bg: '#01040c', glow: '#2b8cff', core: '#e8f4ff', text: '#86bcff', accent: '#2b8cff' },
+  amber:     { name: 'Amber CRT', bg: '#080400', glow: '#ffa01a', core: '#fff3d9', text: '#ffc670', accent: '#ffa01a' },
+  aurora:    { name: 'Aurora', bg: '#03060c', stops: ['#00e2a2', '#19c6ff', '#8b6cff', '#ff5ccf'], core: '#ffffff', text: '#a6deff', accent: '#19c6ff' },
+  spectrum:  { name: 'Spectrum', bg: '#050507', hue: true, core: '#ffffff', text: '#d4d4e6', accent: '#ffffff' },
+  neon:      { name: 'Neon', bg: '#08020e', alt: ['#00f0ff', '#ff2bd6'], core: '#ffffff', text: '#eaa8ff', accent: '#ff2bd6' },
+  custom:    { name: 'Custom' }
+};
+const hexLum = h => { const n = parseInt(h.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const mixHex = (a, b, t) => { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * t).toString(16).padStart(2, '0')).join(''); };
+const cssHex = c => { const m = /^#([0-9a-f]{6})$/i.exec(String(c).trim()); if (m) return '#' + m[1].toLowerCase(); const s = /^#([0-9a-f]{3})$/i.exec(String(c).trim()); return s ? '#' + s[1].split('').map(x => x + x).join('').toLowerCase() : null; };
+/* Resolve a piece's trace look into concrete drawing colors */
+function tracePalette(tr) {
+  const L = TRACE_LOOKS[tr.look] || TRACE_LOOKS.theme, glow = tr.glow / 100, weight = tr.weight;
+  if (tr.look === 'theme') {
+    const bg = cssHex(colors.stage) || '#fcfdfb', dark = hexLum(bg) < 0.2;
+    return { bg, dark, glow: dark ? glow * 0.6 : 0, weight, text: colors.muted, title: colors.ink, accent: colors.accent, line: () => colors.ink, core: null, vignette: false };
+  }
+  if (tr.look === 'custom') {
+    const c = tr.custom, dark = hexLum(c.bg) < 0.2, two = c.line2 !== c.line;
+    return { bg: c.bg, dark, glow: dark ? glow : 0, weight, text: mixHex(c.line, dark ? '#ffffff' : '#000000', 0.25), title: mixHex(c.line, dark ? '#ffffff' : '#000000', 0.55),
+      accent: c.line, stops: two ? [c.line, c.line2] : null, line: () => c.line, core: dark ? mixHex(c.line, '#ffffff', 0.85) : null, vignette: dark };
+  }
+  return { bg: L.bg, dark: true, glow, weight, text: L.text, title: L.core || '#ffffff', accent: L.accent, stops: L.stops || null, vignette: true, core: L.core,
+    line: (v, N) => L.hue ? `hsl(${Math.round(190 + 300 * v / Math.max(1, N - 1)) % 360}, 100%, 62%)` : L.alt ? L.alt[v % L.alt.length] : L.glow };
+}
+/* Stroke one path with a glow: wide faint passes, then the colored line, then a hot core */
+function glowStroke(g, path, color, core, pal, d, fade) {
+  const w = pal.weight * d;
+  if (pal.dark && pal.glow > 0) {
+    g.globalCompositeOperation = 'lighter';
+    for (const [k, a] of [[13, 0.035], [7, 0.085], [3.4, 0.24]]) { g.strokeStyle = color; g.lineWidth = k * w; g.globalAlpha = a * pal.glow * fade; g.stroke(path); }
+    g.strokeStyle = color; g.lineWidth = 1.9 * w; g.globalAlpha = 0.95 * fade; g.stroke(path);
+    if (core) { g.strokeStyle = core; g.lineWidth = 0.8 * w; g.globalAlpha = (0.5 + 0.4 * pal.glow) * fade; g.stroke(path); }
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  } else {
+    g.strokeStyle = color; g.lineWidth = 2.1 * w; g.globalAlpha = fade; g.stroke(path); g.globalAlpha = 1;
+  }
+}
+function paintBackground(g, W, H, pal) {
+  g.fillStyle = pal.bg; g.fillRect(0, 0, W, H);
+  if (pal.vignette && pal.glow > 0) { // faint screen glow toward the middle
+    const r = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    r.addColorStop(0, pal.accent); r.addColorStop(1, pal.bg);
+    g.globalAlpha = 0.09 * pal.glow; g.fillStyle = r; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
+  }
+}
+/* Colors tied to pitch (not screen position), so they stay put while the view zooms */
+function pitchGradient(g, pal, Y) {
+  const grad = g.createLinearGradient(0, Y(40), 0, Y(88)); // E2 to E6
+  pal.stops.forEach((c, i) => grad.addColorStop(i / (pal.stops.length - 1), c));
+  return grad;
+}
+
+/* Shared by the screen and the video recorder */
+function drawScene(g, W, H, d, t, cam, video) {
+  const b = built, N = b.N, T = b.total;
+  const pal = tracePalette(piece.view.trace);
+  const narrow = W / d < 520;
+  const labelW = (video ? 150 : narrow ? 86 : 104) * d;
+  const zz = cameraZ(Math.min(t, built.total)), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = (video ? 110 : 22) * d, y1 = H - (video ? 130 : 18) * d;
+  paintBackground(g, W, H, pal);
+  const tc = Math.min(t, T), idx = eventIndex(b, tc);
+  const cur = []; for (let v = 0; v < N; v++) cur.push(pitchAt(b, v, tc, idx));
+  const z = cameraZ(tc);
+  // the label column is only reserved while scrolling; zoomed out, the piece runs almost to the edge
+  const xEnd = lerp(W - (video ? 50 : 18) * d, x1 - 14 * d, z);
+  const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
+  const win = (xEnd - x0) / pps;
+  let lo = Infinity, hi = -Infinity;
+  for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.max(0, tc - win + win * k / 40)); if (p < lo) lo = p; if (p > hi) hi = p; }
+  if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo += (lo - cam.slo) * 0.1; cam.shi += (hi - cam.shi) * 0.1; }
+  let ylo = lerp(b.min, cam.slo, z), yhi = lerp(b.max, cam.shi, z);
+  if (yhi - ylo < 12) { const c = (yhi + ylo) / 2; ylo = c - 6; yhi = c + 6; }
+  const padY = (y1 - y0) * 0.07;
+  const Y = p => y1 - padY - (p - ylo) / (yhi - ylo) * (y1 - y0 - 2 * padY);
+  const tA = lerp(0, tc - win, z), tB = Math.max(lerp(T, tc, z), tA + 0.01);
+  const X = tt => x0 + (xEnd - x0) * (tt - tA) / (tB - tA);
+  const px = X(tc);
+  const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
+  const colorOf = v => grad || pal.line(v, N);
+  const coreOf = v => pal.core;
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  const step = 2 * d;
+  for (const future of [false, true]) {
+    if (future && z > 0.995) continue;
+    const xa = future ? px : x0, xb = future ? xEnd : px;
+    if (xb - xa < 0.5) continue;
+    for (let v = 0; v < N; v++) {
+      const path = new Path2D();
+      for (let x = xa, first = true; x <= xb + 0.5; x += step, first = false) {
+        const xx = Math.min(x, xb);
+        const tt = Math.max(0, Math.min(T, tA + (tB - tA) * (xx - x0) / (xEnd - x0)));
+        const y = Y(pitchAt(b, v, tt));
+        if (first) path.moveTo(xx, y); else path.lineTo(xx, y);
+      }
+      glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
+    }
+  }
+  if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
+  // dots and labels
+  const groups = new Map();
+  cur.forEach((p, v) => { const k = Math.round(p * 100); const gp = groups.get(k); if (gp) gp.n++; else groups.set(k, { p, n: 1, v }); });
+  const gs = [...groups.values()].sort((a, b2) => b2.p - a.p);
+  const r0 = (video ? 5.5 : 4.6) * d;
+  for (const gp of gs) {
+    const y = Y(gp.p), col = colorOf(gp.v);
+    if (pal.dark && pal.glow > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.18 * pal.glow; g.fillStyle = col; g.beginPath(); g.arc(px, y, r0 * 2.4, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
+    if (pal.core) { g.fillStyle = pal.core; g.beginPath(); g.arc(px, y, r0 * 0.45, 0, Math.PI * 2); g.fill(); }
+  }
+  g.font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${colors.data || 'monospace'}`;
+  g.textBaseline = 'middle';
+  let lastY = -1e9; const lx = px + 12 * d, gap = (video ? 15 : 12.5) * d;
+  for (const gp of gs) {
+    let y = Y(gp.p);
+    if (y - lastY < gap) { y = lastY + gap; if (y > H - 4 * d) break; }
+    lastY = y;
+    const txt = pitchLabel(gp.p) + (gp.n > 1 ? ' ×' + gp.n : '');
+    const w = g.measureText(txt).width;
+    const tx = lx + w > W - 4 * d ? px - 12 * d - w : lx; // near the right edge, put the label on the left of the dot
+    if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); g.globalAlpha = 1; }
+    g.fillStyle = pal.text; g.fillText(txt, tx, y);
+  }
+  if (video) {
+    const e = b.events[idx], nx = b.events[idx + 1];
+    g.fillStyle = pal.title; g.textBaseline = 'alphabetic';
+    g.font = `700 ${34 * d}px ${colors.display || 'sans-serif'}`; g.fillText(piece.name, x0, 66 * d);
+    g.font = `500 ${30 * d}px ${colors.display || 'sans-serif'}`;
+    g.fillText((e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label, x0, H - 64 * d);
+    g.fillStyle = pal.text; g.font = `${14 * d}px ${colors.data || 'monospace'}`;
+    if (nx) g.fillText('next ' + (nx.kind === 'note' ? '→ ' : '') + nx.label, x0, H - 36 * d);
+    const tt = fmtClock(tc) + ' / ' + fmtClock(T); const w = g.measureText(tt).width; g.fillText(tt, W - 50 * d - w, H - 36 * d);
+  }
+  return { cur, idx };
+}
+/* Small preview of a look for the Settings window */
+function drawLookPreview(cnv, tr) {
+  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, d = W / 220, pal = tracePalette(tr);
+  paintBackground(g, W, H, pal);
+  const Y = p => H - 8 * d - (p - 40) / 44 * (H - 16 * d);
+  const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
+  const base = [44, 51, 55, 58, 63, 67, 70, 75, 79], N = base.length;
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  base.forEach((m, v) => {
+    const path = new Path2D();
+    for (let x = 0; x <= W; x += 2 * d) {
+      const u = x / W, s = u < 0.18 ? 0 : u < 0.32 ? (u - 0.18) / 0.14 : 1, e = s * s * (3 - 2 * s);
+      const s2 = u < 0.62 ? 0 : u < 0.74 ? (u - 0.62) / 0.12 : 1, e2 = s2 * s2 * (3 - 2 * s2);
+      const p = 84 + (m - 84) * e + ((v % 3) - 1) * 2 * e2;
+      if (x === 0) path.moveTo(x, Y(p)); else path.lineTo(x, Y(p));
+    }
+    glowStroke(g, path, grad || pal.line(v, N), pal.core, pal, d * 0.9, 1);
+  });
+}
+const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
+function frame() {
+  requestAnimationFrame(frame);
+  if (!built) return;
+  if (colorTick++ % 30 === 0) readColors();
+  let t = currentT();
+  if (playing && t >= built.total + TAIL) {
+    if (recording) { finishRecording(); }
+    offset = built.total; stopAudio(0.05); playing = false; setPlayIcon(); t = built.total;
+  }
+  const { cur, idx } = drawScene(g2, cv.width, cv.height, dpr, t, screenCam, false);
+  if (recording) {
+    const vc = $('vcanvas'); drawScene(recording.g, vc.width, vc.height, recording.d, t, recording.cam, true);
+    $('vprog').value = Math.min(1, t / (built.total + TAIL));
+  }
+  const tc = Math.min(t, built.total), e = built.events[idx], nx = built.events[idx + 1];
+  setText($('r-chord'), (e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label);
+  setText($('r-next'), nx ? (nx.kind === 'note' ? '→ ' : '') + nx.label : 'end');
+  setText($('r-voices'), String(built.N));
+  const lo = Math.min(...cur), hi = Math.max(...cur);
+  setText($('r-range'), noteName(Math.round(lo)) + '–' + noteName(Math.round(hi)) + ' · ' + ((hi - lo) / 12).toFixed(1) + ' oct');
+  setText($('time'), fmtClock(tc) + ' / ' + fmtClock(built.total));
+  if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(1000 * tc / built.total);
+}
+
+/* ---------- Files and exports ---------- */
+/* Where files go: 'browser' (normal downloads), 'host' (the host's saver), or 'none' */
+const HOST_SAVES = !!(HOST && typeof HOST.saver === 'function');
+let hostSave = null, saveMode = HOST_SAVES ? 'none' : 'browser';
+const canSave = () => saveMode !== 'none';
+async function initDownloads() {
+  if (HOST_SAVES) { try { hostSave = await HOST.saver(); } catch (e) { hostSave = null; } saveMode = typeof hostSave === 'function' ? 'host' : 'none'; }
+  $('xhint').textContent = saveMode === 'browser'
+    ? 'Files download straight to your computer. MusicXML shows where the voices settle; the glides live in the MIDI and audio.'
+    : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip. MusicXML shows where the voices settle; the glides live in the MIDI and audio.');
+  if (!canSave()) { document.querySelectorAll('[data-export], #vrecord').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
+}
+function xstatus(m) { $('xstatus').textContent = m; }
+async function saveFile(filename, data) {
+  if (saveMode === 'browser') {
+    const blob = data instanceof Blob ? data : new Blob([data]);
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    xstatus('Downloaded ' + filename + '.'); return true;
+  }
+  if (!hostSave) { xstatus('Saving files isn\'t available in this view.'); return false; }
+  try { await hostSave({ filename, data }); xstatus('Saved ' + filename + '.'); return true; }
+  catch (e) {
+    const c = e && e.code;
+    xstatus(c === 'declined' ? 'Save cancelled.' : c === 'rate_limited' ? 'Another save is still waiting for an answer. Try again in a moment.'
+      : c === 'too_large' ? 'That file is too large for this destination.' : 'Couldn\'t save the file (' + (c || 'error') + ').');
+    return false;
+  }
+}
+/* A copy of the piece that also carries its resolved notes, so it reopens exactly even under a later engine */
+function withRealization() { const p = JSON.parse(JSON.stringify(piece)); p.realization = isFrozen() ? piece.realization : realizationOf(built); return p; }
+function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return JSON.stringify(p, null, 2); }
+async function renderOffline(b) {
+  const sr = 48000, len = Math.ceil((b.total + 3) * sr);
+  const ctx = new OfflineAudioContext(2, len, sr);
+  buildGraph(ctx, b, 0, [ctx.destination], 1, true);
+  const buf = await ctx.startRendering();
+  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let peak = 0; for (let i = 0; i < len; i++) { const a = Math.abs(L[i]), c = Math.abs(R[i]); if (a > peak) peak = a; if (c > peak) peak = c; }
+  const k = peak > 0 ? 0.891 / peak : 1; // normalize to −1 dBFS
+  const l2 = new Float32Array(len), r2 = new Float32Array(len);
+  for (let i = 0; i < len; i++) { l2[i] = L[i] * k; r2[i] = R[i] * k; }
+  return { L: l2, R: r2, sr };
+}
+let lamePromise = null;
+function loadLame() {
+  if (window.lamejs) return Promise.resolve(window.lamejs);
+  const tryLoad = src => new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src;
+    s.onload = () => window.lamejs ? res(window.lamejs) : rej(new Error('no encoder'));
+    s.onerror = () => { s.remove(); rej(new Error('not found')); };
+    document.head.appendChild(s);
+  });
+  // The encoder is lame.min.js, kept beside this page, so MP3 export works offline and makes no request to another site.
+  if (!lamePromise) lamePromise = tryLoad((HOST && HOST.mp3Encoder) || 'lame.min.js')
+    .catch(() => { lamePromise = null; throw new Error((HOST && HOST.mp3Error) || 'MP3 export needs lame.min.js in the same folder as this page. It was not found.'); });
+  return lamePromise;
+}
+async function encodeMp3(a) {
+  const lame = await loadLame();
+  const enc = new lame.Mp3Encoder(2, a.sr, 192);
+  const n = a.L.length, l = new Int16Array(n), r = new Int16Array(n);
+  for (let i = 0; i < n; i++) { l[i] = Math.max(-32768, Math.min(32767, a.L[i] * 32767)); r[i] = Math.max(-32768, Math.min(32767, a.R[i] * 32767)); }
+  const parts = [];
+  for (let i = 0, blk = 0; i < n; i += 1152, blk++) {
+    const out = enc.encodeBuffer(l.subarray(i, i + 1152), r.subarray(i, i + 1152)); if (out.length) parts.push(new Uint8Array(out));
+    if (blk % 400 === 0) { xstatus('Encoding MP3… ' + Math.round(100 * i / n) + '%'); await new Promise(r2 => setTimeout(r2, 0)); }
+  }
+  const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
+  const total = parts.reduce((s, p) => s + p.length, 0), mp3 = new Uint8Array(total);
+  let o = 0; for (const p of parts) { mp3.set(p, o); o += p.length; }
+  return mp3;
+}
+let exporting = false;
+async function doExport(kind) {
+  if (exporting || !built) return;
+  exporting = true; document.querySelectorAll('[data-export]').forEach(b => b.disabled = true);
+  const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: name };
+  try {
+    if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
+    const files = [];
+    let audio = null;
+    if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built); }
+    if (kind === 'all') files.push({ name: name + '.json', data: utf8(pieceFile()) });
+    if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr) });
+    let mp3Note = '';
+    if (kind === 'mp3' || kind === 'all') {
+      try { files.push({ name: name + '.mp3', data: await encodeMp3(audio) }); }
+      catch (e) { if (kind === 'mp3') throw e; mp3Note = ' The MP3 was left out: ' + e.message; }
+    }
+    if (kind === 'midi' || kind === 'all') files.push({ name: name + ' (glides).mid', data: midiWithGlides(built, opts) });
+    if (kind === 'midichords' || kind === 'all') files.push({ name: name + ' (chords).mid', data: midiChords(built, opts) });
+    if (kind === 'musicxml' || kind === 'all') files.push({ name: name + '.musicxml', data: musicXml(built, opts) });
+    const label = { wav: 'WAV', mp3: 'MP3', midi: 'MIDI glides', midichords: 'MIDI chords', musicxml: 'MusicXML', all: 'all files' }[kind];
+    let ok;
+    if (saveMode === 'browser' && files.length === 1) ok = await saveFile(files[0].name, new Blob([files[0].data]));
+    else { xstatus('Packing…'); ok = await saveFile(name + ' (' + label + ').zip', new Blob([zipStore(files)])); }
+    if (ok && mp3Note) xstatus($('xstatus').textContent + mp3Note);
+  } catch (e) { xstatus(e && e.message ? e.message : 'Export failed.'); }
+  finally { exporting = false; if (canSave()) document.querySelectorAll('[data-export]').forEach(b => b.disabled = false); }
+}
+
+/* ---------- Video ---------- */
+function pickMime() {
+  // explicit MP4 codecs first; plain "video/mp4" last (Safari), since some browsers claim it but write empty files
+  const c = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1.4D401F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+  return c.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
+}
+const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.tabs'];
+function lockUI(on) {
+  LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
+  document.querySelectorAll('[data-export], #vaspect, #tempo').forEach(el => el.disabled = on || !canSave());
+}
+function startRecording() {
+  if (!canSave()) return xstatus('Saving files isn\'t available in this view.');
+  const vc = $('vcanvas');
+  if (typeof MediaRecorder === 'undefined' || !vc.captureStream) return xstatus('This browser can\'t record video from this page.');
+  const mime = pickMime();
+  const [w, h] = { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] }[$('vaspect').value];
+  vc.width = w; vc.height = h; vc.hidden = false; $('vprog').hidden = false; $('vprog').value = 0;
+  setPlaying(false); offset = 0;
+  ensureCtx();
+  const dest = actx.createMediaStreamDestination();
+  const stream = new MediaStream([...vc.captureStream(60).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  let mr;
+  try { mr = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6, audioBitsPerSecond: 192000 } : undefined); }
+  catch (e) { vc.hidden = true; $('vprog').hidden = true; return xstatus('This browser can\'t record video from this page.'); }
+  recording = { mr, chunks: [], mime: mr.mimeType || mime, g: vc.getContext('2d'), d: Math.min(w, h) / 540, cam: { slo: 50, shi: 80, snap: true }, cancelled: false };
+  const rec = recording;
+  mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); }; // keeps the final chunk that arrives after stop()
+  mr.onstop = async () => {
+    lockUI(false); $('vrecord').textContent = 'Record video'; $('vprog').hidden = true; vc.hidden = true;
+    if (rec.cancelled) { xstatus('Recording cancelled.'); return; }
+    const ext = /mp4/.test(rec.mime) ? 'mp4' : 'webm';
+    const blob = new Blob(rec.chunks, { type: rec.mime });
+    if (blob.size < 20000) { xstatus('The browser recorded an empty video. Try again, or use a different browser.'); return; }
+    xstatus('Saving video…');
+    await saveFile(safeName($('name').value) + '.' + ext, blob);
+  };
+  drawScene(recording.g, w, h, recording.d, 0, recording.cam, true);
+  lockUI(true); $('vrecord').textContent = 'Cancel recording'; xstatus('Recording… the piece plays once.');
+  mr.start(500);
+  startAudio(0, dest); playing = true; setPlayIcon();
+}
+function finishRecording(cancel = false) {
+  if (!recording) return;
+  const rec = recording; recording = null; rec.cancelled = cancel;
+  try { rec.mr.stop(); } catch (e) {}
+  if (cancel) { stopAudio(0.1); playing = false; offset = 0; setPlayIcon(); }
+}
+
+/* ---------- Wiring ---------- */
+const STRUCTURAL = new Set(['chordsec', 'voices', 'continuity', 'coverage', 'stacking', 'spacing', 'variation', 'spread', 'glide', 'stagger', 'top', 'bassoct', 'bassmode', 'easing', 'order']);
+for (const [id, path, fmt] of SLIDERS) {
+  const el = $(id);
+  el.addEventListener('input', () => {
+    if (STRUCTURAL.has(id)) unfreeze();
+    if (id === 'voices') piece.voices = parseInt(el.value, 10); else setPath(piece, path, parseFloat(el.value));
+    $('o-' + id).textContent = fmt(getPath(piece, path));
+    if (id !== 'tempo') rebuildSoon(); updateStatus();
+  });
+  el.addEventListener('change', commit);
+}
+for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => { if (STRUCTURAL.has(id)) unfreeze(); setPath(piece, path, conv($(id).value)); rebuild(true); commit(); });
+$('chords').addEventListener('input', () => { unfreeze(); piece.chords = $('chords').value; rebuildSoon(); updateStatus(); saveDraftSoon(); });
+$('chords').addEventListener('change', commit);
+$('name').addEventListener('input', () => { piece.name = $('name').value; updateStatus(); saveDraftSoon(); });
+$('name').addEventListener('change', () => { piece.name = safeName($('name').value); $('name').value = piece.name; commit(); });
+for (const L of LAYERS) {
+  $('seed-' + L).addEventListener('change', () => {
+    const v = parseSeed($('seed-' + L).value);
+    if (v === null) { $('seed-' + L).value = fmtSeed(piece.seeds[L]); return; }
+    if (L !== 'sound' && v !== piece.seeds[L]) unfreeze();
+    piece.seeds[L] = v; afterChange();
+  });
+  $('lock-' + L).addEventListener('click', () => { piece.locks[L] = !piece.locks[L]; syncUI(); commit(); });
+  $('roll-' + L).addEventListener('click', () => { reroll(L); afterChange(); });
+}
+document.querySelectorAll('.layerlock').forEach(b => b.addEventListener('click', () => { const L = b.dataset.layer; piece.locks[L] = !piece.locks[L]; syncUI(); commit(); }));
+$('rerollall').addEventListener('click', () => {
+  const open = LAYERS.filter(L => !piece.locks[L]);
+  if (!open.length) { setStatus('Every layer is locked. Unlock one to reroll it.'); return; }
+  open.forEach(reroll); afterChange(); setStatus('Rerolled ' + open.join(', '));
+});
+document.querySelectorAll('input[name=view]').forEach(r => r.addEventListener('change', () => { piece.view.mode = r.value; screenCam.snap = true; commit(); }));
+document.querySelectorAll('input[name=labels]').forEach(r => r.addEventListener('change', () => { piece.view.labels = r.value; commit(); }));
+$('vol').addEventListener('input', () => {
+  volume = +$('vol').value; $('o-vol').textContent = pct(volume * 100); lsSet('cge.volume', String(volume));
+  if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.05);
+    const end = startAt + built.total; if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); } }
+});
+$('play').addEventListener('click', () => setPlaying(!playing));
+$('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
+$('scrub').addEventListener('input', () => { offset = built.total * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
+$('save').addEventListener('click', () => savePiece(false));
+$('saveas').addEventListener('click', () => savePiece(true));
+$('libtoggle').addEventListener('click', () => { const lb = $('library'); lb.hidden = !lb.hidden; $('libtoggle').setAttribute('aria-expanded', String(!lb.hidden)); });
+$('newpiece').addEventListener('click', () => {
+  setPlaying(false);
+  const p = defaultPiece();
+  const dl = defaultLook(); if (dl) p.view.trace = dl;
+  for (const L of LAYERS) p.seeds[L] = randSeed();
+  p.chords = composeFromSeed(p.seeds.harmony, p.timing.chordSec);
+  p.created = new Date().toISOString();
+  currentLibId = null; savedJSON = null;
+  applyPiece(p); setStatus('New piece written from a fresh harmony seed');
+});
+$('revoice').addEventListener('click', () => { unfreeze(); afterChange(); });
+$('undo').addEventListener('click', undo);
+$('redo').addEventListener('click', redo);
+$('importbtn').addEventListener('click', () => $('importfile').click());
+$('importfile').addEventListener('change', async () => {
+  const f = $('importfile').files[0]; $('importfile').value = '';
+  if (!f) return;
+  try {
+    let obj; try { obj = JSON.parse(await f.text()); } catch (e) { obj = null; }
+    if (!obj || (obj.format !== PIECE_FORMAT && typeof obj.chords !== 'string')) throw new Error('That file isn\'t a Chord Glide piece.');
+    prepPiece(obj); // throws for a newer format
+    setPlaying(false); currentLibId = null; savedJSON = null;
+    applyPiece(obj);
+    setStatus('Opened “' + piece.name + '” from a file' + openNote(obj) + '. Save to keep it in your library.');
+  } catch (e) { setStatus(e && e.message ? e.message : 'That file isn\'t a Chord Glide piece.', true); }
+});
+EXAMPLES.forEach(ex => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = ex.name;
+  b.onclick = () => { setPlaying(false); currentLibId = null; savedJSON = null; applyPiece(examplePiece(ex)); setStatus('Opened the example “' + ex.name + '”'); };
+  $('examples').appendChild(b);
+});
+document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => doExport(b.dataset.export)));
+$('vrecord').addEventListener('click', () => recording ? finishRecording(true) : startRecording());
+const tabs = [...document.querySelectorAll('.rack [role=tab]')]; // the controls panel only; the Guide has its own tabs
+function selectTab(tab) { tabs.forEach(t => { const on = t === tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $(t.getAttribute('aria-controls')).hidden = !on; }); }
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => selectTab(t));
+  t.addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; selectTab(n); n.focus(); } });
+});
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); savePiece(false); }
+  else if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); if (!settingsDlg.open) $('settingsbtn').click(); }
+  else if (e.key === ' ' && !typing && tag !== 'button' && !recording) { e.preventDefault(); setPlaying(!playing); }
+});
+
+/* Drop the divider on any bar group that starts a wrapped line */
+const barGroups = [...document.querySelectorAll('.bar-row > .grp')];
+function markLineStarts() { let top = null; barGroups.forEach(g => { g.classList.remove('linestart'); }); barGroups.forEach(g => { const t = g.offsetTop; g.classList.toggle('linestart', top !== null && t > top + 4); if (top === null || t > top + 4) top = t; }); }
+new ResizeObserver(markLineStarts).observe(document.querySelector('.bar-row'));
+/* ---------- Theater, full screen, about ---------- */
+const stageEl = document.querySelector('.stage'), layoutEl = document.querySelector('.layout');
+function setTheater(on) {
+  layoutEl.classList.toggle('theater', on);
+  $('theater').setAttribute('aria-pressed', String(on));
+  lsSet('cge.theater', on ? '1' : '0');
+  screenCam.snap = true;
+}
+const isFull = () => document.fullscreenElement === stageEl || stageEl.classList.contains('pseudo-fs');
+async function setFull(on) {
+  if (on) {
+    try { if (stageEl.requestFullscreen) { await stageEl.requestFullscreen(); } else throw new Error('none'); }
+    catch (e) { stageEl.classList.add('pseudo-fs'); document.documentElement.style.overflow = 'hidden'; } // browser refused: cover the page instead
+  } else {
+    if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) {} }
+    stageEl.classList.remove('pseudo-fs'); document.documentElement.style.overflow = '';
+  }
+  updateFull();
+}
+function updateFull() { const b = $('fullscreen'), on = isFull(); b.classList.toggle('on', on); b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); b.title = (on ? 'Exit full screen' : 'Full screen') + ' (F)'; screenCam.snap = true; }
+/* view options popup */
+const viewPop = $('viewpop'), viewBtn = $('viewbtn');
+function setViewPop(open) {
+  viewPop.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open));
+  viewPop.style.transform = '';
+  if (open) { // keep the popup inside the window on narrow screens
+    const r = viewPop.getBoundingClientRect(), m = 8;
+    const dx = r.left < m ? m - r.left : r.right > innerWidth - m ? innerWidth - m - r.right : 0;
+    if (dx) viewPop.style.transform = 'translateX(' + dx + 'px)';
+  }
+}
+viewBtn.addEventListener('click', e => { e.stopPropagation(); setViewPop(viewPop.hidden); });
+document.addEventListener('pointerdown', e => { if (!viewPop.hidden && !viewPop.contains(e.target) && e.target !== viewBtn && !viewBtn.contains(e.target)) setViewPop(false); });
+function cycleView() { const order = ['auto', 'scroll', 'whole']; piece.view.mode = order[(order.indexOf(piece.view.mode) + 1) % 3]; $('v-' + piece.view.mode).checked = true; screenCam.snap = true; commit();
+  setStatus('View: ' + { auto: 'auto zoom', scroll: 'scrolling', whole: 'whole piece' }[piece.view.mode]); }
+document.addEventListener('fullscreenchange', updateFull);
+$('theater').addEventListener('click', () => setTheater(!layoutEl.classList.contains('theater')));
+$('fullscreen').addEventListener('click', () => setFull(!isFull()));
+/* ---------- Guide: six pages with a sidebar (tabs across the top on phones) ---------- */
+const aboutDlg = $('about');
+const guideTabs = [...document.querySelectorAll('.guide-nav [role=tab]')];
+{ // the tabs run down the side, or across the top on narrow screens (same breakpoint as the CSS)
+  const nav = document.querySelector('.guide-nav'), narrow = matchMedia('(max-width: 640px)');
+  const orient = () => nav.setAttribute('aria-orientation', narrow.matches ? 'horizontal' : 'vertical');
+  orient(); narrow.addEventListener('change', orient);
+}
+function showGuidePage(k, focusTab) {
+  guideTabs.forEach(t => { const on = t.dataset.page === k; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $('g-' + t.dataset.page).hidden = !on; if (on && focusTab) t.focus(); if (on) t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
+  $('guide-pages').scrollTop = 0;
+  lsSet('cge.guide', k);
+  if (k === 'math') initMathWidgets();
+}
+/* The top-bar tour borrows the real icons, so it always matches the bar */
+(() => {
+  document.querySelectorAll('.barmap .mini[data-icon]').forEach(m => {
+    const src = $(m.dataset.icon); if (!src) return;
+    const svg = src.querySelector('svg'); if (svg) m.appendChild(svg.cloneNode(true));
+    if (src.classList.contains('primary')) m.classList.add('primary');
+    if (m.dataset.icon === 'rerollall') { m.classList.add('wide'); m.append('Reroll'); }
+  });
+  const lockSvg = document.querySelector('.layerlock svg');
+  document.querySelectorAll('.barmap .mini-lock').forEach(m => { m.prepend(lockSvg.cloneNode(true)); });
+})();
+// About page: say what this particular copy touches on the network
+$('about-where').textContent = (HOST && HOST.aboutText) || (location.protocol === 'file:'
+  ? 'This copy runs from a file on your computer. Your Library and settings stay in this browser\'s storage until you clear them, and with lame.min.js beside the page it makes no network requests at all.'
+  : 'This copy is served from a website. Your Library and settings stay in this browser\'s storage until you clear them. Like any website, its host may keep standard logs of page requests, such as IP addresses, but Chord Glide sends nothing back.');
+function openGuide(k) { if (!aboutDlg.open) aboutDlg.showModal(); showGuidePage(k || lsGet('cge.guide') || 'how'); }
+document.querySelectorAll('[data-about]').forEach(b => b.addEventListener('click', () => openGuide(b.dataset.about)));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => showGuidePage(b.dataset.goto, true)));
+guideTabs.forEach((t, i) => {
+  t.addEventListener('click', () => showGuidePage(t.dataset.page));
+  t.addEventListener('keydown', e => {
+    const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (d) { e.preventDefault(); showGuidePage(guideTabs[(i + d + guideTabs.length) % guideTabs.length].dataset.page, true); }
+  });
+});
+/* The math page's small tools */
+let mathReady = false;
+function initMathWidgets() {
+  readColors();
+  drawCurveDemo();
+  if (mathReady) return; mathReady = true;
+  const nIn = $('gm-n');
+  const showN = () => {
+    const n = +nIn.value, st = n - 69, f = hz(n);
+    $('gm-n-out').textContent = noteName(n) + ' · n = ' + n;
+    $('gm-n-calc').textContent = '440 × 2^((' + n + ' − 69) ÷ 12) = 440 × 2^(' + (st / 12).toFixed(3).replace(/\.?0+$/, '').replace('-', '−') + ') = 440 × ' + Math.pow(2, st / 12).toFixed(4) + ' = ' + f.toFixed(2) + ' Hz';
+  };
+  nIn.addEventListener('input', showN); showN();
+  $('gm-play').addEventListener('click', () => {
+    const ctx = ensureCtx(), t = ctx.currentTime + 0.02, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = hz(+nIn.value);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.25 * volume, t + 0.03); g.gain.setValueAtTime(0.25 * volume, t + 0.7); g.gain.linearRampToValueAtTime(0, t + 1.1);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 1.2);
+  });
+  const cIn = $('gm-chord');
+  const showChord = () => {
+    const it = parseItem(cIn.value.replace(/\s+/g, ''));
+    if (!it || it.kind !== 'chord') { $('gm-chord-out').textContent = 'Try a name like Cmaj7, Am9, F#m11, Bb7sus4 or Dadd9/F#.'; drawKeys([], -1, -1); return; }
+    const flats = /^[A-G]b/.test(it.label), names = flats ? FLAT : SHARP;
+    const order = [...it.pcs].sort((a, b) => ((a - it.root + 12) % 12) - ((b - it.root + 12) % 12));
+    const IV = ['root', 'minor 2nd (♭9)', '9th', 'minor 3rd', 'major 3rd', '4th (11th)', '♯11 / ♭5', '5th', '♯5 (♭13)', '6th (13th)', 'minor 7th', 'major 7th'];
+    $('gm-chord-out').textContent = it.label + ' = ' + order.map(pc => names[pc].replace('#', '♯').replace(/([A-G])b/, '$1♭') + ' (' + IV[(pc - it.root + 12) % 12] + ')').join(', ')
+      + (it.bass !== it.root ? '. Bass note: ' + names[it.bass].replace('#', '♯').replace(/([A-G])b/, '$1♭') : '');
+    drawKeys(it.pcs, it.root, it.bass);
+  };
+  cIn.addEventListener('input', showChord); showChord();
+}
+/* One octave of piano keys with the chord's notes lit; the root is marked */
+function drawKeys(pcs, root, bass) {
+  const W = 26, H = 96, BW = 16, BH = 58, white = [0, 2, 4, 5, 7, 9, 11], black = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+  let svg = `<svg viewBox="0 0 ${W * 7 + 2} ${H + 2}" role="img">`;
+  // real piano colors in every theme; lit keys use the accent, the root gets a dot
+  const acc = cssHex(colors.accent) || '#2a4fd4', dot = hexLum(acc) > 0.3 ? '#111111' : '#ffffff';
+  white.forEach((pc, i) => { const on = pcs.includes(pc); svg += `<rect x="${1 + i * W}" y="1" width="${W - 2}" height="${H}" rx="3" fill="${on ? acc : '#f6f6f3'}" stroke="#8a8a86"/>` + (pc === root ? `<circle cx="${1 + i * W + (W - 2) / 2}" cy="${H - 12}" r="4" fill="${dot}"/>` : ''); });
+  for (const [pc, i] of Object.entries(black)) { const p = +pc, on = pcs.includes(p), x = 1 + (i + 1) * W - BW / 2 - 1; svg += `<rect x="${x}" y="1" width="${BW}" height="${BH}" rx="2" fill="${on ? acc : '#1c1c1e'}" stroke="#3a3a3c"/>` + (p === root ? `<circle cx="${x + BW / 2}" cy="${BH - 10}" r="3.5" fill="${dot}"/>` : ''); }
+  $('gm-keys').innerHTML = svg + '</svg>';
+}
+function drawCurveDemo() {
+  const c = $('gm-curve'); if (!c) return;
+  const g = c.getContext('2d'), W = c.width, H = c.height, m = 34, sx = x => m + x * (W - 2 * m), sy = y => H - m - y * (H - 2 * m);
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = colors.rule; g.lineWidth = 1.5; g.strokeRect(sx(0), sy(1), sx(1) - sx(0), sy(0) - sy(1));
+  g.setLineDash([6, 6]); g.strokeStyle = colors.muted; g.beginPath(); g.moveTo(sx(0), sy(0)); g.lineTo(sx(1), sy(1)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = colors.accent; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath();
+  for (let i = 0; i <= 100; i++) { const x = i / 100, y = x * x * (3 - 2 * x); if (!i) g.moveTo(sx(x), sy(y)); else g.lineTo(sx(x), sy(y)); }
+  g.stroke();
+  g.fillStyle = colors.muted; g.font = `22px ${colors.data || 'monospace'}`;
+  g.fillText('start', sx(0) - 4, H - 6); g.fillText('end', sx(1) - 36, H - 6);
+  g.save(); g.translate(18, sy(0.5) + 50); g.rotate(-Math.PI / 2); g.fillText('how far along', 0, 0); g.restore();
+  g.fillStyle = colors.ink; g.fillText('slow', sx(0.08), sy(0.22)); g.fillText('fast', sx(0.6), sy(0.36)); g.fillText('settles', sx(0.55), sy(0.93));
+}
+$('about-close').addEventListener('click', () => aboutDlg.close());
+$('guidebtn').addEventListener('click', () => openGuide());
+aboutDlg.addEventListener('click', e => { if (e.target === aboutDlg) aboutDlg.close(); }); // click on the backdrop
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (e.key === 'Escape' && !viewPop.hidden) { setViewPop(false); viewBtn.focus(); return; }
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || recording) return;
+  if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
+  if (e.key === '?') { e.preventDefault(); openGuide(); return; }
+  if (e.key === 'l' || e.key === 'L') { e.preventDefault(); $('libtoggle').click(); return; }
+  if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFull(!isFull()); }
+  else if (e.key === 'Escape' && stageEl.classList.contains('pseudo-fs')) setFull(false);
+});
+if (lsGet('cge.theater') === '1') setTheater(true);
+
+/* ---------- Settings: trace looks and interface themes ---------- */
+const UI_THEMES = [
+  ['system', 'Match device', 'Light or dark, following your device', ['#F3F5F2', '#0D0F0E', '#2A4FD4']],
+  ['cloud', 'Cloud', 'Soft grey-white with deep teal', ['#EFEEEA', '#1C1E21', '#0E6E72']],
+  ['ice', 'Ice', 'Powder blue and charcoal', ['#E6EDF2', '#1D242B', '#2D6BB0']],
+  ['paper', 'Paper', 'Clean light grey with cobalt', ['#F3F5F2', '#121513', '#2A4FD4']],
+  ['graphite', 'Graphite', 'Neutral dark with periwinkle', ['#141715', '#E7ECE8', '#8299FF']],
+  ['teal', 'Deep Teal', 'Dark teal with jelly mint', ['#0A1F22', '#DFF0EE', '#52DCCB']],
+  ['black', 'Studio Black', 'True black with electric fuchsia', ['#000000', '#EDEDED', '#FF3DAA']],
+  ['cocoa', 'Cocoa', 'Dark chocolate with teal', ['#1C1511', '#F0E6D8', '#52BDB2']]
+];
+const LOOK_DESC = { theme: 'Plain lines in the interface colors', phosphor: 'Green oscilloscope glow', laserred: 'White-hot core, red light', laserblue: 'White-hot core, blue light',
+  amber: 'Warm vintage monitor', aurora: 'Teal to violet to pink, by pitch', spectrum: 'A rainbow across the voices', neon: 'Cyan and magenta voices', custom: 'Your own colors' };
+function applyUiTheme(k) {
+  if (k === 'system') document.documentElement.removeAttribute('data-ui'); else document.documentElement.setAttribute('data-ui', k);
+  lsSet('cge.ui', k); readColors(); screenCam.snap = true;
+  if (!lsGet('cge.accent')) $('accent-custom').value = cssHex(getComputedStyle(document.documentElement).getPropertyValue('--accent')) || '#888888';
+  document.querySelectorAll('#uithemes .swatch').forEach(el => el.classList.toggle('on', el.dataset.k === k));
+  if (settingsDlg.open) drawLookPreviews();
+}
+const settingsDlg = $('settings');
+function buildSettings() {
+  const ui = $('uithemes'), cur = lsGet('cge.ui') || 'system';
+  for (const [k, name, desc, chips] of UI_THEMES) {
+    const lab = document.createElement('label'); lab.className = 'swatch'; lab.dataset.k = k;
+    lab.innerHTML = `<input type="radio" name="uitheme" value="${k}"><span class="chips"><span style="background:${chips[0]}"></span><span style="background:${chips[0]};color:${chips[1]}">Aa</span><span style="background:${chips[2]}"></span></span><span class="nm"></span><span class="ds"></span>`;
+    lab.querySelector('.nm').textContent = name; lab.querySelector('.ds').textContent = desc;
+    const inp = lab.querySelector('input'); inp.checked = k === cur; lab.classList.toggle('on', k === cur);
+    inp.addEventListener('change', () => applyUiTheme(k));
+    ui.appendChild(lab);
+  }
+  const lk = $('looks');
+  for (const k of LOOKS) {
+    const lab = document.createElement('label'); lab.className = 'swatch'; lab.dataset.k = k;
+    lab.innerHTML = `<input type="radio" name="look" value="${k}"><canvas width="440" height="192" aria-hidden="true"></canvas><span class="nm"></span><span class="ds"></span>`;
+    lab.querySelector('.nm').textContent = TRACE_LOOKS[k].name; lab.querySelector('.ds').textContent = LOOK_DESC[k];
+    lab.querySelector('input').addEventListener('change', () => setLook({ look: k }, true));
+    lk.appendChild(lab);
+    const o = document.createElement('option'); o.value = k; o.textContent = TRACE_LOOKS[k].name; $('lookq').appendChild(o);
+  }
+}
+function setLook(patch, record) {
+  const tr = piece.view.trace;
+  if (patch.custom) Object.assign(tr.custom, patch.custom); else Object.assign(tr, patch);
+  syncLook(); screenCam.snap = true;
+  if (record) commit(); else { updateStatus(); saveDraftSoon(); }
+}
+function drawLookPreviews() {
+  document.querySelectorAll('#looks .swatch').forEach(el => drawLookPreview(el.querySelector('canvas'), Object.assign({}, piece.view.trace, { look: el.dataset.k })));
+}
+function syncLook() {
+  const tr = piece.view.trace;
+  document.querySelectorAll('#looks .swatch').forEach(el => { const on = el.dataset.k === tr.look; el.classList.toggle('on', on); el.querySelector('input').checked = on; });
+  $('lookq').value = tr.look;
+  $('glowamt').value = tr.glow; $('o-glowamt').textContent = Math.round(tr.glow) + '%';
+  $('lineweight').value = tr.weight; $('o-lineweight').textContent = (+tr.weight).toFixed(2) + '×';
+  $('c-line').value = tr.custom.line; $('c-line2').value = tr.custom.line2; $('c-bg').value = tr.custom.bg;
+  $('customcolors').hidden = $('customhint').hidden = tr.look !== 'custom';
+  if (settingsDlg.open) drawLookPreviews();
+}
+$('settingsbtn').addEventListener('click', () => { settingsDlg.showModal(); syncLook(); drawLookPreviews(); });
+$('settings-close').addEventListener('click', () => settingsDlg.close());
+settingsDlg.addEventListener('click', e => { if (e.target === settingsDlg) settingsDlg.close(); });
+$('lookq').addEventListener('change', () => setLook({ look: $('lookq').value }, true));
+$('glowamt').addEventListener('input', () => setLook({ glow: +$('glowamt').value }, false));
+$('lineweight').addEventListener('input', () => setLook({ weight: +$('lineweight').value }, false));
+['glowamt', 'lineweight', 'c-line', 'c-line2', 'c-bg'].forEach(id => $(id).addEventListener('change', commit));
+[['c-line', 'line'], ['c-line2', 'line2'], ['c-bg', 'bg']].forEach(([id, key]) => $(id).addEventListener('input', () => setLook({ custom: { [key]: $(id).value.toLowerCase() } }, false)));
+$('lookdefault').addEventListener('click', () => { lsSet('cge.look', JSON.stringify(piece.view.trace)); $('lookdefault-note').textContent = 'New pieces and examples will start with this look.'; });
+buildSettings();
+/* accent color: per device, layered over any theme */
+const ACCENTS = [['#ff3daa', 'Fuchsia'], ['#22d3ee', 'Cyan'], ['#52dccb', 'Mint'], ['#a3e635', 'Lime'], ['#ffb020', 'Amber'], ['#ff6b57', 'Coral'], ['#9b7bff', 'Violet'], ['#3b6bff', 'Cobalt'], ['#e8e8ea', 'Silver']];
+function applyAccent(hex) {
+  const root = document.documentElement.style;
+  if (hex) { root.setProperty('--accent', hex); root.setProperty('--accent-ink', hexLum(hex) > 0.3 ? '#0a0a0b' : '#ffffff'); lsSet('cge.accent', hex); }
+  else { root.removeProperty('--accent'); root.removeProperty('--accent-ink'); lsSet('cge.accent', ''); }
+  document.querySelectorAll('.accent-chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === hex)));
+  $('accent-default').setAttribute('aria-pressed', String(!hex));
+  $('accent-custom').value = hex || cssHex(getComputedStyle(document.documentElement).getPropertyValue('--accent')) || '#888888';
+  readColors(); if (settingsDlg.open) drawLookPreviews();
+}
+(() => {
+  const box = $('accents'), first = $('accent-default').nextSibling;
+  for (const [c, name] of ACCENTS) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'accent-chip'; b.dataset.c = c; b.style.background = c;
+    b.setAttribute('aria-label', name); b.title = name; b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => applyAccent(c)); box.insertBefore(b, first);
+  }
+  $('accent-default').addEventListener('click', () => applyAccent(''));
+  $('accent-custom').addEventListener('input', () => applyAccent($('accent-custom').value.toLowerCase()));
+})();
+
+/* ---------- Start ---------- */
+{ const k = lsGet('cge.ui'); if (k && k !== 'system') document.documentElement.setAttribute('data-ui', k); }
+applyAccent(cssHex(lsGet('cge.accent') || '') || '');
+readColors(); fit(); selectTab(tabs[0]);
+(() => {
+  let draft = null; try { draft = JSON.parse(lsGet('cge.draft') || 'null'); } catch (e) {}
+  let ok = false;
+  if (draft && draft.piece) { try { currentLibId = draft.libId || null; savedJSON = draft.savedJSON || null; applyPiece(draft.piece, { record: false }); setStatus('Picked up where you left off'); ok = true; } catch (e) { currentLibId = null; savedJSON = null; } }
+  if (!ok) applyPiece(examplePiece(EXAMPLES[0]), { record: false });
+})();
+requestAnimationFrame(frame);
+initLibrary();
+initDownloads();

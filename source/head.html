@@ -1,0 +1,879 @@
+<title>Chord Glide</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='52' x2='0' y2='12'%3E%3Cstop offset='0' stop-color='%2300e2a2'/%3E%3Cstop offset='.38' stop-color='%2319c6ff'/%3E%3Cstop offset='.7' stop-color='%238b6cff'/%3E%3Cstop offset='1' stop-color='%23ff5ccf'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%2303060c'/%3E%3Cg fill='none' stroke='url(%23g)' stroke-width='4.6' stroke-linecap='round'%3E%3Cpath d='M13 32C31 32 33 14 51 14'/%3E%3Cpath d='M13 32C31 32 33 23 51 23'/%3E%3Cpath d='M13 32C31 32 33 32 51 32'/%3E%3Cpath d='M13 32C31 32 33 41 51 41'/%3E%3Cpath d='M13 32C31 32 33 50 51 50'/%3E%3C/g%3E%3Ccircle cx='13' cy='32' r='5' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+/* Layout: an instrument. Piece bar across the top, trace stage left, tabbed control rack right; stacks on phones. */
+:root {
+  --paper: #F3F5F2;
+  --stage: #FCFDFB;
+  --ink: #121513;
+  --muted: #5B645E;
+  --rule: #D7DDD8;
+  --accent: #2A4FD4;
+  --accent-ink: #FFFFFF;
+  --warn: #A9441C;
+  --ok: #2E7A4F;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0D0F0E; --stage: #141715; --ink: #E7ECE8; --muted: #98A29B; --rule: #2A302C;
+    --accent: #8299FF; --accent-ink: #0D0F0E; --warn: #F08A5D; --ok: #6FCB95; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0D0F0E; --stage: #141715; --ink: #E7ECE8; --muted: #98A29B; --rule: #2A302C;
+  --accent: #8299FF; --accent-ink: #0D0F0E; --warn: #F08A5D; --ok: #6FCB95; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; container-type: inline-size; }
+header { display: grid; gap: 4px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 42px); line-height: 1.05; margin: 0; letter-spacing: -0.01em; }
+h1 { display: flex; align-items: center; gap: 0.32em; }
+h1 .logo { width: 0.92em; height: 0.92em; flex: none; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+.ver { font-family: var(--font-data); font-size: 12px; color: var(--muted); }
+
+button { font: inherit; font-size: 14px; font-weight: 600; border-radius: 4px; cursor: pointer; padding: 7px 12px; border: 1px solid var(--rule); background: transparent; color: var(--ink); white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--ink); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.small { font-size: 13px; padding: 5px 9px; }
+button.danger { color: var(--warn); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select, textarea, input[type=text], input[type=number] { font: inherit; width: 100%; color: var(--ink); background: var(--stage); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 9px; }
+input[type=range] { accent-color: var(--accent); width: 100%; }
+
+/* piece bar */
+.bar { display: grid; gap: 6px; padding: 8px 10px; background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; }
+/* grouped like a DAW control bar: piece, file, edit, layers, windows */
+.bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; }
+.bar .grp { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-left: 1px solid var(--rule); }
+.bar .grp.piece { flex: 1 1 260px; min-width: 0; padding-left: 0; border-left: 0; gap: 8px; }
+.bar .grp.end { margin-left: auto; }
+.bar .grp.linestart { border-left: 0; padding-left: 0; } /* first group on a wrapped line: no divider */
+.bar .name { flex: 1 1 auto; min-width: 0; font-family: var(--font-display); font-weight: 500; font-size: 18px; padding: 5px 9px; border-color: transparent; background: transparent; }
+.bar .name:hover { border-color: var(--rule); }
+.bar .name:focus { border-color: var(--accent); background: var(--paper); }
+.savedot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-right: 4px; }
+.savedot.saved { background: var(--ok); }
+.savedot.dirty { background: var(--warn); }
+.savedot.new { box-shadow: inset 0 0 0 1.6px var(--muted); }
+.layerlock { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px 5px 7px; font-size: 12.5px; color: var(--muted); }
+.layerlock svg { width: 15px; height: 15px; }
+.layerlock .i-open, .layerlock[aria-pressed="true"] .i-shut { display: inline; }
+.layerlock .i-shut, .layerlock[aria-pressed="true"] .i-open { display: none; }
+.layerlock[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+.reroll { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; padding: 5px 11px 5px 8px; }
+.reroll svg { width: 18px; height: 18px; }
+.bar-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 1.3em; padding: 0 2px; }
+.status { font-size: 12.5px; color: var(--muted); }
+.status.warn { color: var(--warn); }
+.bar .grp.rr { border-left: 0; padding-left: 0; }
+/* Medium widths: name, file, edit and windows on the first line; layer locks and Reroll together on the second */
+@container (max-width: 1139px) {
+  .bar .bar-row { row-gap: 0; }
+  .bar .bar-row::after { content: ""; flex-basis: 100%; order: 5; } /* line break */
+  .bar .bar-row .grp.piece { order: 1; flex: 1 1 200px; }
+  .bar .bar-row .grp.file { order: 2; }
+  .bar .bar-row .grp.edit { order: 3; }
+  .bar .bar-row .grp.end { order: 4; padding-right: 0; }
+  .bar .bar-row .grp.layers { order: 6; border-left: 0; padding-left: 0; margin-top: 8px; }
+  .bar .bar-row .grp.rr { order: 7; border-left: 0; padding-left: 0; margin-top: 8px; }
+}
+/* Phone widths: name and windows; file, edit and Reroll; then four equal layer locks */
+@container (max-width: 600px) {
+  .bar .bar-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px 0; }
+  .bar .bar-row .grp.layers, .bar .bar-row .grp.rr { margin-top: 0; }
+  .bar .bar-row::after { content: none; }
+  .bar .bar-row .grp { border-left: 1px solid var(--rule); padding: 0 10px; }
+  .bar .bar-row .grp.piece { grid-area: 1 / 1 / 2 / 4; border-left: 0; padding-left: 0; }
+  .bar .bar-row .grp.end { grid-area: 1 / 4; border-left: 0; padding: 0 0 0 6px; margin-left: 0; }
+  .bar .bar-row .grp.file { grid-area: 2 / 1; border-left: 0; padding-left: 0; }
+  .bar .bar-row .grp.edit { grid-area: 2 / 2; }
+  .bar .bar-row .grp.rr { grid-area: 2 / 4; border-left: 0; padding: 0; justify-self: end; }
+  .reroll { margin-left: 0; }
+  .bar .bar-row .grp.layers { grid-area: 3 / 1 / 4 / 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding-right: 0; }
+  .layerlock { justify-content: center; gap: 4px; padding: 6px 3px; font-size: 12px; min-width: 0; }
+  .layerlock svg { width: 13px; height: 13px; flex: none; }
+}
+@container (max-width: 357px) {
+  .bar .icon { width: 34px; } .bar .icon.primary { width: 40px; }
+  .bar .bar-row .grp.edit { padding: 0 6px; } .bar .bar-row .grp.file { padding-right: 6px; }
+}
+@container (max-width: 340px) { .layerlock svg { display: none; } }
+@container (max-width: 300px) { .reroll span { display: none; } .reroll { padding: 5px 8px; } .bar .icon { width: 30px; } .bar .icon.primary { width: 36px; } }
+.library { background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; display: grid; gap: 8px; }
+.library h2 { margin: 0; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 280px; overflow-y: auto; }
+.lib-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 4px; }
+.lib-list li:hover { background: var(--paper); }
+.lib-list .meta { min-width: 0; }
+.lib-list .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-list .dt { font-size: 12px; color: var(--muted); font-family: var(--font-data); }
+.lib-list .acts { display: flex; gap: 6px; }
+.lib-list li.current .nm::after { content: " · open"; color: var(--accent); font-weight: 500; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.stage { background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; display: grid; min-width: 0; position: sticky; top: env(safe-area-inset-top, 0px); }
+@media (max-width: 920px) { .stage { position: static; } }
+.canvas-box { position: relative; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; }
+@media (max-width: 600px) { .canvas-box { aspect-ratio: 4 / 5; } }
+canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.readouts { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 6px 16px 12px; font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.readouts span b { color: var(--ink); font-weight: 500; }
+.transport { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.transport input[type=range] { flex: 1 1 140px; min-width: 0; width: auto; }
+.time { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 11ch; text-align: right; }
+.seg { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { text-align: center; padding: 5px 10px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.seg input:checked + label { background: var(--ink); color: var(--stage); }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+.icon { width: 38px; height: 34px; padding: 0; display: inline-grid; place-items: center; flex: none; }
+.icon svg { width: 20px; height: 20px; }
+.icon.primary { width: 48px; }
+#play .i-pause, #play.playing .i-play { display: none; }
+#play.playing .i-pause { display: inline; }
+#fullscreen .i-exit, #fullscreen.on .i-enter { display: none; }
+#fullscreen.on .i-exit { display: inline; }
+.viewwrap { position: relative; }
+#viewbtn[aria-expanded="true"] { border-color: var(--ink); }
+.pop { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30; display: grid; grid-template-columns: auto auto; gap: 10px 12px; align-items: center;
+  padding: 12px; background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18); width: max-content; max-width: calc(100vw - 40px); }
+.pop .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+/* rack */
+.rack { background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; min-width: 0; }
+.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--rule); }
+.tabs button { min-width: 0; overflow: hidden; text-overflow: ellipsis; border: 0; border-radius: 0; padding: 10px 2px; font-size: clamp(12px, 3.6vw, 13px); color: var(--muted); border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabpanel { padding: 14px; display: grid; gap: 14px; }
+.group { display: grid; gap: 6px; }
+.group > label, .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; resize: vertical; min-height: 170px; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.hint code { font-family: var(--font-data); font-size: 12px; color: var(--ink); }
+.err { font-size: 13px; color: var(--warn); margin: 0; }
+.seed { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; padding: 10px; border: 1px solid var(--rule); border-radius: 5px; }
+.seed .label { grid-column: 1 / -1; }
+.seed input { font-family: var(--font-data); font-size: 13px; }
+.lock[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; align-items: center; }
+.slider label { font-size: 13.5px; }
+.slider output { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.slider input, .slider .ends { grid-column: 1 / -1; }
+.slider .ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -2px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.exports { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.exports button { white-space: normal; text-align: left; line-height: 1.3; padding: 9px 10px; }
+.exports button small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+.exports .wide { grid-column: 1 / -1; }
+.video-box { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--rule); border-radius: 5px; }
+.video-box canvas { width: 100%; max-height: 260px; object-fit: contain; background: var(--paper); border-radius: 3px; }
+progress { width: 100%; accent-color: var(--accent); }
+
+.rack-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px 12px; border-top: 1px solid var(--rule); }
+.guide-link { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.guide-link svg { width: 17px; height: 17px; flex: none; }
+.rack-foot .hint { white-space: nowrap; font-size: 12px; }
+.rack-foot kbd { font-family: var(--font-data); font-size: 11.5px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink); }
+.accents { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.accent-chip { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--stage); box-shadow: 0 0 0 1px var(--rule); }
+.accent-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+.accent-chip:hover:not(:disabled) { border-color: var(--stage); box-shadow: 0 0 0 2px var(--muted); }
+.accents input[type=color] { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--rule); border-radius: 4px; background: var(--stage); }
+.linkish { border: 0; padding: 2px 0; background: none; color: var(--accent); font-weight: 500; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.linkish:hover:not(:disabled) { border: 0; color: var(--ink); }
+dialog.about { width: min(680px, calc(100vw - 32px)); max-height: min(80vh, 760px); padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--stage); color: var(--ink); }
+dialog.about::backdrop { background: rgba(10, 12, 11, 0.5); }
+.about-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--stage); border-bottom: 1px solid var(--rule); }
+.about-head h2 { margin: 0; flex: 1; font-family: var(--font-display); font-weight: 500; font-size: 20px; }
+.about-body { padding: 4px 18px 20px; display: grid; gap: 6px; }
+.about-body h3 { font-family: var(--font-display); font-weight: 500; font-size: 17px; margin: 14px 0 2px; scroll-margin-top: 70px; }
+.about-body p, .about-body li, .about-body dd { color: var(--muted); max-width: 72ch; }
+.about-body ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.about-body code { font-family: var(--font-data); font-size: 12.5px; color: var(--ink); }
+.about-body dl { margin: 0; display: grid; gap: 10px; }
+.about-body dt { font-family: var(--font-data); font-size: 12px; color: var(--ink); }
+.about-body dd { margin: 2px 0 0; }
+.about-body kbd { font-family: var(--font-data); font-size: 12px; border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px; color: var(--ink); }
+.screen-btns { display: flex; gap: 6px; margin-left: auto; }
+.screen-btns button[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+/* theater: the stage takes the full width, controls move below */
+.layout.theater { grid-template-columns: minmax(0, 1fr); }
+.layout.theater .stage { position: static; }
+/* same height as the normal two-column stage (its width is the page minus the 360px rack and 18px gap, at 16:10), just wider */
+@media (min-width: 921px) { .layout.theater .canvas-box { aspect-ratio: auto; height: calc((100cqw - 378px) * 0.625); } }
+.layout.theater .rack { max-width: none; }
+.layout.theater .tabpanel { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
+/* full screen: the stage fills the screen (native, or a fixed overlay where the browser refuses) */
+.stage:fullscreen, .stage.pseudo-fs { position: fixed; inset: 0; z-index: 50; border: 0; border-radius: 0; display: flex; flex-direction: column; width: 100%; height: 100%;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); background: var(--stage); }
+.stage:fullscreen .canvas-box, .stage.pseudo-fs .canvas-box { flex: 1 1 auto; aspect-ratio: auto; height: auto; min-height: 0; }
+/* Interface themes chosen in Settings (per viewer). With none chosen, the page follows the device's light or dark setting. */
+:root[data-ui="paper"] { --paper: #F3F5F2; --stage: #FCFDFB; --ink: #121513; --muted: #5B645E; --rule: #D7DDD8; --accent: #2A4FD4; --accent-ink: #FFFFFF; --warn: #A9441C; --ok: #2E7A4F; color-scheme: light; }
+:root[data-ui="graphite"] { --paper: #0D0F0E; --stage: #141715; --ink: #E7ECE8; --muted: #98A29B; --rule: #2A302C; --accent: #8299FF; --accent-ink: #0D0F0E; --warn: #F08A5D; --ok: #6FCB95; color-scheme: dark; }
+:root[data-ui="cloud"] { --paper: #EFEEEA; --stage: #F8F7F4; --ink: #1C1E21; --muted: #64676C; --rule: #DCDAD4; --accent: #0E6E72; --accent-ink: #FFFFFF; --warn: #A34A1F; --ok: #2E7A4F; color-scheme: light; }
+:root[data-ui="ice"] { --paper: #E6EDF2; --stage: #F5F8FA; --ink: #1D242B; --muted: #56636F; --rule: #D0D9E1; --accent: #2D6BB0; --accent-ink: #FFFFFF; --warn: #A9441C; --ok: #2E7A4F; color-scheme: light; }
+:root[data-ui="teal"] { --paper: #051416; --stage: #0A1F22; --ink: #DFF0EE; --muted: #8DB3AE; --rule: #173A3D; --accent: #52DCCB; --accent-ink: #03201D; --warn: #F2946B; --ok: #7BE0A8; color-scheme: dark; }
+:root[data-ui="black"] { --paper: #000000; --stage: #0A0A0B; --ink: #EDEDED; --muted: #8C8C93; --rule: #222226; --accent: #FF3DAA; --accent-ink: #000000; --warn: #FF8A5B; --ok: #5FE3A1; color-scheme: dark; }
+:root[data-ui="cocoa"] { --paper: #130E0B; --stage: #1C1511; --ink: #F0E6D8; --muted: #B3A28E; --rule: #35291F; --accent: #52BDB2; --accent-ink: #0F221F; --warn: #F0A070; --ok: #8FD9A8; color-scheme: dark; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.swatch { position: relative; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--rule); border-radius: 6px; cursor: pointer; }
+.swatch input { position: absolute; opacity: 0; pointer-events: none; }
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.swatch:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.swatch .chips { display: flex; height: 34px; border-radius: 4px; overflow: hidden; border: 1px solid var(--rule); }
+.swatch .chips span { flex: 1; display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.swatch canvas { width: 100%; aspect-ratio: 220 / 96; border-radius: 4px; display: block; }
+.swatch .nm { font-size: 13px; font-weight: 600; color: var(--ink); }
+.swatch .ds { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.colors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.colors label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.colors input[type=color] { width: 100%; height: 34px; padding: 2px; border: 1px solid var(--rule); border-radius: 4px; background: var(--stage); }
+.pop select { padding: 5px 8px; font-size: 13px; }
+dialog.guide { width: min(940px, calc(100vw - 32px)); height: min(86vh, 860px); max-height: none; overflow: hidden; }
+dialog.guide[open] { display: flex; flex-direction: column; }
+.guide-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 190px minmax(0, 1fr); }
+.guide-nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border-right: 1px solid var(--rule); background: var(--paper); }
+.guide-nav button { border: 0; text-align: left; padding: 8px 10px; font-weight: 500; color: var(--muted); border-radius: 4px; }
+.guide-nav button[aria-selected="true"] { background: var(--stage); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.guide-pages { overflow-y: auto; padding: 6px 26px 28px; }
+.guide-page h3 { font-family: var(--font-display); font-weight: 500; font-size: 22px; margin: 14px 0 6px; }
+.guide-page h4 { font-family: var(--font-display); font-weight: 500; font-size: 17px; margin: 22px 0 4px; display: flex; align-items: center; gap: 10px; }
+.guide-page p, .guide-page li { color: var(--muted); max-width: 66ch; }
+.guide-page b { color: var(--ink); font-weight: 600; }
+.guide-page ul, .guide-page ol { padding-left: 20px; display: grid; gap: 6px; }
+.guide-page a { color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.guide-page a:hover { color: var(--ink); }
+.license-text summary { cursor: pointer; color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; width: max-content; }
+.license-text summary:hover { color: var(--ink); }
+.license-text pre { font-family: var(--font-data); font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; max-width: 66ch; margin: 10px 0 0; padding: 12px 14px; color: var(--muted); background: var(--stage); border: 1px solid var(--rule); border-radius: 4px; }
+.guide-page code { font-family: var(--font-data); font-size: 12.5px; color: var(--ink); }
+.guide-page .formula { font-size: 13.5px; line-height: 1.7; margin: 8px 0; }
+.guide-page h4 .eng { font-family: var(--font-data); font-size: 11px; font-weight: 400; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--rule); color: var(--muted); }
+.guide-page h4 .eng:hover { border-color: var(--accent); color: var(--ink); }
+.guide-page .lede { font-size: 16px; color: var(--ink); }
+.step { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--font-data); font-size: 12px; font-weight: 500; flex: none; }
+.formula { font-family: var(--font-data); font-size: 17px; color: var(--ink) !important; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); width: max-content; max-width: 100%; overflow-x: auto; }
+.widget { display: grid; gap: 8px; padding: 12px 14px; margin: 10px 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); max-width: 560px; }
+.widget .calc { font-family: var(--font-data); font-size: 13px; color: var(--ink); margin: 0; }
+.widget canvas { width: 100%; height: auto; display: block; }
+.widget > button { justify-self: start; }
+.keys svg { width: 100%; max-width: 420px; height: auto; display: block; }
+figure.vl { margin: 12px 0; max-width: 560px; }
+figure.vl svg { width: 100%; height: auto; display: block; color: var(--ink); }
+figure.vl figcaption { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.vl-grid line { stroke: var(--rule); stroke-width: 1; }
+.vl-line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.vl-line.still { stroke: var(--ink); opacity: 0.55; }
+figure.vl circle { fill: var(--ink); }
+.vl-n { font-family: var(--font-data); font-size: 12px; fill: var(--ink); text-anchor: middle; }
+.vl-n.l { text-anchor: start; }
+.vl-cap { font-family: var(--font-body); font-size: 11px; fill: var(--muted); text-anchor: middle; }
+.pipeline { counter-reset: none; }
+.guide-next { margin-top: 26px; }
+@media (max-width: 640px) {
+  dialog.guide { height: 90vh; }
+  .guide-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .guide-nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rule); padding: 6px; }
+  .guide-nav button { white-space: nowrap; }
+  .guide-nav button[aria-selected="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+  .guide-pages { padding: 4px 16px 24px; }
+}
+.step.ver { width: auto; min-width: 24px; padding: 0 8px; border-radius: 12px; }
+.guide-page h4 .when { white-space: nowrap; margin-left: auto; font-family: var(--font-data); font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.keylist { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 8px 16px; margin: 6px 0 0; align-items: baseline; max-width: 560px; }
+.keylist dt { white-space: nowrap; }
+.keylist dd { margin: 0; color: var(--muted); }
+.guide-page kbd { font-family: var(--font-data); font-size: 12px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; color: var(--ink); background: var(--stage); }
+.barmap { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 10px 16px; margin: 8px 0 4px; align-items: center; max-width: 620px; }
+.barmap dt { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.barmap dd { margin: 0; color: var(--muted); }
+.mini { display: inline-grid; place-items: center; width: 30px; height: 28px; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink); }
+.mini.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.mini svg { width: 17px; height: 17px; }
+.mini.wide { width: auto; padding: 0 8px; gap: 5px; display: inline-flex; font-size: 12px; font-weight: 600; }
+.mini-name { font-family: var(--font-display); font-size: 14px; color: var(--ink); margin-right: 4px; }
+.mini-lock { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px 3px 5px; border: 1px solid var(--rule); border-radius: 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.mini-lock svg { width: 13px; height: 13px; }
+.mini-lock[data-locked="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+.mini-lock .i-shut, .mini-lock[data-locked="false"] .i-shut { display: none; }
+.mini-lock[data-locked="true"] .i-shut { display: inline; }
+.mini-lock[data-locked="true"] .i-open { display: none; }
+@media (max-width: 640px) { .barmap { grid-template-columns: minmax(0, 1fr); gap: 4px 0; } .barmap dd { margin-bottom: 8px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
+    <span class="ver" id="ver">Version 3.8.2 · engine 3.1 · by Noizgenie</span>
+    <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
+  </header>
+
+  <section class="bar" aria-label="Piece">
+    <div class="bar-row">
+      <div class="grp piece">
+        <button id="libtoggle" type="button" class="icon" aria-expanded="false" aria-controls="library" aria-label="Library" title="Library (L)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M5.8 8.5h1.6M5.8 11.5h1.6"/></svg></button>
+        <input id="name" class="name" type="text" aria-label="Piece name" maxlength="80">
+        <span id="savedot" class="savedot" role="img"></span>
+      </div>
+      <div class="grp file" role="group" aria-label="File">
+        <button id="newpiece" type="button" class="icon" aria-label="New piece" title="New piece"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 11v6M9.25 14h6"/></svg></button>
+        <button id="save" type="button" class="icon primary" aria-label="Save" title="Save (⌘S / Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4.5 4.5h11.5l3.5 3.5v11.5h-15z"/><path d="M8 4.5v4.5h7v-4.5"/><rect x="7.5" y="13" width="9" height="6.5"/></svg></button>
+        <button id="saveas" type="button" class="icon" aria-label="Save as a new piece" title="Save as a new piece"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 19.5H4.5v-15h11.5l3.5 3.5V12"/><path d="M8 4.5v4.5h7v-4.5"/><path d="M18 15v6M15 18h6"/></svg></button>
+      </div>
+      <div class="grp edit" role="group" aria-label="Edit">
+        <button id="undo" type="button" class="icon" aria-label="Undo" title="Undo (⌘Z / Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M9 5.5 4.5 10 9 14.5"/><path d="M5 10h9a5.5 5.5 0 0 1 0 11h-3"/></svg></button>
+        <button id="redo" type="button" class="icon" aria-label="Redo" title="Redo (⇧⌘Z / Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M15 5.5 19.5 10 15 14.5"/><path d="M19 10h-9a5.5 5.5 0 0 0 0 11h3"/></svg></button>
+      </div>
+      <div class="grp layers" role="group" aria-label="Layers: lock to keep, then reroll the rest">
+        <button type="button" class="layerlock" data-layer="harmony" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>H<span class="rest">armony</span></span></button>
+        <button type="button" class="layerlock" data-layer="voicing" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>V<span class="rest">oicing</span></span></button>
+        <button type="button" class="layerlock" data-layer="motion" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>M<span class="rest">otion</span></span></button>
+        <button type="button" class="layerlock" data-layer="sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>S<span class="rest">ound</span></span></button>
+      </div>
+      <div class="grp rr">
+        <button id="rerollall" type="button" class="reroll" aria-label="Reroll unlocked layers" title="New seeds for every unlocked layer"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3.5"/><g fill="currentColor" stroke="none"><circle cx="8.6" cy="8.6" r="1.4"/><circle cx="15.4" cy="8.6" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8.6" cy="15.4" r="1.4"/><circle cx="15.4" cy="15.4" r="1.4"/></g></svg><span>Reroll</span></button>
+      </div>
+      <div class="grp end">
+        <button id="settingsbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Settings" title="Settings (⌘, / Ctrl+,)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9.5M18 7h2M4 17h2.5M11 17h9"/><circle cx="15.75" cy="7" r="2.25"/><circle cx="8.75" cy="17" r="2.25"/></svg></button>
+        <button id="guidebtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Guide" title="Guide (?)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.75"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+    </div>
+    <div class="bar-status"><span id="status" class="status" role="status"></span><button id="revoice" type="button" class="small" hidden>Re-voice with this engine</button></div>
+  </section>
+
+  <section id="library" class="library" hidden aria-label="Library">
+    <h2>Your pieces</h2>
+    <p id="lib-note" class="hint"></p>
+    <ul id="lib-list" class="lib-list"></ul>
+    <div class="examples"><span>Examples:</span><span id="examples"></span>
+      <label class="small" style="margin-left:auto"><input id="importfile" type="file" accept=".json,application/json" hidden><button id="importbtn" type="button" class="small">Open a piece file (.json)</button></label>
+    </div>
+  </section>
+
+  <main class="layout">
+    <section class="stage" aria-label="Voice trace">
+      <div class="canvas-box"><canvas id="cv" class="trace" role="img" aria-label="Pitch of each voice over time"></canvas></div>
+      <div class="readouts" id="readouts">
+        <span>chord <b id="r-chord">–</b></span>
+        <span>next <b id="r-next">–</b></span>
+        <span>voices <b id="r-voices">–</b></span>
+        <span>range <b id="r-range">–</b></span>
+      </div>
+      <div class="transport">
+        <button id="play" class="icon primary" type="button" aria-label="Play" title="Play (Space)"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.5z" fill="currentColor"/><g class="i-pause" fill="currentColor"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></g></svg></button>
+        <button id="restart" class="icon" type="button" aria-label="Back to the start" title="Back to the start"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="5" y="5.5" width="2.6" height="13" rx="1"/><path d="M19 5.5v13L9 12z"/></svg></button>
+        <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position in the piece">
+        <span id="time" class="time">0:00 / 0:00</span>
+        <div class="screen-btns">
+          <div class="viewwrap">
+            <button id="viewbtn" class="icon" type="button" aria-label="View options" aria-expanded="false" aria-controls="viewpop" title="View options (V cycles the view)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2.5 12s3.6-6.5 9.5-6.5S21.5 12 21.5 12s-3.6 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <div id="viewpop" class="pop" role="group" aria-label="View options" hidden>
+              <span class="lbl" id="view-lbl">View</span>
+              <div class="seg" role="radiogroup" aria-labelledby="view-lbl">
+                <input type="radio" name="view" id="v-auto" value="auto"><label for="v-auto">Auto zoom</label>
+                <input type="radio" name="view" id="v-scroll" value="scroll"><label for="v-scroll">Scrolling</label>
+                <input type="radio" name="view" id="v-whole" value="whole"><label for="v-whole">Whole piece</label>
+              </div>
+              <span class="lbl" id="lab-lbl">Labels</span>
+              <div class="seg" role="radiogroup" aria-labelledby="lab-lbl">
+                <input type="radio" name="labels" id="l-notes" value="notes"><label for="l-notes">Notes</label>
+                <input type="radio" name="labels" id="l-hz" value="hz"><label for="l-hz">Hz</label>
+              </div>
+              <label class="lbl" for="lookq">Look</label>
+              <select id="lookq"></select>
+            </div>
+          </div>
+          <button id="theater" class="icon" type="button" aria-pressed="false" aria-label="Theater mode" title="Theater mode (T)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6.5" width="19" height="11" rx="1.5"/></svg></button>
+          <button id="fullscreen" class="icon" type="button" aria-label="Full screen" title="Full screen (F)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="i-enter" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="i-exit" d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="rack" aria-label="Controls">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="t-harmony" aria-controls="p-harmony" aria-selected="true" type="button">Harmony</button>
+        <button role="tab" id="t-voicing" aria-controls="p-voicing" aria-selected="false" type="button">Voicing</button>
+        <button role="tab" id="t-motion" aria-controls="p-motion" aria-selected="false" type="button">Motion</button>
+        <button role="tab" id="t-sound" aria-controls="p-sound" aria-selected="false" type="button">Sound</button>
+        <button role="tab" id="t-export" aria-controls="p-export" aria-selected="false" type="button">Export</button>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-harmony" aria-labelledby="t-harmony">
+        <div class="group">
+          <label for="chords">Chords</label>
+          <textarea id="chords" spellcheck="false"></textarea>
+          <p class="hint">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing.</p>
+          <p id="err" class="err" hidden></p>
+        </div>
+        <div class="seed" data-layer="harmony">
+          <span class="label">Harmony seed</span>
+          <input type="text" id="seed-harmony" aria-label="Harmony seed">
+          <button type="button" class="lock small" id="lock-harmony" aria-pressed="true">Locked</button>
+          <button type="button" class="small" id="roll-harmony">Reroll</button>
+          <p class="hint" style="grid-column:1/-1">Rerolling the harmony writes a new progression in place of these chords. Keep it locked while you explore voicings.</p>
+        </div>
+        <div class="slider"><label for="chordsec">Chord length</label><output id="o-chordsec"></output><input id="chordsec" type="range" min="1.5" max="12" step="0.1"><span class="ends"><span>used when a chord has no :seconds</span></span></div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-voicing" aria-labelledby="t-voicing" hidden>
+        <div class="seed" data-layer="voicing">
+          <span class="label">Voicing seed</span>
+          <input type="text" id="seed-voicing" aria-label="Voicing seed">
+          <button type="button" class="lock small" id="lock-voicing" aria-pressed="false">Unlocked</button>
+          <button type="button" class="small" id="roll-voicing">Reroll</button>
+          <p class="hint" style="grid-column:1/-1">Same chords, a different realization. Variation sets how far a reroll can wander.</p>
+        </div>
+        <div class="slider"><label for="voices">Voices</label><output id="o-voices"></output><input id="voices" type="range" min="3" max="15" step="1"></div>
+        <div class="slider"><label for="continuity">Continuity</label><output id="o-continuity"></output><input id="continuity" type="range" min="0" max="100" step="1"><span class="ends"><span>voices leap</span><span>voices step</span></span></div>
+        <div class="slider"><label for="coverage">Chord-tone coverage</label><output id="o-coverage"></output><input id="coverage" type="range" min="0" max="100" step="1"><span class="ends"><span>loose</span><span>every tone present</span></span></div>
+        <div class="slider"><label for="stacking">Stacking</label><output id="o-stacking"></output><input id="stacking" type="range" min="0" max="100" step="1"><span class="ends"><span>avoid unisons</span><span>prefer unisons</span></span></div>
+        <div class="slider"><label for="spacing">Even spacing</label><output id="o-spacing"></output><input id="spacing" type="range" min="0" max="100" step="1"><span class="ends"><span>clusters ok</span><span>evenly spread</span></span></div>
+        <div class="slider"><label for="variation">Variation</label><output id="o-variation"></output><input id="variation" type="range" min="0" max="100" step="1"><span class="ends"><span>always the best fit</span><span>adventurous</span></span></div>
+        <div class="slider"><label for="spread">Opening spread</label><output id="o-spread"></output><input id="spread" type="range" min="0" max="100" step="1"><span class="ends"><span>stacked</span><span>spread out</span></span></div>
+        <div class="two">
+          <div class="group"><label for="top">Highest note</label><select id="top"></select></div>
+          <div class="group"><label for="bassoct">Bass octave</label><select id="bassoct"><option value="1">C1–B1</option><option value="2">C2–B2</option><option value="3">C3–B3</option></select></div>
+        </div>
+        <div class="group"><label for="bassmode">Bass</label>
+          <select id="bassmode">
+            <option value="root">Root (or slash note)</option>
+            <option value="nearest">Nearest chord tone</option>
+            <option value="pedal">Pedal (holds the first bass note)</option>
+            <option value="none">No separate bass</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-motion" aria-labelledby="t-motion" hidden>
+        <div class="seed" data-layer="motion">
+          <span class="label">Motion seed</span>
+          <input type="text" id="seed-motion" aria-label="Motion seed">
+          <button type="button" class="lock small" id="lock-motion" aria-pressed="false">Unlocked</button>
+          <button type="button" class="small" id="roll-motion">Reroll</button>
+          <p class="hint" style="grid-column:1/-1">Used by the random departure order. More motion controls will draw on it later.</p>
+        </div>
+        <div class="slider"><label for="glide">Glide time</label><output id="o-glide"></output><input id="glide" type="range" min="0" max="5" step="0.1"></div>
+        <div class="group"><label for="easing">Glide curve</label>
+          <select id="easing"><option value="smooth">Smoothstep (S-curve)</option><option value="smoother">Smootherstep (flatter ends)</option><option value="cosine">Cosine</option><option value="linear">Linear</option></select>
+        </div>
+        <div class="group"><label for="order">Departure order</label>
+          <select id="order">
+            <option value="together">Simultaneous</option>
+            <option value="low-high">Low to high</option>
+            <option value="high-low">High to low</option>
+            <option value="largest">Largest leap first</option>
+            <option value="smallest">Smallest leap first</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="slider"><label for="stagger">Stagger</label><output id="o-stagger"></output><input id="stagger" type="range" min="0" max="100" step="1"><span class="ends"><span>together</span><span>one by one</span></span></div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-sound" aria-labelledby="t-sound" hidden>
+        <div class="seed" data-layer="sound">
+          <span class="label">Sound seed</span>
+          <input type="text" id="seed-sound" aria-label="Sound seed">
+          <button type="button" class="lock small" id="lock-sound" aria-pressed="false">Unlocked</button>
+          <button type="button" class="small" id="roll-sound">Reroll</button>
+          <p class="hint" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
+        </div>
+        <div class="group"><label for="tone">Tone</label>
+          <select id="tone"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="glass">Glass</option><option value="reed">Reed</option></select>
+        </div>
+        <div class="slider"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
+        <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
+        <div class="slider"><label for="reverb">Reverb</label><output id="o-reverb"></output><input id="reverb" type="range" min="0" max="100" step="1"></div>
+        <div class="slider"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
+        <div class="slider"><label for="vol">Listening volume</label><output id="o-vol"></output><input id="vol" type="range" min="0" max="1" step="0.01"><span class="ends"><span>not saved with the piece</span></span></div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-export" aria-labelledby="t-export" hidden>
+        <div class="slider"><label for="tempo">Tempo for MIDI and MusicXML</label><output id="o-tempo"></output><input id="tempo" type="range" min="30" max="180" step="1"><span class="ends"><span>at 60 BPM, one beat is one second</span></span></div>
+        <div class="exports">
+          <button type="button" data-export="json">Piece file<small>.json with its notes; reopens exactly</small></button>
+          <button type="button" data-export="wav">WAV<small>24-bit, 48 kHz</small></button>
+          <button type="button" data-export="mp3">MP3<small>192 kbps</small></button>
+          <button type="button" data-export="midi">MIDI with glides<small>one channel per voice (MPE)</small></button>
+          <button type="button" data-export="midichords">MIDI chords<small>settled chords; stacked voices merged</small></button>
+          <button type="button" data-export="musicxml">MusicXML<small>harmonic score; stacked voices merged</small></button>
+          <button type="button" data-export="all" class="wide">Everything<small>all of the above in one .zip</small></button>
+        </div>
+        <p class="hint" id="xhint"></p>
+        <div class="video-box">
+          <span class="label">Video</span>
+          <div class="two">
+            <select id="vaspect" aria-label="Video shape"><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option><option value="1:1">Square 1:1</option></select>
+            <button type="button" id="vrecord">Record video</button>
+          </div>
+          <canvas id="vcanvas" width="1920" height="1080" hidden></canvas>
+          <progress id="vprog" max="1" value="0" hidden></progress>
+          <p class="hint">Plays the piece once and records it in real time with sound. Keep this tab in front while it records.</p>
+        </div>
+        <p id="xstatus" class="hint" role="status"></p>
+      </div>
+      <div class="rack-foot">
+        <button type="button" class="linkish guide-link" data-about=""><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>Read the Guide</button>
+        <span class="hint">or press <kbd>?</kbd> anytime</span>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="settings" class="about" aria-labelledby="settings-title">
+    <div class="about-head"><h2 id="settings-title">Settings</h2><button type="button" id="settings-close" class="small">Close</button></div>
+    <div class="about-body">
+      <h3>Trace look</h3>
+      <p class="hint">How the lines are drawn. Saved with this piece, and used when you record a video.</p>
+      <div class="swatches" id="looks" role="radiogroup" aria-label="Trace look"></div>
+      <div class="slider"><label for="glowamt">Glow</label><output id="o-glowamt"></output><input id="glowamt" type="range" min="0" max="100" step="1"></div>
+      <div class="slider"><label for="lineweight">Line weight</label><output id="o-lineweight"></output><input id="lineweight" type="range" min="0.5" max="3" step="0.05"></div>
+      <div class="colors" id="customcolors" hidden>
+        <label>Line<input type="color" id="c-line"></label>
+        <label>Second line color<input type="color" id="c-line2"></label>
+        <label>Background<input type="color" id="c-bg"></label>
+      </div>
+      <p class="hint" id="customhint" hidden>Pick a different second color to blend from low notes to high notes.</p>
+      <div><button type="button" id="lookdefault" class="small">Use this look for new pieces</button> <span class="hint" id="lookdefault-note"></span></div>
+      <h3>Interface</h3>
+      <p class="hint">The page's own colors. Your choice, on this device.</p>
+      <div class="swatches" id="uithemes" role="radiogroup" aria-label="Interface theme"></div>
+      <span class="label" id="accent-lbl">Accent color</span>
+      <div class="accents" id="accents" role="group" aria-labelledby="accent-lbl">
+        <button type="button" class="small" id="accent-default" aria-pressed="true">Theme default</button>
+        <label class="hint" style="display:flex;gap:6px;align-items:center">Custom <input type="color" id="accent-custom" aria-label="Custom accent color"></label>
+      </div>
+      <p class="hint">Used for buttons, sliders and highlights, on top of any theme.</p>
+    </div>
+  </dialog>
+
+  <dialog id="about" class="about guide" aria-labelledby="guide-title">
+    <div class="about-head"><h2 id="guide-title">Guide</h2><button type="button" id="about-close" class="small">Close</button></div>
+    <div class="guide-body">
+      <nav class="guide-nav" role="tablist" aria-label="Guide pages" aria-orientation="vertical">
+          <button type="button" role="tab" id="gt-how" aria-controls="g-how" aria-selected="false" data-page="how">How it works</button>
+          <button type="button" role="tab" id="gt-math" aria-controls="g-math" aria-selected="false" data-page="math">The math</button>
+          <button type="button" role="tab" id="gt-keys" aria-controls="g-keys" aria-selected="false" data-page="keys">Shortcuts</button>
+          <button type="button" role="tab" id="gt-history" aria-controls="g-history" aria-selected="false" data-page="history">Version history</button>
+          <button type="button" role="tab" id="gt-engine" aria-controls="g-engine" aria-selected="false" data-page="engine">Engine history</button>
+          <button type="button" role="tab" id="gt-about" aria-controls="g-about" aria-selected="false" data-page="about">About</button>
+      </nav>
+      <div class="guide-pages" id="guide-pages">
+        <section class="guide-page" id="g-how" role="tabpanel" aria-labelledby="gt-how">
+          <h3>How it works</h3>
+          <p class="lede">You write the chords. The engine decides where every voice goes and how it travels there, and you can reshape each part of that without losing the rest.</p>
+
+          <h4><span class="step">1</span>Find your way around the top bar</h4>
+          <p>The bar across the top holds everything about the piece as a whole. From left to right:</p>
+          <dl class="barmap">
+            <dt><span class="mini" data-icon="libtoggle"></span></dt><dd><b>Library.</b> Your saved pieces and the examples. You can also open a piece file here.</dd>
+            <dt><span class="mini-name">Name</span><span class="savedot new"></span><span class="savedot saved"></span><span class="savedot dirty"></span></dt><dd><b>Piece name and save dot.</b> Click the name to rename the piece. The dot is hollow if the piece has never been saved, green when everything is saved, and amber when there are unsaved changes.</dd>
+            <dt><span class="mini" data-icon="newpiece"></span><span class="mini" data-icon="save"></span><span class="mini" data-icon="saveas"></span></dt><dd><b>New, Save, Save as new.</b> New writes a fresh piece from a new harmony seed. Save as new keeps the original and saves a copy.</dd>
+            <dt><span class="mini" data-icon="undo"></span><span class="mini" data-icon="redo"></span></dt><dd><b>Undo and Redo.</b> Step back and forward through your changes, including rerolls.</dd>
+            <dt><span class="mini-lock" data-locked="true">Harmony</span><span class="mini-lock" data-locked="false">Voicing</span></dt><dd><b>Layer locks.</b> A piece has four layers, and each one gets its own seed: the number its random choices start from. A <b>locked</b> layer (filled in, with a closed padlock) stays exactly as it is when you reroll. An <b>unlocked</b> layer (outlined, with an open padlock) gets a new seed. Click a lock to switch it.</dd>
+            <dt><span class="mini" data-icon="rerollall"></span></dt><dd><b>Reroll.</b> Gives every unlocked layer a new seed, all at once. It's greyed out when everything is locked.</dd>
+            <dt><span class="mini" data-icon="settingsbtn"></span><span class="mini" data-icon="guidebtn"></span></dt><dd><b>Settings and Guide.</b> Trace looks, themes and accent color; and this Guide.</dd>
+          </dl>
+          <p>What each layer covers when it's rerolled:</p>
+          <ul>
+            <li><b>Harmony:</b> the chords. Rerolling it writes a whole new progression in place of yours, so it starts locked.</li>
+            <li><b>Voicing:</b> which note each voice sings, within the same chords. How far a reroll can wander is set by Variation on the Voicing tab.</li>
+            <li><b>Motion:</b> the order voices leave in, when the departure order is set to random.</li>
+            <li><b>Sound:</b> each voice's detune and place in the stereo field, and the shape of the reverb.</li>
+          </ul>
+          <p>For example: keep Harmony locked, unlock Voicing, and press Reroll. You hear the same chords sung by a different arrangement of voices. Don't like it? Reroll again, or Undo.</p>
+
+
+          <h4><span class="step">2</span>Write the harmony</h4>
+          <p>On the <b>Harmony</b> tab, type chord names, one per line. A few extras: <code>=G#6</code> gathers every voice onto one note, <code>Amaj9:6</code> holds a chord for 6 seconds, and <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. The <b>harmony seed</b> can write a whole progression for you. Keep it locked to protect chords you've written.</p>
+
+          <h4><span class="step">3</span>Shape the voicing</h4>
+          <p>The <b>Voicing</b> tab decides which note each voice sings. Choose how many voices, then balance the sliders: <b>continuity</b> (small steps), <b>coverage</b> (every chord note present), <b>stacking</b> (unisons avoided or welcomed), <b>spacing</b> and <b>variation</b>. Each slider is a weight in the score that picks every voice's next note, as step 9 of The math explains. The highest note and the bass rule set the range.</p>
+
+          <h4><span class="step">4</span>Set the motion</h4>
+          <p>The <b>Motion</b> tab controls how voices travel: the <b>glide time</b>, the shape of the <b>curve</b>, and the <b>departure order</b>. Add <b>stagger</b> and the voices leave one after another, low to high, high to low, largest leap first, or at random.</p>
+
+          <h4><span class="step">5</span>Choose the sound and the look</h4>
+          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
+
+          <h4><span class="step">6</span>Lock what you love, reroll the rest</h4>
+          <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
+
+          <h4><span class="step">7</span>Save, and reopen exactly</h4>
+          <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
+
+          <h4><span class="step">8</span>Export</h4>
+          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Video</b> plays the piece once and records it, using the piece's trace look.</p>
+
+          <h4><span class="step">9</span>Works offline</h4>
+          <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
+          <p class="guide-next"><button type="button" class="small" data-goto="math">Next: The math →</button></p>
+        </section>
+        <section class="guide-page" id="g-math" role="tabpanel" aria-labelledby="gt-math" hidden>
+          <h3>The math, step by step</h3>
+          <p class="lede">You don't need any music theory or algebra to follow this. Each step builds on the one before, and the small tools let you try things as you go.</p>
+
+          <h4><span class="step">1</span>A note is something vibrating</h4>
+          <p>Every sound is air being pushed back and forth. How many times it does that each second is its <b>frequency</b>, measured in <b>hertz (Hz)</b>. The A that orchestras tune to vibrates 440 times a second, so it's 440 Hz. More vibrations per second sound higher.</p>
+
+          <h4><span class="step">2</span>Doubling makes an octave</h4>
+          <p>Double a frequency and you hear the same note, only higher. 220 Hz, 440 Hz and 880 Hz are all the note A, each one an <b>octave</b> above the last.</p>
+          <p>Your ears hear <i>ratios</i>, not differences. Going from 220 to 440 Hz sounds like the same size jump as 440 to 880 Hz, even though the second jump is twice as many hertz. Keep that in mind; it explains everything that follows.</p>
+
+          <h4><span class="step">3</span>Twelve equal steps fill an octave</h4>
+          <p>Western music splits every octave into 12 steps called <b>semitones</b>. On a piano that's every key, white and black, from one C up to the next C.</p>
+          <p>For the 12 steps to sound equal, each one has to <i>multiply</i> the frequency by the same amount. Which number, multiplied by itself 12 times, gives 2? About <b>1.0595</b>. So each semitone raises the frequency by roughly 6%.</p>
+
+          <h4><span class="step">4</span>Every key gets a number</h4>
+          <p>To do math with notes, each piano key gets a number. This tool uses the standard MIDI numbering: middle C is <b>60</b>, the key just above it (C♯) is 61, and the tuning A is <b>69</b>. One number up is one semitone up, and 12 numbers up is an octave.</p>
+
+          <h4><span class="step">5</span>The formula that turns numbers into sound</h4>
+          <p class="formula">f(n) = 440 × 2<sup>(n − 69) ÷ 12</sup></p>
+          <p>Read it from the inside out:</p>
+          <ul>
+            <li><b>n − 69</b>: how many semitones the note is above the tuning A (negative means below).</li>
+            <li><b>÷ 12</b>: how many octaves that is. Three semitones is a quarter of an octave.</li>
+            <li><b>2<sup>…</sup></b>: double once for every octave. Two to the power of a quarter is about 1.189.</li>
+            <li><b>440 ×</b>: start from the tuning A and scale it.</li>
+          </ul>
+          <p>Example: the C above the tuning A is note 72. Then 72 − 69 = 3, and 3 ÷ 12 = 0.25, and 2<sup>0.25</sup> ≈ 1.189, and 440 × 1.189 ≈ <b>523.25 Hz</b>.</p>
+          <div class="widget">
+            <div class="slider"><label for="gm-n">Try a note number</label><output id="gm-n-out"></output><input id="gm-n" type="range" min="36" max="96" step="1" value="72"></div>
+            <p class="calc" id="gm-n-calc"></p>
+            <button type="button" class="small" id="gm-play">Hear it</button>
+          </div>
+
+          <h4><span class="step">6</span>Cents: the pitches in between</h4>
+          <p>Between two neighboring notes there are <b>100 cents</b>. While a voice glides, it passes through every pitch in between. That's why labels show things like <code>D5 +43¢</code>: 43 hundredths of the way from D5 up toward D♯5. The formula still works for those; n can be 74.43.</p>
+
+          <h4><span class="step">7</span>A chord is a set of note names</h4>
+          <p>A chord is several notes sounding together, and its name tells you which ones. The letter is the <b>root</b>. The rest adds notes counted up from it: <b>maj</b> means major (bright), <b>m</b> means minor (darker), and numbers like 7, 9, 11 and 13 add extra notes on top. Which octave a note sits in doesn't change its name; any E counts as an E.</p>
+          <div class="widget">
+            <label for="gm-chord" class="label">Type a chord</label>
+            <input id="gm-chord" type="text" value="Emaj9" spellcheck="false">
+            <div id="gm-keys" class="keys" aria-hidden="true"></div>
+            <p class="calc" id="gm-chord-out" role="status"></p>
+          </div>
+
+          <h4><span class="step">8</span>Many voices, few note names</h4>
+          <p>Emaj9 has five note names, but a piece might have 11 or 14 voices. Each voice picks one of those names and an octave to sing it in, so some names show up in several octaves: E2, E3 and E5, for example. Spreading the voices out from low to high like this is called a <b>voicing</b>.</p>
+
+          <h4><span class="step">9</span>Moving with the least effort</h4>
+          <p>When the chord changes, every voice needs a new note. The engine looks for the arrangement where the voices move as little as possible in total, counting semitones. Musicians call this <b>smooth voice leading</b>.</p>
+          <figure class="vl">
+            <svg viewBox="0 0 360 150" role="img" aria-label="C major to A minor: C and E stay, G rises two semitones to A">
+              <g class="vl-grid"><line x1="40" y1="20" x2="40" y2="130"/><line x1="320" y1="20" x2="320" y2="130"/></g>
+              <text x="40" y="146" class="vl-cap">C major</text><text x="320" y="146" class="vl-cap">A minor</text>
+              <path class="vl-line" d="M40 40 H150 C200 40 210 28 260 28 H320"/>
+              <path class="vl-line still" d="M40 76 H320"/><path class="vl-line still" d="M40 112 H320"/>
+              <circle cx="40" cy="40" r="5"/><circle cx="40" cy="76" r="5"/><circle cx="40" cy="112" r="5"/>
+              <circle cx="320" cy="28" r="5"/><circle cx="320" cy="76" r="5"/><circle cx="320" cy="112" r="5"/>
+              <text x="20" y="44" class="vl-n">G</text><text x="20" y="80" class="vl-n">E</text><text x="20" y="116" class="vl-n">C</text>
+              <text x="332" y="32" class="vl-n l">A</text><text x="332" y="80" class="vl-n l">E</text><text x="332" y="116" class="vl-n l">C</text>
+              <text x="200" y="20" class="vl-cap">+2</text><text x="180" y="70" class="vl-cap">stays</text><text x="180" y="106" class="vl-cap">stays</text>
+            </svg>
+            <figcaption>C major (C, E, G) to A minor (A, C, E). C and E belong to both chords, so those voices stay put. Only G moves, up two semitones to A. Total movement: 2.</figcaption>
+          </figure>
+          <p>To choose, the engine gives every possible arrangement a score and keeps the lowest. The score adds up:</p>
+          <ul>
+            <li><b>Movement:</b> the semitones each voice travels, with big leaps costing extra.</li>
+            <li><b>Missing notes:</b> a penalty if one of the chord's notes isn't sung by anyone.</li>
+            <li><b>Unisons:</b> a penalty when two voices land on exactly the same note.</li>
+            <li><b>Spacing:</b> a small preference for voices spread evenly rather than bunched up.</li>
+          </ul>
+          <p>Those are the sliders on the Voicing tab; each one changes how much its rule counts. With 14 voices there are billions of possible arrangements, far too many to try one by one. So the engine works upward from the lowest voice, keeping only the cheapest way to reach each possibility. It's like finding the shortest route on a map without driving every road. (The technique is called dynamic programming.)</p>
+
+          <h4><span class="step">10</span>The bass follows its own rule</h4>
+          <p>The lowest voice usually sings the chord's root, like the E of Emaj9, or the note after the slash in a chord like Amaj7/B. That gives the harmony a floor to stand on. The Bass setting offers a few other rules.</p>
+
+          <h4><span class="step">11</span>Gliding on an S-curve</h4>
+          <p>Voices don't jump between notes. Each one slides along a curve that starts slowly, speeds up in the middle, and settles gently. The default curve is called <b>smoothstep</b>:</p>
+          <p class="formula">s = 3x² − 2x³</p>
+          <p>Here x runs from 0 (the start of the glide) to 1 (the end), and s says how far along the voice is. The dashed line shows a plain straight slide for comparison.</p>
+          <div class="widget"><canvas id="gm-curve" width="640" height="300" aria-label="The smoothstep curve compared with a straight line"></canvas></div>
+          <p>The slide happens in note numbers, not hertz. Halfway through a glide from note 60 to note 64, the voice is at note 62, and then the formula from step 5 turns that into hertz. Because your ears hear ratios (step 2), this sounds even. Sliding in hertz instead would sound lopsided: rushed at the bottom, slow at the top. Over an octave from C, the halfway point in hertz is already a G, seven of the twelve semitones up.</p>
+
+          <h4><span class="step">12</span>Seeds: randomness you can repeat</h4>
+          <p>A few choices are left to chance: how widely the first chord spreads out, which of two equally good arrangements wins, and the order voices leave in. A <b>seed</b> is the starting number for the random choices. The same seed always gives the same "random" results, so a piece can be rebuilt exactly. The four seeds (harmony, voicing, motion and sound) let you reroll one layer and keep the rest.</p>
+
+          <h4><span class="step">13</span>All together</h4>
+          <ol class="pipeline">
+            <li>You write chord names.</li>
+            <li>Each chord becomes a set of note names.</li>
+            <li>The voicing gives every voice one note in one octave, moving as little as possible.</li>
+            <li>Each voice glides to its new note along the S-curve, in note numbers.</li>
+            <li>The formula turns every in-between note number into hertz.</li>
+            <li>An oscillator per voice vibrates at those frequencies, and you hear the chord change.</li>
+            <li>The same numbers draw the lines you see.</li>
+          </ol>
+        
+          <p class="guide-next"><button type="button" class="small" data-goto="keys">Next: Shortcuts →</button></p>
+        </section>
+        <section class="guide-page" id="g-keys" role="tabpanel" aria-labelledby="gt-keys" hidden>
+          <h3>Shortcuts</h3>
+          <p class="lede">Keys for the things you do most. They work whenever you're not typing in a text box. On Windows and Linux, use <kbd>Ctrl</kbd> wherever you see <kbd>⌘</kbd>.</p>
+
+          <h4><span class="step">▶</span>Playback</h4>
+          <dl class="keylist"><dt><kbd>Space</kbd></dt><dd>Play or pause</dd></dl>
+
+          <h4><span class="step">◐</span>View</h4>
+          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
+
+          <h4><span class="step">↺</span>Editing</h4>
+          <dl class="keylist"><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd><dt><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Redo</dd><dt><kbd>⌘</kbd> <kbd>S</kbd></dt><dd>Save the piece</dd></dl>
+
+          <h4><span class="step">?</span>Windows</h4>
+          <dl class="keylist"><dt><kbd>?</kbd></dt><dd>Open this Guide</dd><dt><kbd>⌘</kbd> <kbd>,</kbd></dt><dd>Open Settings</dd><dt><kbd>L</kbd></dt><dd>Show or hide the Library</dd></dl>
+          <p class="guide-next"><button type="button" class="small" data-goto="history">Next: Version history →</button></p>
+        </section>
+        <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
+          <h3>Version history</h3>
+          <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">3.8.2</span>Review fixes<span class="when">1 Nov 2026</span></h4>
+          <p>The About page's privacy section no longer makes a claim a hosting page could contradict: what Chord Glide itself does is stated first, then where this copy keeps your Library. The Guide's tabs tell screen readers whether they run down the side or across the top.</p>
+
+          <h4><span class="step ver">3.8.1</span>Top bar on smaller screens<span class="when">1 Nov 2026</span></h4>
+          <p>The top bar now has three tidy layouts instead of wrapping wherever it ran out of room. Wide screens keep one row. Medium widths put the piece, file, edit and window controls on one row, with the layer locks and Reroll together below. Phones get three rows, with the locks spelled out in full across the width. Nothing overflows the screen, down to 320 pixels wide.</p>
+
+          <h4><span class="step ver">3.8</span>Engine history<span class="when">1 Nov 2026</span></h4>
+          <p>The engine now has its own history page in the Guide, with technical detail on what each engine version changed and how piece files are versioned. Releases that changed the engine are tagged here; the tag opens Engine history.</p>
+
+          <h4><span class="step ver">3.7</span>A logo<span class="when">1 Nov 2026</span></h4>
+          <p>Chord Glide has a logo: voices fanning out from one note, in the Aurora colors. It's the browser tab icon and sits beside the name. The header now credits Noizgenie instead of showing a date, and its description is shorter.</p>
+
+          <h4><span class="step ver">3.6.1</span>Working links on the About page<span class="when">1 Nov 2026</span></h4>
+          <p>The About page shows the full MIT License when you ask for it, and links to lamejs, LAME and the LGPL-3.0. Version history now ends with a link on to About, and About links back to How it works.</p>
+
+          <h4><span class="step ver">3.6</span>About page and website build<span class="when">1 Nov 2026</span></h4>
+          <p>A new About page in the Guide covers privacy, the license and credits. Chord Glide can now also be built as a website folder, ready to host, with strict security settings.</p>
+
+          <h4><span class="step ver">3.5.4</span>New name: Chord Glide<span class="when">1 Nov 2026</span></h4>
+          <p>Chord Glide Engine is now just Chord Glide, by Noizgenie, released under the MIT License. Nothing else changed: the engine is still 3.1, so pieces sound exactly as before, and your settings and Library carry over.</p>
+
+          <h4><span class="step ver">3.5.3</span>Review fixes<span class="when">1 Nov 2026</span></h4>
+          <p>Corrected The math: gliding evenly in hertz rushes at the bottom and slows at the top, not the reverse. Status messages now fade after a few seconds, leaving just the save state. MP3 export no longer reaches out to the internet for the encoder.</p>
+
+          <h4><span class="step ver">3.5.2</span>A tour of the top bar<span class="when">1 Nov 2026</span></h4>
+          <p>How it works opens with a tour of the top bar, showing each control's icon. It explains the layer locks in detail: what locked and unlocked look like, what each layer covers when rerolled, and an example.</p>
+
+          <h4><span class="step ver">3.5.1</span>One Guide link<span class="when">1 Nov 2026</span></h4>
+          <p>The controls panel ends with a single <b>Read the Guide</b> link, which reopens the page you last read, instead of four separate links.</p>
+
+          <h4><span class="step ver">3.5</span>DAW-style top bar<span class="when">1 Nov 2026</span></h4>
+          <p>The top bar is grouped like a DAW control bar: library and piece name with a saved indicator, file actions and undo and redo as icons, lock buttons for the four layers beside Reroll, and Settings and the Guide on the right. New shortcuts: <kbd>?</kbd> opens the Guide, <kbd>⌘</kbd> <kbd>,</kbd> opens Settings and <kbd>L</kbd> toggles the Library. How it works, Shortcuts and Version history now share the style of The math. Fixed: choosing a Guide page no longer empties the controls panel behind it.</p>
+          <h4><span class="step ver">3.4</span>The Guide<span class="when">1 Nov 2026</span></h4>
+          <p>The Guide: How it works, The math, Shortcuts and Version history in one window, with a sidebar to move between them. The math is a new step-by-step explanation for beginners, with a note slider you can hear, a chord explorer, a voice-leading example and the glide curve.</p>
+          <h4><span class="step ver">3.3.2</span>Honest storage<span class="when">1 Nov 2026</span></h4>
+          <p>The library tests whether this browser really keeps saved pieces, and says so instead of appearing to save. Opening a piece from an older engine describes accurately what you'll hear. Stricter checks on saved notes in piece files.</p>
+          <h4><span class="step ver">3.3.1</span>Accent color<span class="when">1 Nov 2026</span></h4>
+          <p>Choose your own accent color in Settings, on top of any theme. The How it works, Shortcuts and Version history links now sit at the bottom of the controls panel.</p>
+          <h4><span class="step ver">3.3</span>Looks and themes<span class="when">1 Nov 2026</span></h4>
+          <p>Settings window. Trace looks with glow (phosphor, laser red, laser blue, amber CRT, aurora, spectrum, neon, custom), saved with the piece and used in video. Eight interface themes, including Cloud, Ice, Deep Teal, Studio Black and Cocoa.</p>
+          <h4><span class="step ver">3.2.3</span>Icon transport bar<span class="when">1 Nov 2026</span></h4>
+          <p>Icon transport bar: play and pause, back to the start, view options, theater and full screen. The view and label choices moved into a popup behind the view button; V cycles the view.</p>
+          <h4><span class="step ver">3.2.2</span>Full-width whole view<span class="when">1 Nov 2026</span></h4>
+          <p>The whole-piece view uses the full width. The label column on the right is only kept while scrolling, and labels near the right edge sit to the left of their dots.</p>
+          <h4><span class="step ver">3.2.1</span>Theater height<span class="when">1 Nov 2026</span></h4>
+          <p>Theater mode keeps the stage at its normal height and only makes it wider.</p>
+          <h4><span class="step ver">3.2</span>Theater and full screen<span class="when">1 Nov 2026</span></h4>
+          <p>Theater mode widens the stage to the full page, and full screen fills your screen with it. How it works and the version history moved into this window, opened from the footer. Engine unchanged (3.1).</p>
+          <h4><span class="step ver">3.1</span>Hardening<button type="button" class="eng" data-goto="engine" title="See Engine history">engine 3.1</button><span class="when">1 Nov 2026</span></h4>
+          <p>Hardening. Highest note is now a hard limit. "Nearest chord tone" only picks chord tones. Pieces save their resolved notes and reopen exactly under later engines; files from newer versions are refused instead of silently changed. MIDI glides are accurate to within 5 cents. Video keeps its last half-second and the full fade. Every export downloads directly as its own file.</p>
+          <h4><span class="step ver">3</span>A creative tool<button type="button" class="eng" data-goto="engine" title="See Engine history">engine 3.0</button><span class="when">1 Nov 2026</span></h4>
+          <p>A standalone creative tool. Named pieces you can save, rename and delete. Separate, lockable seeds for harmony, voicing, motion and sound. Voicing controls, bass modes, register, departure order and stagger. Auto zoom from the whole piece into a scrolling view and back out. Undo and redo. Export to a piece file, WAV, MP3, MIDI with glides, MIDI chords, MusicXML and video.</p>
+          <h4><span class="step ver">2</span>Engine fixes<button type="button" class="eng" data-goto="engine" title="See Engine history">engine 2</button><span class="when">1 Nov 2026</span></h4>
+          <p>Engine fixes: chords with more than 8 notes, reproducible seeded shuffles, slash-chord bass handling, a warning when a chord can't be voiced by the rules, more chord spellings.</p>
+          <h4><span class="step ver">1</span>First release<button type="button" class="eng" data-goto="engine" title="See Engine history">engine 1</button><span class="when">1 Nov 2026</span></h4>
+          <p>First release: gliding voices, editable chords, a seed, scrolling and whole-piece views.</p>
+          <p class="guide-next"><button type="button" class="small" data-goto="engine">Next: Engine history →</button></p>
+        </section>
+        <section class="guide-page" id="g-engine" role="tabpanel" aria-labelledby="gt-engine" hidden>
+          <h3>Engine history</h3>
+          <p class="lede">The engine turns your chords, seeds and settings into notes and timing. Its version only changes when the same piece could come out differently.</p>
+          <p>The promise is simple: the same chords, seeds and settings on the same engine give the same notes, in any browser on any computer. Every saved piece records the notes it was voiced with and which engine voiced them. A piece from a different engine plays exactly as saved until you change its chords, voicing or motion; then the current engine voices it again.</p>
+          <p>The current engine is <b>3.1</b>, unchanged since app 3.1. Later releases touched the engine's code without changing a single voicing (saving trace looks in pieces, stricter checks on saved notes, the new name), so the number stayed the same.</p>
+
+          <h4><span class="step ver">3.1</span>Hard limits and saved notes<span class="when">app 3.1</span></h4>
+          <ul>
+            <li><b>Highest note is a hard ceiling.</b> Upper voices are searched from the bass + 3 semitones up to exactly the Highest note setting. Engine 3.0 stretched the range to at least an octave above that floor, so a low setting could be exceeded. The opening chord can no longer pass it either: when its usual range (a fifth above the bass up to the setting − 4) has no chord tones, it now widens only down toward the bass, where engine 3.0 widened it an octave both ways.</li>
+            <li><b>Tight registers.</b> If no chord tone fits between the bass + 3 and the ceiling, the floor drops to the bass + 1. If nothing fits even then, the upper voices hold the bass note and the chord is flagged.</li>
+            <li><b>Nearest chord tone</b> only considers the chord's own pitch classes, preferring the root on a tie. Engine 3.0 also counted a slash-chord bass note, so the bass could leave the chord.</li>
+            <li><b>Saved notes (realizations).</b> Each saved piece stores every chord's target notes, plus each voice's departure offset and glide duration, tagged with the engine version. On opening, notes from the same engine are discarded, because the settings rebuild them exactly. Notes from a different engine play as saved.</li>
+            <li><b>File values are clamped</b> to the controls' ranges: chord length 1.5–12 s, glide 0–5 s, tempo 30–180, Highest note G4–C7. Files with a newer format are refused instead of being silently changed.</li>
+          </ul>
+
+          <h4><span class="step ver">3.0</span>Controls and separate seeds<span class="when">app 3</span></h4>
+          <ul>
+            <li><b>Four seeds.</b> Harmony, voicing, motion and sound each have their own seed. Every chord draws from its own random stream, <code>mulberry32(seed ⊕ (i + 1) × 0x9E3779B1 ⊕ salt)</code>, where i is the chord's position and the salt differs for voicing and motion. A chord's random choices depend only on its seed and position, so rerolling one layer never disturbs another.</li>
+            <li><b>The voicing controls set the cost weights</b> of the voice-leading search (The math explains the search):
+              <p class="formula">move = continuity ÷ 50 &nbsp; miss = 3 × coverage ÷ 50<br>dup = 3 × (1 − stacking ÷ 50) &nbsp; gap = 0.01 × spacing ÷ 25<br>jitter = max(0.004, 3 × variation ÷ 100)</p>
+              At the defaults these equal engine 2's fixed weights, so with Variation at 0 engine 3.0 voices pieces as engine 2 did, apart from exact ties. Stacking above 50 makes dup negative, which rewards voices sharing a note.</li>
+            <li><b>Bass modes.</b> Root or slash note, nearest chord tone, pedal (the first bass held throughout), or none (every voice joins the search). The bass sits in a chosen octave, 1 to 3.</li>
+            <li><b>Register.</b> Highest note replaced the fixed ceiling of E6, and the opening spread reaches the setting − 4 (engine 2 used C6).</li>
+            <li><b>Motion.</b> Each voice now has its own departure time and glide length. With stagger s (0 to 1), each moving voice glides for g × (1 − 0.75s), and their departures are spread evenly across the remaining g × 0.75s, ordered low to high, high to low, largest leap first, smallest first, or randomly from the motion seed. Voices that don't move aren't staggered.</li>
+            <li><b>Piece files</b> (format 3) record every setting needed to rebuild a piece.</li>
+          </ul>
+
+          <h4><span class="step ver">2</span>Reliability<span class="when">app 2</span></h4>
+          <ul>
+            <li><b>Chords with more than 8 notes.</b> Each search state tracks which chord tones are covered in 12 bits instead of 8, so large chords no longer overflow into the pitch part of the state.</li>
+            <li><b>Shuffles are the same in every browser.</b> Seeded shuffles use Fisher–Yates instead of sorting with a random comparison, whose result depends on the browser's sort algorithm.</li>
+            <li><b>Slash chords.</b> The bass note is no longer added to the chord's tones, so in C/D the upper voices no longer pick up a D.</li>
+            <li><b>A second try, then a warning.</b> If no voicing fits within 6 semitones of every voice, the search retries within 12. If that fails too, each voice takes its nearest chord tone and the chord is flagged.</li>
+            <li><b>The top voice moves like the others.</b> Engine 1 made it 10% more reluctant to move.</li>
+            <li><b>More spellings:</b> ø7, Maj and MAJ.</li>
+          </ul>
+
+          <h4><span class="step ver">1</span>First engine<span class="when">app 1</span></h4>
+          <ul>
+            <li><b>Glides in semitones.</b> Pitch moves in semitone space and sounds at f(n) = 440 × 2<sup>(n − 69) ÷ 12</sup>, eased by smoothstep, smootherstep, cosine or linear.</li>
+            <li><b>Bass</b> on its note between C2 and B2.</li>
+            <li><b>Voice leading.</b> Upper voices are assigned together by dynamic programming, from the bottom voice up, never crossing. Each considers chord tones within 6 semitones. A move of d semitones costs |d| + 0.1d²; landing on the same note as the voice below costs 1.5; each gap g between neighbors costs 0.01g²; each chord tone left out costs 3.0; and a seeded jitter of up to 0.004 breaks exact ties.</li>
+            <li><b>Opening chords.</b> Out of a single note, chord tones are spread from a fifth above the bass up to C6, and the voices glide there over max(2.4 s, 1.9 × glide).</li>
+          </ul>
+
+          <h4>File format</h4>
+          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code> with <code>"formatVersion": 3</code> since app 3. Fields added since are optional, so older versions simply ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). Top-level fields this version doesn't know are kept when a piece is saved again.</p>
+          <p class="guide-next"><button type="button" class="small" data-goto="about">Next: About →</button></p>
+        </section>
+        <section class="guide-page" id="g-about" role="tabpanel" aria-labelledby="gt-about" hidden>
+          <h3>About</h3>
+          <p class="lede">Chord Glide is a songwriting instrument by Noizgenie. Write chords, hear them as gliding voices, and shape how they move.</p>
+
+          <h4>Privacy</h4>
+          <p>Chord Glide itself has no accounts, ads, analytics or tracking, and sets no cookies. The voicing, the sound, the video and every export are made in your browser, and Chord Glide never uploads what you write or play. Exported files go straight to your computer.</p>
+          <p id="about-where"></p>
+
+          <h4>License</h4>
+          <p>&copy; 2026 Noizgenie. Chord Glide is free and open source under the MIT License. You can use, change and share it, including commercially, as long as the copyright and license notice stay with it.</p>
+          <details class="license-text"><summary>Read the MIT License</summary><pre>MIT License
+
+Copyright (c) 2026 Noizgenie
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the &quot;Software&quot;), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</pre></details>
+
+          <h4>Credits</h4>
+          <p>MP3 export uses <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener noreferrer">lamejs</a> 1.2.1 by Alex Zhukov, a JavaScript port of the <a href="https://lame.sourceforge.net/" target="_blank" rel="noopener noreferrer">LAME</a> encoder, licensed under the <a href="https://www.gnu.org/licenses/lgpl-3.0.html" target="_blank" rel="noopener noreferrer">LGPL-3.0</a>. It's loaded as a separate, unmodified file and isn't covered by the MIT License.</p>
+          <p class="guide-next"><button type="button" class="small" data-goto="how">Back to How it works</button></p>
+        </section>
+      </div>
+    </div>
+  </dialog>
+</div>

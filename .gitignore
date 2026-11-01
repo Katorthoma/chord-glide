@@ -1,0 +1,20 @@
+# macOS folder metadata
+.DS_Store
+
+# exported pieces and renders stay out of the repo unless you add them on purpose
+*.wav
+*.mp3
+*.mid
+*.musicxml
+*.mp4
+*.webm
+*.zip
+
+# piece files are your compositions; keep them out of the public repo
+*.json
+
+# website build output (recreated by node source/build.js)
+dist/
+
+# release zips (made by node source/release.js)
+releases/
