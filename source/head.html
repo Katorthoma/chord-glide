@@ -326,7 +326,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 3.9 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 3.9.1 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -756,6 +756,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">3.9.1</span>Full glow in videos again<span class="when">1 Nov 2026</span></h4>
+          <p>3.9's lighter glow made videos look duller, so the original glow is back, exactly as in 3.8. Recording stays faster than 3.8 because each frame is still drawn only once, and on 120 Hz screens it no longer draws frames the video can't use. Videos are now recorded at 12 Mbps, up from 8.</p>
 
           <h4><span class="step ver">3.9</span>Smoother video, volume in the player<span class="when">1 Nov 2026</span></h4>
           <p>Video recording draws each frame once instead of twice, draws the soft glow at half resolution, and reuses the background, so frames take less than half the work during the opening and the zooms. The audio is prepared before recording starts, with a brief still lead-in, so the start no longer stutters. Volume moved from the Sound tab to the player bar and works like a video player: with a mouse, hover over the speaker for the slider and click it to mute; on a touch screen, tap it for the slider. <kbd>M</kbd> mutes too.</p>

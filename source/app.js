@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '3.9';
+const APP_VERSION = '3.9.1';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -403,28 +403,12 @@ function tracePalette(tr) {
   return { bg: L.bg, dark: true, glow, weight, text: L.text, title: L.core || '#ffffff', accent: L.accent, stops: L.stops || null, vignette: true, core: L.core,
     line: (v, N) => L.hue ? `hsl(${Math.round(190 + 300 * v / Math.max(1, N - 1)) % 360}, 100%, 62%)` : L.alt ? L.alt[v % L.alt.length] : L.glow };
 }
-/* The soft glow is drawn at half resolution on its own layer, then added on top in one step.
-   It is blurry by nature, so this looks the same and costs about a quarter as much as drawing it at full size. */
-const glowLayers = new WeakMap();
-function glowLayer(g, W, H) {
-  const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
-  let L = glowLayers.get(g);
-  if (!L || L.c.width !== w || L.c.height !== h) {
-    const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
-    L = { c, gg: c.getContext('2d') }; glowLayers.set(g, L);
-  }
-  const gg = L.gg;
-  gg.setTransform(1, 0, 0, 1, 0, 0); gg.clearRect(0, 0, w, h); gg.setTransform(0.5, 0, 0, 0.5, 0, 0);
-  gg.lineJoin = 'bevel'; gg.lineCap = 'round'; gg.globalCompositeOperation = 'lighter'; // bevel joins: cheaper, and invisible under the blur
-  return L;
-}
-/* Stroke one path with a glow: wide faint passes (on the glow layer when given), then the colored line, then a hot core */
-function glowStroke(g, path, color, core, pal, d, fade, gl, glowColor, soft) {
+/* Stroke one path with a glow: wide faint passes, then the colored line, then a hot core */
+function glowStroke(g, path, color, core, pal, d, fade) {
   const w = pal.weight * d;
   if (pal.dark && pal.glow > 0) {
-    const gp = gl ? gl.gg : g, gc = gl ? glowColor : color, sp = soft || path;
     g.globalCompositeOperation = 'lighter';
-    for (const [k, a] of (gl ? [[11, 0.07], [4, 0.26]] : [[13, 0.035], [7, 0.085], [3.4, 0.24]])) { gp.strokeStyle = gc; gp.lineWidth = k * w; gp.globalAlpha = a * pal.glow * fade; gp.stroke(sp); }
+    for (const [k, a] of [[13, 0.035], [7, 0.085], [3.4, 0.24]]) { g.strokeStyle = color; g.lineWidth = k * w; g.globalAlpha = a * pal.glow * fade; g.stroke(path); }
     g.strokeStyle = color; g.lineWidth = 1.9 * w; g.globalAlpha = 0.95 * fade; g.stroke(path);
     if (core) { g.strokeStyle = core; g.lineWidth = 0.8 * w; g.globalAlpha = (0.5 + 0.4 * pal.glow) * fade; g.stroke(path); }
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
@@ -483,8 +467,6 @@ function drawScene(g, W, H, d, t, cam, video) {
   const px = X(tc);
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   const colorOf = v => grad || pal.line(v, N);
-  const gl = pal.dark && pal.glow > 0 ? glowLayer(g, W, H) : null;
-  const glowGrad = gl && pal.stops ? pitchGradient(gl.gg, pal, Y) : null;
   const coreOf = v => pal.core;
   g.lineJoin = 'round'; g.lineCap = 'round';
   const step = 2 * d;
@@ -493,21 +475,16 @@ function drawScene(g, W, H, d, t, cam, video) {
     const xa = future ? px : x0, xb = future ? xEnd : px;
     if (xb - xa < 0.5) continue;
     for (let v = 0; v < N; v++) {
-      // the sharp line follows every point; the blurry glow only needs every fourth, which makes it much cheaper to stroke
-      const path = new Path2D(), soft = gl ? new Path2D() : null;
-      let i = 0, lx = 0, ly = 0;
-      for (let x = xa; x <= xb + 0.5; x += step, i++) {
+      const path = new Path2D();
+      for (let x = xa, first = true; x <= xb + 0.5; x += step, first = false) {
         const xx = Math.min(x, xb);
         const tt = Math.max(0, Math.min(T, tA + (tB - tA) * (xx - x0) / (xEnd - x0)));
         const y = Y(pitchAt(b, v, tt));
-        if (i === 0) { path.moveTo(xx, y); if (soft) soft.moveTo(xx, y); } else { path.lineTo(xx, y); if (soft && i % 4 === 0) soft.lineTo(xx, y); }
-        lx = xx; ly = y;
+        if (first) path.moveTo(xx, y); else path.lineTo(xx, y);
       }
-      if (soft && i % 4 !== 1) soft.lineTo(lx, ly);
-      glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1, gl, glowGrad || pal.line(v, N), soft);
+      glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
   }
-  if (gl) { g.globalCompositeOperation = 'lighter'; g.drawImage(gl.c, 0, 0, W, H); g.globalCompositeOperation = 'source-over'; } // add the glow (additive, so order doesn't matter)
   if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
   // dots and labels
   const groups = new Map();
@@ -575,6 +552,13 @@ function frame() {
     offset = built.total; stopAudio(0.05); playing = false; setPlayIcon(); t = built.total;
   }
   let cur, idx;
+  if (recording) {
+    // The video is 60 frames a second. On a 120 Hz screen the browser asks for twice that, so skip the
+    // in-between ticks rather than drawing frames the recorder throws away.
+    const now = performance.now();
+    if (now - recording.lastDraw < 1000 / 60 - 2) return;
+    recording.lastDraw = now;
+  }
   if (recording) { // draw the video frame once, then show it scaled on the stage
     const vc = $('vcanvas'); ({ cur, idx } = drawScene(recording.g, vc.width, vc.height, recording.d, t, recording.cam, true));
     const k = Math.min(cv.width / vc.width, cv.height / vc.height), w = vc.width * k, h = vc.height * k;
@@ -717,9 +701,10 @@ function startRecording() {
   const dest = actx.createMediaStreamDestination();
   const stream = new MediaStream([...vc.captureStream(60).getVideoTracks(), ...dest.stream.getAudioTracks()]);
   let mr;
-  try { mr = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6, audioBitsPerSecond: 192000 } : undefined); }
+  // 12 Mbps: YouTube's recommended bitrate for 1080p at 60 fps
+  try { mr = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 12e6, audioBitsPerSecond: 192000 } : undefined); }
   catch (e) { vc.hidden = true; $('vprog').hidden = true; return xstatus('This browser can\'t record video from this page.'); }
-  recording = { mr, chunks: [], mime: mr.mimeType || mime, g: vc.getContext('2d'), d: Math.min(w, h) / 540, cam: { slo: 50, shi: 80, snap: true }, cancelled: false };
+  recording = { mr, chunks: [], mime: mr.mimeType || mime, g: vc.getContext('2d'), d: Math.min(w, h) / 540, cam: { slo: 50, shi: 80, snap: true }, cancelled: false, lastDraw: 0 };
   const rec = recording;
   mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); }; // keeps the final chunk that arrives after stop()
   mr.onstop = async () => {

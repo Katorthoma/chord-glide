@@ -1,3 +1,10 @@
+# Chord Glide 3.9.1 · 1 Nov 2026
+
+- **Full glow in videos again.** 3.9 drew the glow at half resolution with fewer, simpler passes. Side by side in real recordings the halo was visibly thinner, and videos came out duller and much smaller (about 2 Mbps instead of 8). The glow drawing is back to 3.8's, byte for byte.
+- **Kept from 3.9:** each recording frame is drawn once and mirrored on the stage, the background is cached, and the audio is prepared before recording with a 0.6 s lead-in.
+- **No wasted frames on 120 Hz screens.** While recording, drawing is capped at the video's 60 frames a second instead of the screen's refresh rate.
+- **12 Mbps video** (was 8), YouTube's recommended bitrate for 1080p at 60 fps.
+
 # Chord Glide 3.9 · 1 Nov 2026
 
 Engine 3.1 and file format 3 are unchanged.
