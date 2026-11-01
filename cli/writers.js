@@ -1,5 +1,5 @@
 
-/* ===== File writers: ZIP, WAV, MIDI, MusicXML (no DOM) ===== */
+/* ===== File writers: ZIP, WAV, MIDI, MusicXML, MP4 and WebM (no DOM) ===== */
 const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
 const utf8 = s => new TextEncoder().encode(s);
@@ -103,10 +103,11 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', bendRange = 48, to
       const e = built.events[i], a = built.events[i - 1].targets[v], b = e.targets[v];
       if (a === b) continue;
       const t0 = e.t + (e.off ? e.off[v] : 0), d = e.dur ? e.dur[v] : e.g;
-      const reach = (t, p) => { // past the bend range mid-glide: hand over to a new note on the target
+      const reach = (t, p) => { // past the bend range mid-glide: hand over to a new note near where the pitch is now
         if (Math.abs(p - note) <= bendRange) return;
         add(t, [0x80 | ch, note, 0]);
-        note = clampMidi(b); lastBend = -1;
+        // the target if it's within reach from here; otherwise a full bend range ahead, so the next handover is as late as possible
+        note = clampMidi(Math.abs(b - p) <= bendRange ? b : p + Math.sign(b - p) * bendRange); lastBend = -1;
         bend(t, Math.max(-bendRange, Math.min(bendRange, p - note)));
         add(t, [0x90 | ch, note, 88]);
       };
@@ -205,4 +206,232 @@ function musicXml(built, { tempo = 60, title = 'Piece' } = {}) {
   return utf8(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
 <score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification><encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part></part-list><part id="P1">${measures.join('')}</part></score-partwise>`);
+}
+
+/* ---- Video containers ----
+   The browser's encoders produce compressed samples; these functions package them as files.
+   Video samples: { data: Uint8Array, key: bool, pts?: seconds } in decode order, one per frame, at a constant frame rate
+   (pts is only needed if the encoder reordered frames; otherwise frame i shows at i / fps).
+   Audio samples: { data: Uint8Array, duration: seconds }, back to back from time 0.
+   Both return a list of parts (Uint8Arrays) to put in a Blob, so long videos never need one huge buffer. */
+const catBytes = parts => { let n = 0; for (const p of parts) n += p.length; const o = new Uint8Array(n); let k = 0; for (const p of parts) { o.set(p, k); k += p.length; } return o; };
+const asBytes = p => typeof p === 'number' ? Uint8Array.of(p) : p instanceof Uint8Array ? p : Uint8Array.from(p); // a lone number is one byte (Uint8Array.from would drop it)
+const be32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+const be16 = n => [(n >> 8) & 255, n & 255];
+const be64 = n => [...be32(Math.floor(n / 4294967296)), ...be32(n >>> 0)];
+const fourcc = s => [...s].map(c => c.charCodeAt(0));
+function be32Table(values, signed) { // a run of 32-bit big-endian integers
+  const o = new Uint8Array(values.length * 4), dv = new DataView(o.buffer);
+  values.forEach((v, i) => signed ? dv.setInt32(i * 4, v) : dv.setUint32(i * 4, v));
+  return o;
+}
+
+/* H.264 in Annex B form (start codes) → NAL units */
+function annexbNals(u8) {
+  const out = []; let i = 0, start = -1;
+  while (i + 2 < u8.length) {
+    if (u8[i] === 0 && u8[i + 1] === 0 && (u8[i + 2] === 1 || (u8[i + 2] === 0 && i + 3 < u8.length && u8[i + 3] === 1))) {
+      if (start >= 0) out.push(u8.subarray(start, i));
+      i += u8[i + 2] === 1 ? 3 : 4; start = i;
+    } else i++;
+  }
+  if (start >= 0) out.push(u8.subarray(start));
+  return out.filter(n => n.length);
+}
+
+/* ISO base media (MP4) boxes */
+function mbox(type, ...parts) { const body = catBytes(parts.map(asBytes)); return catBytes([Uint8Array.from([...be32(body.length + 8), ...fourcc(type)]), body]); }
+const fullBox = (type, version, flags, ...parts) => mbox(type, [version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
+const MATRIX = [...be32(0x00010000), ...be32(0), ...be32(0), ...be32(0), ...be32(0x00010000), ...be32(0), ...be32(0), ...be32(0), ...be32(0x40000000)]; // 3×3 display matrix, 36 bytes: identity
+function mp4Descriptor(tag, body) { const n = body.length; return catBytes([Uint8Array.from([tag, 0x80 | ((n >> 21) & 127), 0x80 | ((n >> 14) & 127), 0x80 | ((n >> 7) & 127), n & 127]), body]); }
+function runLengths(values) { const runs = []; for (const v of values) { const r = runs[runs.length - 1]; if (r && r[1] === v) r[0]++; else runs.push([1, v]); } return runs; }
+
+/* Length-prefixed H.264 (what an encoder gives when it ignores a request for start codes) → NAL units */
+function lengthPrefixedNals(u8) { const out = []; for (let i = 0; i + 4 <= u8.length;) { const n = ((u8[i] << 24) | (u8[i + 1] << 16) | (u8[i + 2] << 8) | u8[i + 3]) >>> 0; if (!n || i + 4 + n > u8.length) break; out.push(u8.subarray(i + 4, i + 4 + n)); i += 4 + n; } return out; }
+/* Convert one Annex B frame to length-prefixed form as it arrives, collecting the parameter sets once.
+   state: { sps, pps }. Returns the frame's new bytes. */
+function avcFrame(u8, state) {
+  const keep = [];
+  for (const n of annexbNals(u8)) {
+    const t = n[0] & 0x1F;
+    if (t === 7) { if (!state.sps) state.sps = n.slice(); } else if (t === 8) { if (!state.pps) state.pps = n.slice(); } else if (t !== 9) keep.push(Uint8Array.from(be32(n.length)), n);
+  }
+  return catBytes(keep);
+}
+/* An avcC record (decoder configuration) from SPS and PPS */
+function avcConfig(sps, pps) { return Uint8Array.from([1, sps[1], sps[2], sps[3], 0xFF, 0xE1, ...be16(sps.length), ...sps, 1, ...be16(pps.length), ...pps]); }
+/* SPS and PPS from an avcC record */
+function avcCParams(c) {
+  if (!c || c.length < 7 || c[0] !== 1) return {};
+  let i = 6; const nSps = c[5] & 31, sps = [];
+  for (let k = 0; k < nSps; k++) { const n = (c[i] << 8) | c[i + 1]; sps.push(c.slice(i + 2, i + 2 + n)); i += 2 + n; }
+  const nPps = c[i++], pps = [];
+  for (let k = 0; k < nPps; k++) { const n = (c[i] << 8) | c[i + 1]; pps.push(c.slice(i + 2, i + 2 + n)); i += 2 + n; }
+  return { sps: sps[0], pps: pps[0] };
+}
+/* MP4 with H.264 video and AAC or Opus audio, or (quicktime: true) a QuickTime .mov, which can also carry uncompressed audio.
+   The index (moov) comes first, so it plays and seeks at once.
+   video: { width, height, fps, samples }
+   audio: { codec: 'aac' | 'opus' | 'pcm', sampleRate, channels, bitrate, description, samples, delay?, length? }
+   delay: the encoder's start-up samples (AAC priming) for players to skip; length: the real sound in samples. Both go in an edit list.
+   PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them. */
+function mp4Mux({ video, audio, quicktime = false }) {
+  // video: split each frame into NAL units, keep the parameter sets for the avcC box, store the rest length-prefixed
+  let { sps, pps } = avcCParams(video.description);
+  const vData = video.samples.map(s => {
+    // an encoder that sends an avcC record is sending length-prefixed frames; otherwise they have start codes (Annex B)
+    const nals = video.description ? lengthPrefixedNals(s.data) : annexbNals(s.data);
+    if (video.description && nals.every(n => ![7, 8, 9].includes(n[0] & 0x1F))) return s.data; // already clean: no copy
+    const keep = [];
+    for (const n of nals) {
+      const t = n[0] & 0x1F;
+      if (t === 7) { if (!sps) sps = n.slice(); } else if (t === 8) { if (!pps) pps = n.slice(); } else if (t !== 9) keep.push(Uint8Array.from(be32(n.length)), n);
+    }
+    return catBytes(keep);
+  });
+  if (!sps || !pps) throw new Error('The video encoder gave no H.264 parameter sets.');
+  const vts = video.fps * 100, frameDur = 100, vDuration = vData.length * frameDur;
+  const aSr = audio ? audio.sampleRate : 48000;
+  const pcm = !!(audio && audio.codec === 'pcm');
+  if (pcm && !quicktime) throw new Error('Uncompressed audio needs the QuickTime (.mov) container.');
+  const aDurs = audio ? audio.samples.map(s => pcm ? s.frames : Math.max(1, Math.round(s.duration * aSr))) : [];
+  const aDuration = aDurs.reduce((a, b) => a + b, 0);
+  // with an edit list, playback starts after the priming samples and stops at the end of the real sound
+  const aDelay = audio && audio.delay > 0 ? Math.min(Math.round(audio.delay), aDuration - 1) : 0;
+  const aShown = audio ? Math.max(1, Math.min(aDuration - aDelay, audio.length > 0 ? Math.round(audio.length) : Infinity)) : 0;
+  const aEdit = aDelay > 0 || (audio && aShown < aDuration);
+  const aMs = Math.round(aShown / aSr * 1000);
+  const movieMs = Math.ceil(Math.max(vDuration / vts, audio ? aShown / aSr : 0) * 1000);
+
+  // interleave samples by time: [track, index, size]
+  const order = [];
+  { let ai = 0, at = 0;
+    for (let vi = 0; vi < vData.length; vi++) {
+      const vt = vi / video.fps;
+      while (audio && ai < aDurs.length && at <= vt) { order.push([1, ai]); at += aDurs[ai] / aSr; ai++; }
+      order.push([0, vi]);
+    }
+    while (audio && ai < aDurs.length) order.push([1, ai++]); }
+  const size = ([tr, i]) => tr === 0 ? vData[i].length : audio.samples[i].data.length;
+  const mdatBody = order.reduce((a, o) => a + size(o), 0);
+  const big = mdatBody + 8 > 0xFFFFFFFF;
+
+  const highProfile = [100, 110, 122, 144].includes(sps[1]);
+  const avcC = mbox('avcC', [1, sps[1], sps[2], sps[3], 0xFF, 0xE1, ...be16(sps.length)], sps, [1, ...be16(pps.length)], pps, highProfile ? [0xFD, 0xF8, 0xF8, 0] : []);
+  const vEntry = mbox('avc1', [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...be16(video.width), ...be16(video.height),
+    0, 0x48, 0, 0, 0, 0x48, 0, 0, 0, 0, 0, 0, 0, 1, ...new Array(32).fill(0), 0, 0x18, 0xFF, 0xFF], avcC, mbox('pasp', be32(1), be32(1))); // square pixels
+  const audioHead = ch => [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, ...be16(ch), 0, 16, 0, 0, 0, 0, ...be32(aSr * 65536)];
+  let aEntry = null;
+  if (audio && audio.codec === 'aac') {
+    const asc = audio.description && audio.description.length ? audio.description : Uint8Array.from([0x11, 0x90]); // AAC-LC, 48 kHz, stereo
+    const dcd = mp4Descriptor(4, catBytes([Uint8Array.from([0x40, 0x15, 0, 0, 0, ...be32(audio.bitrate || 0), ...be32(audio.bitrate || 0)]), mp4Descriptor(5, asc)]));
+    const es = mp4Descriptor(3, catBytes([Uint8Array.from([0, 1, 0]), dcd, mp4Descriptor(6, Uint8Array.from([2]))]));
+    aEntry = mbox('mp4a', audioHead(audio.channels), fullBox('esds', 0, 0, es));
+  } else if (pcm) { // 16-bit little-endian PCM ('sowt'), with a stereo or mono channel layout
+    aEntry = mbox('sowt', audioHead(audio.channels), fullBox('chan', 0, 0, be32(audio.channels === 2 ? 0x650002 : 0x640001), be32(0), be32(0)));
+  } else if (audio) {
+    const d = audio.description, preSkip = d && d.length >= 12 ? d[10] | (d[11] << 8) : 312;
+    aEntry = mbox('Opus', audioHead(audio.channels), mbox('dOps', [0, audio.channels, ...be16(preSkip), ...be32(aSr), 0, 0, 0]));
+  }
+
+  const build = offsets => {
+    const chunkOffsets = (tr, n) => { const a = offsets ? offsets[tr] : new Array(n).fill(0); return big ? fullBox('co64', 0, 0, be32(n), ...a.map(be64)) : fullBox('stco', 0, 0, be32(n), be32Table(a)); };
+    const dinf = mbox('dinf', fullBox('dref', 0, 0, be32(1), fullBox('url ', 0, 1)));
+    const stsc = fullBox('stsc', 0, 0, be32(1), be32(1), be32(1), be32(1));
+    const pcmStsc = () => { // one chunk per PCM block, with a new entry whenever the block length changes
+      const e = []; aDurs.forEach((f, k) => { if (!e.length || e[e.length - 1][1] !== f) e.push([k + 1, f, 1]); });
+      return fullBox('stsc', 0, 0, be32(e.length), be32Table(e.flat()));
+    };
+    const tkhd = (id, ms, w, h, vol) => fullBox('tkhd', 0, 3, be32(0), be32(0), be32(id), be32(0), be32(ms), new Array(8).fill(0), 0, 0, 0, 0, ...be16(vol), 0, 0, MATRIX, be32(w * 65536), be32(h * 65536));
+    const mdhd = (ts, dur) => fullBox('mdhd', 0, 0, be32(0), be32(0), be32(ts), be32(dur), 0x55, 0xC4, 0, 0);
+    // QuickTime handler names are length-prefixed and the media handler is marked 'mhlr'; MP4's are null-terminated
+    const hdlr = (type, name) => quicktime ? fullBox('hdlr', 0, 0, fourcc('mhlr'), fourcc(type), new Array(12).fill(0), [utf8(name).length], utf8(name)) : fullBox('hdlr', 0, 0, be32(0), fourcc(type), new Array(12).fill(0), utf8(name), [0]);
+    const dataHdlr = quicktime ? fullBox('hdlr', 0, 0, fourcc('dhlr'), fourcc('url '), new Array(12).fill(0), [11], utf8('DataHandler')) : new Uint8Array(0);
+    const stts = runs => fullBox('stts', 0, 0, be32(runs.length), be32Table(runs.flat()));
+    const vRuns = [[vData.length, frameDur]];
+    // composition offsets, only if the encoder reordered frames (B-frames)
+    const cto = video.samples.map((s, i) => s.pts === undefined ? 0 : Math.round(s.pts * vts) - i * frameDur);
+    const ctts = cto.some(x => x !== 0) ? fullBox('ctts', 1, 0, be32(runLengths(cto).length), be32Table(runLengths(cto).flat(), true)) : new Uint8Array(0);
+    const keys = []; video.samples.forEach((s, i) => { if (s.key) keys.push(i + 1); });
+    const vtrak = mbox('trak', tkhd(1, Math.round(vDuration / vts * 1000), video.width, video.height, 0),
+      mbox('mdia', mdhd(vts, vDuration), hdlr('vide', 'Chord Glide video'),
+        mbox('minf', fullBox('vmhd', 0, 1, 0, 0, 0, 0, 0, 0, 0, 0), dataHdlr, dinf,
+          mbox('stbl', fullBox('stsd', 0, 0, be32(1), vEntry), stts(vRuns), ctts, fullBox('stss', 0, 0, be32(keys.length), be32Table(keys)), stsc,
+            fullBox('stsz', 0, 0, be32(0), be32(vData.length), be32Table(vData.map(d => d.length))), chunkOffsets(0, vData.length)))));
+    const edts = aEdit ? mbox('edts', fullBox('elst', 0, 0, be32(1), be32(aMs), be32(aDelay), be32(0x00010000))) : new Uint8Array(0);
+    const atrak = audio ? mbox('trak', tkhd(2, aEdit ? aMs : Math.round(aDuration / aSr * 1000), 0, 0, 0x0100), edts,
+      mbox('mdia', mdhd(aSr, aDuration), hdlr('soun', 'Chord Glide audio'),
+        mbox('minf', fullBox('smhd', 0, 0, 0, 0, 0, 0), dataHdlr, dinf,
+          mbox('stbl', fullBox('stsd', 0, 0, be32(1), aEntry), pcm ? stts([[aDuration, 1]]) : stts(runLengths(aDurs)), pcm ? pcmStsc() : stsc,
+            pcm ? fullBox('stsz', 0, 0, be32(2 * audio.channels), be32(aDuration)) : fullBox('stsz', 0, 0, be32(0), be32(aDurs.length), be32Table(audio.samples.map(s => s.data.length))),
+            chunkOffsets(1, aDurs.length))))) : new Uint8Array(0);
+    const mvhd = fullBox('mvhd', 0, 0, be32(0), be32(0), be32(1000), be32(movieMs), be32(0x00010000), 1, 0, new Array(10).fill(0), MATRIX, new Array(24).fill(0), be32(audio ? 3 : 2));
+    return mbox('moov', mvhd, vtrak, atrak);
+  };
+  const ftyp = quicktime ? mbox('ftyp', fourcc('qt  '), be32(0x200), fourcc('qt  ')) : mbox('ftyp', fourcc('isom'), be32(0x200), fourcc('isom'), fourcc('iso2'), fourcc('avc1'), fourcc('mp41'));
+  const moovLen = build(null).length, mdatHead = big ? 16 : 8;
+  let pos = ftyp.length + moovLen + mdatHead;
+  const offsets = [new Array(vData.length), new Array(aDurs.length)];
+  for (const o of order) { offsets[o[0]][o[1]] = pos; pos += size(o); }
+  const moov = build(offsets);
+  if (moov.length !== moovLen) throw new Error('MP4 index size changed while writing.');
+  const mdatHeader = big ? Uint8Array.from([0, 0, 0, 1, ...fourcc('mdat'), ...be64(mdatBody + 16)]) : Uint8Array.from([...be32(mdatBody + 8), ...fourcc('mdat')]);
+  return [ftyp, moov, mdatHeader, ...order.map(([tr, i]) => tr === 0 ? vData[i] : audio.samples[i].data)];
+}
+
+/* WebM with VP9 or VP8 video and Opus audio, including the duration and a seek index (Cues) */
+function ebmlId(id) { const b = []; while (id > 0) { b.unshift(id & 255); id = Math.floor(id / 256); } return b; }
+function ebmlSize(n) { for (let len = 1; len <= 8; len++) if (n < Math.pow(2, 7 * len) - 1) { const b = []; let x = n; for (let i = 0; i < len; i++) { b.unshift(x % 256); x = Math.floor(x / 256); } b[0] |= 0x80 >> (len - 1); return b; } throw new Error('EBML element too large'); }
+function ebml(id, ...parts) { const body = catBytes(parts.map(asBytes)); return catBytes([Uint8Array.from([...ebmlId(id), ...ebmlSize(body.length)]), body]); }
+function ebmlUint(id, n, len) { const b = []; let x = n; do { b.unshift(x % 256); x = Math.floor(x / 256); } while (x > 0 || (len && b.length < len)); return ebml(id, b); }
+function ebmlFloat(id, x) { const b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x); return ebml(id, b); }
+const ebmlStr = (id, s) => ebml(id, utf8(s));
+function opusHead(channels, preSkip, sampleRate) { return Uint8Array.from([...fourcc('OpusHead'), 1, channels, preSkip & 255, preSkip >> 8, ...be32(sampleRate).reverse(), 0, 0, 0]); }
+
+function webmMux({ video, audio }) {
+  const codecId = video.codec === 'vp8' ? 'V_VP8' : 'V_VP9';
+  const head = audio && audio.description && audio.description.length >= 19 ? audio.description : opusHead(audio ? audio.channels : 2, 312, audio ? audio.sampleRate : 48000);
+  const preSkip = head[10] | (head[11] << 8);
+  // every block with its time in milliseconds; video first at equal times
+  const blocks = video.samples.map((s, i) => ({ track: 1, ms: Math.round((s.pts === undefined ? i / video.fps : s.pts) * 1000), key: s.key, data: s.data }));
+  if (audio) { let t = 0; for (const s of audio.samples) { blocks.push({ track: 2, ms: Math.round(t * 1000), key: true, data: s.data }); t += s.duration; } }
+  blocks.sort((a, b) => a.ms - b.ms || a.track - b.track);
+  const durationMs = Math.max(video.samples.length * 1000 / video.fps, audio ? audio.samples.reduce((a, s) => a + s.duration, 0) * 1000 : 0);
+  // clusters start at video keyframes (and at least every 30 s, so block times fit in 16 bits)
+  const clusters = []; let cur = null;
+  for (const b of blocks) {
+    if (!cur || (b.track === 1 && b.key && cur.blocks.length) || b.ms - cur.ms > 30000) { cur = { ms: b.ms, blocks: [], cue: b.track === 1 && b.key }; clusters.push(cur); }
+    cur.blocks.push(b);
+  }
+  // each cluster is a list of parts: small headers are built here, block data is referenced, not copied
+  const clusterParts = clusters.map(c => {
+    const inner = [ebmlUint(0xE7, c.ms)];
+    for (const b of c.blocks) {
+      const rel = b.ms - c.ms, head = [0x80 | b.track, (rel >> 8) & 255, rel & 255, b.key ? 0x80 : 0];
+      inner.push(Uint8Array.from([...ebmlId(0xA3), ...ebmlSize(head.length + b.data.length), ...head]), b.data);
+    }
+    const len = inner.reduce((a, x) => a + x.length, 0);
+    return [Uint8Array.from([...ebmlId(0x1F43B675), ...ebmlSize(len)]), ...inner];
+  });
+  const clusterBytes = clusterParts.map(parts => ({ length: parts.reduce((a, x) => a + x.length, 0), parts }));
+  const info = ebml(0x1549A966, ebmlUint(0x2AD7B1, 1000000), ebmlFloat(0x4489, durationMs), ebmlStr(0x4D80, 'Chord Glide'), ebmlStr(0x5741, 'Chord Glide'));
+  const tracks = ebml(0x1654AE6B,
+    ebml(0xAE, ebmlUint(0xD7, 1), ebmlUint(0x73C5, 1), ebmlUint(0x83, 1), ebmlUint(0x9C, 0), ebmlStr(0x86, codecId), ebmlUint(0x23E383, Math.round(1e9 / video.fps)),
+      ebml(0xE0, ebmlUint(0xB0, video.width), ebmlUint(0xBA, video.height))),
+    ...(audio ? [ebml(0xAE, ebmlUint(0xD7, 2), ebmlUint(0x73C5, 2), ebmlUint(0x83, 2), ebmlUint(0x9C, 0), ebmlStr(0x86, 'A_OPUS'), ebml(0x63A2, head),
+      ebmlUint(0x56AA, Math.round(preSkip / 48000 * 1e9)), ebmlUint(0x56BB, 80000000),
+      ebml(0xE1, ebmlFloat(0xB5, audio.sampleRate), ebmlUint(0x9F, audio.channels)))] : []));
+  // positions are relative to the start of the Segment's data; the seek head uses fixed-size numbers so its own size is known in advance
+  const seekHead = pos => ebml(0x114D9B74, ...[[0x1549A966, pos.info], [0x1654AE6B, pos.tracks], [0x1C53BB6B, pos.cues]].map(([id, p]) =>
+    ebml(0x4DBB, ebml(0x53AB, ebmlId(id)), ebmlUint(0x53AC, p, 8))));
+  const seekLen = seekHead({ info: 0, tracks: 0, cues: 0 }).length;
+  const pos = { info: seekLen }; pos.tracks = pos.info + info.length;
+  let p = pos.tracks + tracks.length; const clusterPos = clusterBytes.map(c => { const at = p; p += c.length; return at; });
+  pos.cues = p;
+  const cues = ebml(0x1C53BB6B, ...clusters.map((c, i) => c.cue ? ebml(0xBB, ebmlUint(0xB3, c.ms), ebml(0xB7, ebmlUint(0xF7, 1), ebmlUint(0xF1, clusterPos[i]))) : null).filter(Boolean));
+  const segBody = [seekHead(pos), info, tracks, ...clusterParts.flat(), cues];
+  const segLen = segBody.reduce((a, b) => a + b.length, 0);
+  const header = ebml(0x1A45DFA3, ebmlUint(0x4286, 1), ebmlUint(0x42F7, 1), ebmlUint(0x42F2, 4), ebmlUint(0x42F3, 8), ebmlStr(0x4282, 'webm'), ebmlUint(0x4287, 4), ebmlUint(0x4285, 2));
+  const segHead = Uint8Array.from([...ebmlId(0x18538067), 0x01, ...be64(segLen).slice(1)]); // 8-byte size
+  return [header, segHead, ...segBody];
 }

@@ -183,6 +183,12 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .slider input, .slider .ends { grid-column: 1 / -1; }
 .slider .ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -2px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vopts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 10px; }
+.vopts label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.vopts select { width: 100%; }
+.no-render .vr, .no-render #vest { display: none; }
+#vest.warn { color: var(--warn); }
+.no-render .two { grid-template-columns: 1fr; }
 .exports { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .exports button { white-space: normal; text-align: left; line-height: 1.3; padding: 9px 10px; }
 .exports button small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
@@ -326,7 +332,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 3.9.1 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -530,13 +536,21 @@ figure.vl circle { fill: var(--ink); }
         <p class="hint" id="xhint"></p>
         <div class="video-box">
           <span class="label">Video</span>
+          <div class="vopts">
+            <label>Shape<select id="vaspect"><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option><option value="1:1">Square 1:1</option></select></label>
+            <label class="vr">Size<select id="vsize"><option value="1080">1080p</option><option value="1440">1440p</option></select></label>
+            <label class="vr">Frame rate<select id="vfps"><option value="60">60 fps</option><option value="30">30 fps</option></select></label>
+            <label class="vr">Format<select id="vformat"><option value="mp4">MP4 (H.264)</option><option value="webm">WebM (VP9)</option></select></label>
+            <label class="vr">Quality<select id="vquality"><option value="standard">Standard</option><option value="high">High</option></select></label>
+          </div>
           <div class="two">
-            <select id="vaspect" aria-label="Video shape"><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option><option value="1:1">Square 1:1</option></select>
-            <button type="button" id="vrecord">Record video</button>
+            <button type="button" id="vrender" class="primary vr">Render video</button>
+            <button type="button" id="vrecord">Record live</button>
           </div>
           <canvas id="vcanvas" width="1920" height="1080" hidden></canvas>
           <progress id="vprog" max="1" value="0" hidden></progress>
-          <p class="hint">Plays the piece once and records it in real time with sound. Keep this tab in front while it records.</p>
+          <p class="hint" id="vest" aria-live="polite"></p>
+          <p class="hint" id="vhint">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
         </div>
         <p id="xstatus" class="hint" role="status"></p>
       </div>
@@ -630,7 +644,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">8</span>Export</h4>
-          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Video</b> plays the piece once and records it, using the piece's trace look.</p>
+          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render.</p>
 
           <h4><span class="step">9</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -757,6 +771,9 @@ figure.vl circle { fill: var(--ink); }
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
 
+          <h4><span class="step ver">4.0</span>Rendered video<span class="when">1 Nov 2026</span></h4>
+          <p>Videos are now rendered frame by frame instead of recorded as the piece plays. Every frame is drawn at its exact time, so nothing stutters or freezes, and the file has a proper index, so it plays and seeks cleanly in VLC, QuickTime and on YouTube. Choose MP4 (H.264) or WebM (VP9), 1080p or 1440p, 60 or 30 fps, and Standard or High quality. Rendering works from a snapshot of the piece, shows its progress, time left and expected size, and can be cancelled at any point. Record live is still there for browsers that can't render. On dark looks the dots glow softly instead of sitting in a flat halo. Also: with no valid chords the old piece no longer lingers, undo stays within one piece, and MIDI handles extreme glides correctly.</p>
+
           <h4><span class="step ver">3.9.1</span>Full glow in videos again<span class="when">1 Nov 2026</span></h4>
           <p>3.9's lighter glow made videos look duller, so the original glow is back, exactly as in 3.8. Recording stays faster than 3.8 because each frame is still drawn only once, and on 120 Hz screens it no longer draws frames the video can't use. Videos are now recorded at 12 Mbps, up from 8.</p>
 
@@ -882,7 +899,7 @@ figure.vl circle { fill: var(--ink); }
           <p>Use it online at <a href="https://chord-glide.noizgenie.com" target="_blank" rel="noopener noreferrer">chord-glide.noizgenie.com</a>, or get the source code and the downloadable app on <a href="https://github.com/Katorthoma/chord-glide" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
 
           <h4>Privacy</h4>
-          <p>Chord Glide itself has no accounts, ads, analytics or tracking, and sets no cookies. The voicing, the sound, the video and every export are made in your browser, and Chord Glide never uploads what you write or play. Exported files go straight to your computer.</p>
+          <p>Chord Glide itself has no accounts, ads, analytics or tracking, and sets no cookies. The voicing, the sound, the video and every export are made in your browser, and Chord Glide never uploads what you write or play.</p>
           <p id="about-where"></p>
 
           <h4>License</h4>

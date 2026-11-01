@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '4.0';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -87,7 +87,11 @@ function rebuild(keepTime = true) {
   const { items, errors } = parseProgression(piece.chords);
   const msgs = [];
   if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6.');
-  if (!items.length) { msgs.push('Add at least one chord to hear something.'); showErr(msgs); return; }
+  if (!items.length) { // nothing valid to play: drop the old build so nothing plays or exports a piece that isn't on screen
+    msgs.push('Add at least one chord to hear something.'); showErr(msgs);
+    if (playing) { stopAudio(0.05); playing = false; setPlayIcon(); }
+    built = null; marks = null; offset = 0; $('revoice').hidden = true; updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate(); return;
+  }
   const t = currentT();
   built = isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece);
   marks = landmarks(built);
@@ -98,6 +102,15 @@ function rebuild(keepTime = true) {
   offset = keepTime ? Math.min(t, built.total) : 0;
   screenCam.snap = true;
   if (playing && !recording) startAudio(offset);
+  updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
+}
+/* Playback and exports need a built piece; a piece file can always be saved (without notes if there are none) */
+function updateAvailability() {
+  if (rendering || recording || exporting) return;
+  const has = !!built, save = canSave();
+  for (const id of ['play', 'restart', 'scrub']) $(id).disabled = !has;
+  document.querySelectorAll('[data-export]').forEach(b => b.disabled = !save || (!has && b.dataset.export !== 'json'));
+  for (const id of ['vrender', 'vrecord']) $(id).disabled = !save || !has;
 }
 const isFrozen = () => !!(piece && piece.realization && piece.realization.engine !== ENGINE_VERSION && validRealization(piece.realization));
 /* Normalize, and drop a saved realization from this same engine: the settings reproduce it exactly */
@@ -115,10 +128,11 @@ function commit() {
   committed = s; redoStack = [];
   updateUndo(); updateStatus(); saveDraftSoon();
 }
-function applyPiece(p, { record = true, keepTime = false } = {}) {
+function applyPiece(p, { record = true, keepTime = false, fresh = false } = {}) {
   piece = prepPiece(p);
   syncUI(); rebuild(keepTime);
-  if (record) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
+  if (fresh) { undoStack = []; redoStack = []; updateUndo(); } // a different piece: undo must not reach back into the previous one (and save over it)
+  if (record && !fresh) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
 }
 function undo() { if (!undoStack.length) return; redoStack.push(committed); const s = undoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
 function redo() { if (!redoStack.length) return; undoStack.push(committed); const s = redoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
@@ -219,7 +233,7 @@ function openFromLibrary(it) {
   setPlaying(false);
   currentLibId = it.id;
   savedJSON = JSON.stringify(p);
-  applyPiece(p);
+  applyPiece(p, { fresh: true });
   setStatus('Opened “' + p.name + '”' + openNote(it.piece));
   renderLibrary();
 }
@@ -275,6 +289,7 @@ function impulse(ctx, seed) {
   const r = mulberry32((seed ^ 0x3C6EF372) >>> 0);
   const len = Math.floor(ctx.sampleRate * 3.4), buf = ctx.createBuffer(2, len, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (r() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+  if (irCache.size >= 4) irCache.delete(irCache.keys().next().value);
   irCache.set(key, { ctx, buf });
   return buf;
 }
@@ -348,6 +363,7 @@ const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, sa
 /* ---------- Drawing ---------- */
 const cv = $('cv'), g2 = cv.getContext('2d');
 let colors = {}, colorTick = 0, dpr = 1;
+const liveColors = () => colors;
 function readColors() {
   const cs = getComputedStyle(document.documentElement), v = k => cs.getPropertyValue(k).trim();
   colors = { stage: v('--stage'), ink: v('--ink'), muted: v('--muted'), accent: v('--accent'), rule: v('--rule'), data: v('--font-data'), display: v('--font-display') };
@@ -359,17 +375,17 @@ function fit() {
   if (w && h && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
 }
 new ResizeObserver(fit).observe(cv);
-function cameraZ(t) {
-  const m = piece.view.mode;
+function cameraZ(t, S = null) {
+  const m = (S ? S.piece : piece).view.mode;
   if (m === 'scroll') return 1;
   if (m === 'whole') return 0;
-  const e = x => x * x * (3 - 2 * x), L = marks;
+  const e = x => x * x * (3 - 2 * x), L = S ? S.marks : marks;
   const a = L.inEnd > L.inStart ? clamp01((t - L.inStart) / (L.inEnd - L.inStart)) : (t >= L.inEnd ? 1 : 0);
   const b = L.outEnd - L.outStart > 0.3 ? clamp01((t - L.outStart) / (L.outEnd - L.outStart)) : 0;
   return e(a) * (1 - e(b));
 }
-function pitchLabel(p) {
-  if (piece.view.labels === 'hz') return hz(p).toFixed(2) + ' Hz';
+function pitchLabel(p, S = null) {
+  if ((S ? S.piece : piece).view.labels === 'hz') return hz(p).toFixed(2) + ' Hz';
   const r = Math.round(p), c = Math.round((p - r) * 100);
   return noteName(r) + (Math.abs(c) >= 3 ? (c > 0 ? ' +' : ' −') + Math.abs(c) + '¢' : '');
 }
@@ -387,9 +403,10 @@ const TRACE_LOOKS = {
 };
 const hexLum = h => { const n = parseInt(h.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const mixHex = (a, b, t) => { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * t).toString(16).padStart(2, '0')).join(''); };
+const hslHex = c => { const m = /^hsl\((\d+(?:\.\d+)?),\s*(\d+)%,\s*(\d+)%\)$/.exec(String(c).trim()); if (!m) return null; const h = +m[1] / 360, s2 = +m[2] / 100, l = +m[3] / 100; const f = n => { const k = (n + h * 12) % 12, a = s2 * Math.min(l, 1 - l); return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); }; return '#' + [f(0), f(8), f(4)].map(x => x.toString(16).padStart(2, '0')).join(''); };
 const cssHex = c => { const m = /^#([0-9a-f]{6})$/i.exec(String(c).trim()); if (m) return '#' + m[1].toLowerCase(); const s = /^#([0-9a-f]{3})$/i.exec(String(c).trim()); return s ? '#' + s[1].split('').map(x => x + x).join('').toLowerCase() : null; };
 /* Resolve a piece's trace look into concrete drawing colors */
-function tracePalette(tr) {
+function tracePalette(tr, colors = liveColors()) {
   const L = TRACE_LOOKS[tr.look] || TRACE_LOOKS.theme, glow = tr.glow / 100, weight = tr.weight;
   if (tr.look === 'theme') {
     const bg = cssHex(colors.stage) || '#fcfdfb', dark = hexLum(bg) < 0.2;
@@ -440,24 +457,27 @@ function pitchGradient(g, pal, Y) {
   return grad;
 }
 
-/* Shared by the screen and the video recorder */
-function drawScene(g, W, H, d, t, cam, video) {
-  const b = built, N = b.N, T = b.total;
-  const pal = tracePalette(piece.view.trace);
+/* Shared by the screen and the video recorder. S: an optional snapshot { built, piece, marks, colors } to draw instead of the
+   live piece, so a video render keeps drawing exactly what it started with whatever happens in the editor meanwhile. */
+function drawScene(g, W, H, d, t, cam, video, S = null) {
+  if (!S) S = { built, piece, marks, colors };
+  const b = S.built, N = b.N, T = b.total, C = S.colors;
+  const pal = tracePalette(S.piece.view.trace, C);
   const narrow = W / d < 520;
   const labelW = (video ? 150 : narrow ? 86 : 104) * d;
-  const zz = cameraZ(Math.min(t, built.total)), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = (video ? 110 : 22) * d, y1 = H - (video ? 130 : 18) * d;
+  const zz = cameraZ(Math.min(t, T), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = (video ? 110 : 22) * d, y1 = H - (video ? 130 : 18) * d;
   paintBackground(g, W, H, pal);
   const tc = Math.min(t, T), idx = eventIndex(b, tc);
   const cur = []; for (let v = 0; v < N; v++) cur.push(pitchAt(b, v, tc, idx));
-  const z = cameraZ(tc);
+  const z = cameraZ(tc, S);
   // the label column is only reserved while scrolling; zoomed out, the piece runs almost to the edge
   const xEnd = lerp(W - (video ? 50 : 18) * d, x1 - 14 * d, z);
   const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
   const win = (xEnd - x0) / pps;
   let lo = Infinity, hi = -Infinity;
   for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.max(0, tc - win + win * k / 40)); if (p < lo) lo = p; if (p > hi) hi = p; }
-  if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo += (lo - cam.slo) * 0.1; cam.shi += (hi - cam.shi) * 0.1; }
+  const ck = cam.k || 0.1; // how far the view eases toward its target each frame
+  if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo += (lo - cam.slo) * ck; cam.shi += (hi - cam.shi) * ck; }
   let ylo = lerp(b.min, cam.slo, z), yhi = lerp(b.max, cam.shi, z);
   if (yhi - ylo < 12) { const c = (yhi + ylo) / 2; ylo = c - 6; yhi = c + 6; }
   const padY = (y1 - y0) * 0.07;
@@ -491,20 +511,31 @@ function drawScene(g, W, H, d, t, cam, video) {
   cur.forEach((p, v) => { const k = Math.round(p * 100); const gp = groups.get(k); if (gp) gp.n++; else groups.set(k, { p, n: 1, v }); });
   const gs = [...groups.values()].sort((a, b2) => b2.p - a.p);
   const r0 = (video ? 5.5 : 4.6) * d;
+  // a dot's own colour as rgba, for its glow (looks with a pitch gradient take the colour at the dot's pitch)
+  const dotColor = (gp, a = 1) => {
+    let hex = pal.stops ? (() => { const f = Math.max(0, Math.min(1, (gp.p - 40) / 48)) * (pal.stops.length - 1), i = Math.min(pal.stops.length - 2, Math.floor(f)); return mixHex(pal.stops[i], pal.stops[i + 1], f - i); })() : pal.line(gp.v, N);
+    hex = cssHex(hex) || hslHex(hex) || '#ffffff';
+    const n = parseInt(hex.slice(1), 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  };
   for (const gp of gs) {
     const y = Y(gp.p), col = colorOf(gp.v);
-    if (pal.dark && pal.glow > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.18 * pal.glow; g.fillStyle = col; g.beginPath(); g.arc(px, y, r0 * 2.4, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    if (pal.dark && pal.glow > 0) { // a soft glow that fades out from the dot, like the lines' glow (not a flat disc)
+      const rg = g.createRadialGradient(px, y, r0 * 0.5, px, y, r0 * 3.6);
+      rg.addColorStop(0, dotColor(gp)); rg.addColorStop(0.35, dotColor(gp, 0.45)); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow); g.fillStyle = rg;
+      g.beginPath(); g.arc(px, y, r0 * 3.6, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    }
     g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
     if (pal.core) { g.fillStyle = pal.core; g.beginPath(); g.arc(px, y, r0 * 0.45, 0, Math.PI * 2); g.fill(); }
   }
-  g.font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${colors.data || 'monospace'}`;
+  g.font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${C.data || 'monospace'}`;
   g.textBaseline = 'middle';
   let lastY = -1e9; const lx = px + 12 * d, gap = (video ? 15 : 12.5) * d;
   for (const gp of gs) {
     let y = Y(gp.p);
     if (y - lastY < gap) { y = lastY + gap; if (y > H - 4 * d) break; }
     lastY = y;
-    const txt = pitchLabel(gp.p) + (gp.n > 1 ? ' ×' + gp.n : '');
+    const txt = pitchLabel(gp.p, S) + (gp.n > 1 ? ' ×' + gp.n : '');
     const w = g.measureText(txt).width;
     const tx = lx + w > W - 4 * d ? px - 12 * d - w : lx; // near the right edge, put the label on the left of the dot
     if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); g.globalAlpha = 1; }
@@ -513,10 +544,10 @@ function drawScene(g, W, H, d, t, cam, video) {
   if (video) {
     const e = b.events[idx], nx = b.events[idx + 1];
     g.fillStyle = pal.title; g.textBaseline = 'alphabetic';
-    g.font = `700 ${34 * d}px ${colors.display || 'sans-serif'}`; g.fillText(piece.name, x0, 66 * d);
-    g.font = `500 ${30 * d}px ${colors.display || 'sans-serif'}`;
+    g.font = `700 ${34 * d}px ${C.display || 'sans-serif'}`; g.fillText(S.piece.name, x0, 66 * d);
+    g.font = `500 ${30 * d}px ${C.display || 'sans-serif'}`;
     g.fillText((e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label, x0, H - 64 * d);
-    g.fillStyle = pal.text; g.font = `${14 * d}px ${colors.data || 'monospace'}`;
+    g.fillStyle = pal.text; g.font = `${14 * d}px ${C.data || 'monospace'}`;
     if (nx) g.fillText('next ' + (nx.kind === 'note' ? '→ ' : '') + nx.label, x0, H - 36 * d);
     const tt = fmtClock(tc) + ' / ' + fmtClock(T); const w = g.measureText(tt).width; g.fillText(tt, W - 50 * d - w, H - 36 * d);
   }
@@ -542,9 +573,17 @@ function drawLookPreview(cnv, tr) {
   });
 }
 const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
+function drawEmptyStage() {
+  const pal = tracePalette(piece ? piece.view.trace : { look: 'theme', glow: 60, weight: 1 });
+  paintBackground(g2, cv.width, cv.height, pal);
+  g2.fillStyle = pal.text; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.font = `${14 * dpr}px ${colors.display || 'sans-serif'}`;
+  g2.fillText('Add a chord on the Harmony tab to hear the voices', cv.width / 2, cv.height / 2); g2.textAlign = 'start';
+  for (const id of ['r-chord', 'r-next', 'r-voices', 'r-range']) setText($(id), '–'); setText($('time'), '0:00 / 0:00');
+}
 function frame() {
   requestAnimationFrame(frame);
-  if (!built) return;
+  if (rendering) return; // while rendering a video, the renderer shows its own preview on the stage
+  if (!built) { drawEmptyStage(); return; }
   if (colorTick++ % 30 === 0) readColors();
   let t = currentT();
   if (playing && t >= built.total + TAIL) {
@@ -585,7 +624,7 @@ async function initDownloads() {
   $('xhint').textContent = saveMode === 'browser'
     ? 'Files download straight to your computer. MusicXML shows where the voices settle; the glides live in the MIDI and audio.'
     : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip. MusicXML shows where the voices settle; the glides live in the MIDI and audio.');
-  if (!canSave()) { document.querySelectorAll('[data-export], #vrecord').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
+  if (!canSave()) { document.querySelectorAll('[data-export], #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
 }
 function xstatus(m) { $('xstatus').textContent = m; }
 async function saveFile(filename, data) {
@@ -606,7 +645,11 @@ async function saveFile(filename, data) {
   }
 }
 /* A copy of the piece that also carries its resolved notes, so it reopens exactly even under a later engine */
-function withRealization() { const p = JSON.parse(JSON.stringify(piece)); p.realization = isFrozen() ? piece.realization : realizationOf(built); return p; }
+function withRealization() {
+  const p = JSON.parse(JSON.stringify(piece));
+  if (isFrozen()) p.realization = piece.realization; else if (built) p.realization = realizationOf(built); else delete p.realization; // no chords, no notes
+  return p;
+}
 function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return JSON.stringify(p, null, 2); }
 async function renderOffline(b) {
   const sr = 48000, len = Math.ceil((b.total + 3) * sr);
@@ -634,15 +677,15 @@ function loadLame() {
     .catch(() => { lamePromise = null; throw new Error((HOST && HOST.mp3Error) || 'MP3 export needs lame.min.js in the same folder as this page. It was not found.'); });
   return lamePromise;
 }
-async function encodeMp3(a) {
+async function encodeMp3(a, kbps = 192, stop = null) {
   const lame = await loadLame();
-  const enc = new lame.Mp3Encoder(2, a.sr, 192);
+  const enc = new lame.Mp3Encoder(2, a.sr, kbps);
   const n = a.L.length, l = new Int16Array(n), r = new Int16Array(n);
   for (let i = 0; i < n; i++) { l[i] = Math.max(-32768, Math.min(32767, a.L[i] * 32767)); r[i] = Math.max(-32768, Math.min(32767, a.R[i] * 32767)); }
   const parts = [];
   for (let i = 0, blk = 0; i < n; i += 1152, blk++) {
     const out = enc.encodeBuffer(l.subarray(i, i + 1152), r.subarray(i, i + 1152)); if (out.length) parts.push(new Uint8Array(out));
-    if (blk % 400 === 0) { xstatus('Encoding MP3… ' + Math.round(100 * i / n) + '%'); await new Promise(r2 => setTimeout(r2, 0)); }
+    if (blk % 400 === 0) { if (stop && stop()) throw 'cancel'; xstatus((stop ? 'Encoding audio… ' : 'Encoding MP3… ') + Math.round(100 * i / n) + '%'); await (stop ? nextTask() : new Promise(r2 => setTimeout(r2, 0))); }
   }
   const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
   const total = parts.reduce((s, p) => s + p.length, 0), mp3 = new Uint8Array(total);
@@ -651,7 +694,7 @@ async function encodeMp3(a) {
 }
 let exporting = false;
 async function doExport(kind) {
-  if (exporting || !built) return;
+  if (exporting || (!built && kind !== 'json')) return;
   exporting = true; document.querySelectorAll('[data-export]').forEach(b => b.disabled = true);
   const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: name };
   try {
@@ -675,7 +718,7 @@ async function doExport(kind) {
     else { xstatus('Packing…'); ok = await saveFile(name + ' (' + label + ').zip', new Blob([zipStore(files)])); }
     if (ok && mp3Note) xstatus($('xstatus').textContent + mp3Note);
   } catch (e) { xstatus(e && e.message ? e.message : 'Export failed.'); }
-  finally { exporting = false; if (canSave()) document.querySelectorAll('[data-export]').forEach(b => b.disabled = false); }
+  finally { exporting = false; updateAvailability(); }
 }
 
 /* ---------- Video ---------- */
@@ -687,9 +730,11 @@ function pickMime() {
 const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.tabs'];
 function lockUI(on) {
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
-  document.querySelectorAll('[data-export], #vaspect, #tempo').forEach(el => el.disabled = on || !canSave());
+  document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #tempo').forEach(el => el.disabled = on || !canSave());
+  if (!on) updateAvailability();
 }
 function startRecording() {
+  if (rendering) return;
   if (!canSave()) return xstatus('Saving files isn\'t available in this view.');
   const vc = $('vcanvas');
   if (typeof MediaRecorder === 'undefined' || !vc.captureStream) return xstatus('This browser can\'t record video from this page.');
@@ -708,7 +753,7 @@ function startRecording() {
   const rec = recording;
   mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); }; // keeps the final chunk that arrives after stop()
   mr.onstop = async () => {
-    lockUI(false); $('vrecord').textContent = 'Record video'; $('vprog').hidden = true; vc.hidden = true;
+    $('vrecord').textContent = 'Record live'; lockUI(false); $('vprog').hidden = true; vc.hidden = true;
     if (rec.cancelled) { xstatus('Recording cancelled.'); return; }
     const ext = /mp4/.test(rec.mime) ? 'mp4' : 'webm';
     const blob = new Blob(rec.chunks, { type: rec.mime });
@@ -717,7 +762,7 @@ function startRecording() {
     await saveFile(safeName($('name').value) + '.' + ext, blob);
   };
   drawScene(recording.g, w, h, recording.d, 0, recording.cam, true);
-  lockUI(true); $('vrecord').textContent = 'Cancel recording'; xstatus('Recording… the piece plays once.');
+  lockUI(true); $('vrecord').textContent = 'Cancel recording'; $('vrender').disabled = true; xstatus('Recording… the piece plays once.');
   // Prepare the whole audio graph first, and give the encoder a moment on the opening frame
   // before anything moves, so the start of the video doesn't stutter.
   startAudio(0, dest, 0.6); playing = true; setPlayIcon();
@@ -728,6 +773,234 @@ function finishRecording(cancel = false) {
   const rec = recording; recording = null; rec.cancelled = cancel;
   try { rec.mr.stop(); } catch (e) {}
   if (cancel) { stopAudio(0.1); playing = false; offset = 0; setPlayIcon(); }
+}
+
+/* ---------- Video: rendered frame by frame ----------
+   Instead of filming the canvas as it plays, draw every frame at its exact time and hand it to the browser's
+   video encoder, with the audio from the same renderer as the WAV export. Nothing can be dropped, however
+   busy the computer is, and the file gets a proper index, so it plays and seeks cleanly everywhere. */
+let rendering = null;
+const CAN_RENDER = typeof VideoEncoder === 'function' && typeof AudioEncoder === 'function' && typeof VideoFrame === 'function' && typeof AudioData === 'function';
+const VIDEO_SIZES = { 1080: { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] }, 1440: { '16:9': [2560, 1440], '9:16': [1440, 2560], '1:1': [1440, 1440] } };
+// Standard follows YouTube's recommended upload bitrates (8 / 12 Mbps at 1080p, 16 / 24 at 1440p, for 30 / 60 fps); High doubles them
+function videoBitrate(size, fps, w, h, quality) {
+  const base = { 1080: { 30: 8e6, 60: 12e6 }, 1440: { 30: 16e6, 60: 24e6 } }[size][fps];
+  const full = size === 1440 ? 2560 * 1440 : 1920 * 1080;
+  return Math.round(base * Math.min(1, (w * h) / full) * (quality === 'high' ? 2 : 1));
+}
+function avcCodecs(w, h, fps) { // H.264 High profile at the lowest level that fits, then Main and Baseline
+  const mbs = Math.ceil(w / 16) * Math.ceil(h / 16), rate = mbs * fps;
+  const levels = [[0x28, 8192, 245760], [0x2A, 8704, 522240], [0x32, 22080, 589824], [0x33, 36864, 983040], [0x34, 36864, 2073600]].filter(([, f, r]) => mbs <= f && rate <= r).map(([l]) => l.toString(16).toUpperCase());
+  return ['6400', '4D00', '42E0'].flatMap(p => levels.map(l => 'avc1.' + p + l));
+}
+async function pickVideoConfig(format, w, h, fps, bitrate) {
+  const codecs = format === 'mp4' ? avcCodecs(w, h, fps) : (w * h > 2228224 ? ['vp09.00.50.08', 'vp09.00.51.08', 'vp8'] : ['vp09.00.41.08', 'vp09.00.50.08', 'vp8']);
+  for (const codec of codecs) {
+    const config = { codec, width: w, height: h, bitrate, framerate: fps, latencyMode: 'quality', ...(format === 'mp4' ? { avc: { format: 'annexb' } } : {}) };
+    try { if ((await VideoEncoder.isConfigSupported(config)).supported) return config; } catch (e) {}
+  }
+  return null;
+}
+const tryAudioCodec = async (codec, bitrate) => { const config = { codec, sampleRate: 48000, numberOfChannels: 2, bitrate }; try { return typeof AudioEncoder !== 'undefined' && (await AudioEncoder.isConfigSupported(config)).supported ? config : null; } catch (e) { return null; } };
+let aacOk = true; // whether this browser can encode AAC; found out by probeRendering
+async function pickAudioConfig(format) {
+  // H.264: AAC in an MP4 if the browser can encode it. If not, a QuickTime .mov with uncompressed 16-bit audio, which QuickTime,
+  // VLC, editors and YouTube all play. (QuickTime won't play MP3 or Opus inside an MP4.)
+  // WebM: Opus.
+  if (format === 'mp4') {
+    const aac = await tryAudioCodec('mp4a.40.2', 320000);
+    return aac ? { kind: 'aac', config: aac } : { kind: 'pcm', config: { bitrate: 1536000 } };
+  }
+  const opus = await tryAudioCodec('opus', 256000); return opus ? { kind: 'opus', config: opus } : null;
+}
+/* How many samples an audio encoder shifts its output by (AAC encoders start with ~1,000–2,000 samples of priming).
+   Encodes a short noise burst, decodes it, and finds the burst by correlation. 0 if it can't tell; the MP4's edit list skips this many. */
+async function codecDelay(config) {
+  try {
+    const sr = config.sampleRate, ch = config.numberOfChannels, n = 4096, maxLag = 4096, total = Math.round(sr / 2);
+    const ref = new Float32Array(n); let seed = 12345;
+    for (let k = 0; k < n; k++) { seed = (seed * 1103515245 + 12345) >>> 0; ref[k] = ((seed >>> 8) / 8388608 - 1) * 0.5 * Math.sin(Math.PI * k / n); }
+    const buf = new Float32Array(total * ch); for (let c = 0; c < ch; c++) buf.set(ref, c * total);
+    const chunks = []; let desc = null, err = null;
+    const enc = new AudioEncoder({ output: (chunk, meta) => { chunks.push(chunk); if (!desc && meta && meta.decoderConfig && meta.decoderConfig.description) desc = meta.decoderConfig.description; }, error: e => { err = e; } });
+    enc.configure(config);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: total, numberOfChannels: ch, timestamp: 0, data: buf });
+    enc.encode(ad); ad.close(); await enc.flush(); enc.close();
+    if (err || !chunks.length) return 0;
+    const parts = [];
+    const dec = new AudioDecoder({ output: a => { const o = { planeIndex: 0, format: 'f32-planar' }, f = new Float32Array(a.allocationSize(o) / 4); a.copyTo(f, o); parts.push(f); a.close(); }, error: e => { err = e; } });
+    dec.configure({ codec: config.codec, sampleRate: sr, numberOfChannels: ch, ...(desc ? { description: desc } : {}) });
+    for (const c of chunks) dec.decode(c);
+    await dec.flush(); dec.close();
+    if (err) return 0;
+    const out = new Float32Array(parts.reduce((a, p) => a + p.length, 0)); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+    if (out.length < n + maxLag) return 0;
+    let best = 0, bestLag = 0; const eRef = ref.reduce((a, x) => a + x * x, 0);
+    for (let lag = 0; lag <= maxLag; lag++) { let sum = 0; for (let k = 0; k < n; k++) sum += ref[k] * out[k + lag]; if (sum > best) { best = sum; bestLag = lag; } }
+    let eOut = 0; for (let k = 0; k < n; k++) eOut += out[k + bestLag] * out[k + bestLag];
+    return best / Math.sqrt(eRef * eOut) > 0.7 ? bestLag : 0; // only trust a clear match
+  } catch (e) { return 0; }
+}
+// the file extension and type for a render: H.264 without AAC goes in a QuickTime .mov
+const videoContainer = (format, audioKind) => format === 'webm' ? { ext: 'webm', type: 'video/webm' } : audioKind === 'pcm' ? { ext: 'mov', type: 'video/quicktime' } : { ext: 'mp4', type: 'video/mp4' };
+// a yield that background tabs don't throttle the way they throttle timers
+const nextTask = (() => { const ch = new MessageChannel(), q = []; ch.port1.onmessage = () => { const r = q.shift(); if (r) r(); }; return () => new Promise(r => { q.push(r); ch.port2.postMessage(0); }); })();
+const bytesOf = b => b instanceof ArrayBuffer ? new Uint8Array(b.slice(0)) : new Uint8Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+async function drain(enc, max) { while (enc.encodeQueueSize > max) await Promise.race([new Promise(r => enc.addEventListener('dequeue', r, { once: true })), new Promise(r => setTimeout(r, 50))]); }
+function videoEstimate() { // megabytes the finished file will take (and roughly what is held in memory while rendering)
+  if (!built) return 0;
+  const o = videoOpts(), [w, h] = VIDEO_SIZES[o.size][o.aspect];
+  const audioBits = o.format === 'mp4' && !aacOk ? 1536000 : 320000; // uncompressed audio in a .mov where there's no AAC
+  return (videoBitrate(o.size, o.fps, w, h, o.quality) + audioBits) * (built.total + TAIL) / 8 / 1048576;
+}
+function showVideoEstimate() {
+  if (!CAN_RENDER) return;
+  const mb = videoEstimate(), big = mb > 1000;
+  $('vest').textContent = mb ? 'About ' + (mb >= 1000 ? (mb / 1024).toFixed(1) + ' GB' : Math.max(1, Math.round(mb)) + ' MB') + ' for this piece' + (big ? '. The whole video is held in memory until it\'s saved, so on a computer with 8 GB of RAM, choose Standard or 1080p.' : '.') : '';
+  $('vest').classList.toggle('warn', big);
+}
+let bigRenderOk = 0;
+function videoOpts() { return { aspect: $('vaspect').value, size: +$('vsize').value, fps: +$('vfps').value, format: $('vformat').value, quality: $('vquality').value }; }
+function saveVideoOpts() { lsSet('cge.video', JSON.stringify(videoOpts())); }
+function setRenderUI(on) {
+  $('vrender').textContent = on ? 'Cancel render' : 'Render video'; $('vprog').hidden = !on; if (on) $('vprog').value = 0;
+  if (on) $('vrecord').disabled = true;
+  lockUI(on); // when turning off, this also restores what's available
+}
+async function renderVideo() {
+  if (!canSave() || rendering || recording || !built) return;
+  if (videoEstimate() > 1000 && Date.now() - bigRenderOk > 10000) { bigRenderOk = Date.now(); return xstatus('This video will be about ' + (videoEstimate() / 1024).toFixed(1) + ' GB, all held in memory while it renders. Click Render video again within 10 seconds to go ahead.'); }
+  bigRenderOk = 0;
+  const o = videoOpts(), [w, h] = VIDEO_SIZES[o.size][o.aspect], fps = o.fps;
+  const bitrate = videoBitrate(o.size, fps, w, h, o.quality);
+  const vconf = await pickVideoConfig(o.format, w, h, fps, bitrate);
+  if (!vconf) return xstatus('This browser can\'t encode ' + (o.format === 'mp4' ? 'H.264 (MP4)' : 'VP9 (WebM)') + ' at ' + o.size + 'p ' + fps + ' fps. Try the other format or size, or Record live.');
+  const aconf = await pickAudioConfig(o.format);
+  if (!aconf) return xstatus('This browser can\'t encode audio for video. Use Record live instead.');
+  // a frozen copy of everything the frames are drawn from: undo or edits during the render can't change the video
+  const snap = { built, piece: JSON.parse(JSON.stringify(piece)), marks: Object.assign({}, marks), colors: Object.assign({}, colors) };
+  const fileName = safeName(snap.piece.name);
+  const rec = rendering = { cancelled: false, error: null, onCancel: null };
+  const cancelled = new Promise(r => { rec.onCancel = r; });
+  setPlaying(false); setRenderUI(true);
+  let wake = null; try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  const started = performance.now();
+  let venc = null, aenc = null;
+  const fail = e => { if (!rec.error) rec.error = e; };
+  try {
+    // 1. audio: the same render as the WAV export, compressed to AAC or Opus, or kept as 16-bit PCM for a .mov
+    xstatus('Rendering audio…');
+    await nextTask();
+    const pcm = await Promise.race([renderOffline(snap.built), cancelled]);
+    if (rec.cancelled) throw 'cancel';
+    let aSamples = [], aDesc = null, aDelay = 0;
+    if (aconf.kind === 'aac') aDelay = await Promise.race([codecDelay(aconf.config), cancelled]); // priming for the edit list to skip
+    if (rec.cancelled) throw 'cancel';
+    if (aconf.kind === 'pcm') { // interleaved 16-bit little-endian, in blocks of 1024 frames that all share one buffer
+      const len = pcm.L.length, buf = new ArrayBuffer(len * 4), dv = new DataView(buf), q = x => Math.max(-32768, Math.min(32767, Math.round(x * 32767)));
+      for (let i = 0; i < len; i++) { dv.setInt16(4 * i, q(pcm.L[i]), true); dv.setInt16(4 * i + 2, q(pcm.R[i]), true); }
+      for (let i = 0; i < len; i += 1024) { const n = Math.min(1024, len - i); aSamples.push({ data: new Uint8Array(buf, 4 * i, 4 * n), frames: n }); }
+    } else {
+    aenc = new AudioEncoder({ output: (chunk, meta) => {
+      const d = new Uint8Array(chunk.byteLength); chunk.copyTo(d);
+      aSamples.push({ data: d, ts: chunk.timestamp / 1e6, duration: chunk.duration ? chunk.duration / 1e6 : 0 });
+      if (!aDesc && meta && meta.decoderConfig && meta.decoderConfig.description) aDesc = bytesOf(meta.decoderConfig.description);
+    }, error: fail });
+    aenc.configure(aconf.config);
+    const len = pcm.L.length, block = 4800;
+    for (let i = 0; i < len; i += block) {
+      const n = Math.min(block, len - i), buf = new Float32Array(n * 2);
+      buf.set(pcm.L.subarray(i, i + n), 0); buf.set(pcm.R.subarray(i, i + n), n);
+      const ad = new AudioData({ format: 'f32-planar', sampleRate: pcm.sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(i / pcm.sr * 1e6), data: buf });
+      aenc.encode(ad); ad.close();
+      if (aenc.encodeQueueSize > 16) await drain(aenc, 8);
+      if (rec.error) throw rec.error;
+    }
+    await Promise.race([aenc.flush(), cancelled]); if (rec.cancelled) throw 'cancel';
+    aenc.close(); aenc = null;
+    // fill in any missing durations from the timestamps (or the codec's frame length)
+    const frameLen = aconf.kind === 'aac' ? 1024 / 48000 : 0.02;
+    aSamples.forEach((a, i) => { if (!a.duration) a.duration = i + 1 < aSamples.length ? Math.max(1e-4, aSamples[i + 1].ts - a.ts) : frameLen; });
+    }
+
+    // 2. video: every frame drawn at its exact time
+    const nFrames = Math.ceil((snap.built.total + TAIL) * fps);
+    const vSamples = [], avc = {}; let reordered = false, lastTs = -1, vDesc = null;
+    venc = new VideoEncoder({ output: (chunk, meta) => {
+      if (!vDesc && meta && meta.decoderConfig && meta.decoderConfig.description) vDesc = bytesOf(meta.decoderConfig.description);
+      let d = new Uint8Array(chunk.byteLength); chunk.copyTo(d);
+      if (o.format === 'mp4' && !vDesc) d = avcFrame(d, avc); // to MP4's length-prefixed form now, so only one copy is ever kept
+      if (chunk.timestamp <= lastTs) reordered = true; lastTs = Math.max(lastTs, chunk.timestamp);
+      vSamples.push({ data: d, key: chunk.type === 'key', pts: chunk.timestamp / 1e6 });
+    }, error: fail });
+    venc.configure(vconf);
+    const vc = $('vcanvas'); vc.width = w; vc.height = h;
+    const g = vc.getContext('2d'), d = Math.min(w, h) / 540;
+    const cam = { slo: 50, shi: 80, snap: true, k: 1 - Math.pow(0.9, 60 / fps) }; // eases at the same speed per second as the 60 fps screen
+    let lastShow = 0;
+    for (let f = 0; f < nFrames; f++) {
+      if (rec.cancelled) throw 'cancel';
+      if (rec.error) throw rec.error;
+      drawScene(g, w, h, d, f / fps, cam, true, snap);
+      const frame = new VideoFrame(vc, { timestamp: Math.round(f * 1e6 / fps), duration: Math.round(1e6 / fps), alpha: 'discard' });
+      venc.encode(frame, { keyFrame: f % (2 * fps) === 0 }); // a keyframe every 2 seconds keeps seeking quick
+      frame.close();
+      if (venc.encodeQueueSize > 6) await drain(venc, 3);
+      const now = performance.now();
+      if (now - lastShow > 120 || f === nFrames - 1) { // progress and a preview on the stage, a few times a second
+        lastShow = now;
+        const done = (f + 1) / nFrames, spent = (now - started) / 1000, left = spent / done - spent;
+        $('vprog').value = done;
+        xstatus('Rendering video… ' + Math.floor(done * 100) + '%' + (done > 0.03 ? ' · about ' + fmtClock(left) + ' left' : '') + (document.hidden ? ' · it\'s faster with this tab in front' : ''));
+        const k = Math.min(cv.width / w, cv.height / h), pw = w * k, ph = h * k;
+        g2.fillStyle = tracePalette(snap.piece.view.trace, snap.colors).bg; g2.fillRect(0, 0, cv.width, cv.height); g2.drawImage(vc, (cv.width - pw) / 2, (cv.height - ph) / 2, pw, ph);
+        await nextTask();
+      }
+    }
+    await Promise.race([venc.flush(), cancelled]); if (rec.cancelled) throw 'cancel';
+    venc.close(); venc = null;
+    if (vSamples.length !== nFrames) throw new Error('The encoder returned ' + vSamples.length + ' of ' + nFrames + ' frames.');
+    if (!reordered) vSamples.forEach(s => { delete s.pts; }); // constant frame rate: frame i is at i / fps
+
+    // 3. package
+    if (rec.cancelled) throw 'cancel';
+    xstatus('Saving video…');
+    const audio = { codec: aconf.kind, sampleRate: 48000, channels: 2, bitrate: aconf.config.bitrate, description: aDesc, samples: aSamples, delay: aDelay, length: pcm.L.length };
+    if (o.format === 'mp4' && !vDesc) { if (!avc.sps || !avc.pps) throw new Error('The video encoder gave no H.264 parameter sets.'); vDesc = avcConfig(avc.sps, avc.pps); }
+    const video = { codec: vconf.codec.startsWith('vp8') ? 'vp8' : 'vp9', width: w, height: h, fps, description: o.format === 'mp4' ? vDesc : null, samples: vSamples };
+    const box = videoContainer(o.format, aconf.kind);
+    const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov' }) : webmMux({ video, audio });
+    const blob = new Blob(parts, { type: box.type });
+    const secs = ((performance.now() - started) / 1000).toFixed(0);
+    if (await saveFile(fileName + '.' + box.ext, blob))
+      xstatus('Saved ' + fileName + '.' + box.ext + ' (' + w + '×' + h + ', ' + fps + ' fps, ' + (blob.size / 1048576).toFixed(0) + ' MB) in ' + secs + ' s.' + (box.ext === 'mov' ? ' It\'s a QuickTime .mov with uncompressed audio, because this browser can\'t encode AAC for an MP4.' : ''));
+  } catch (e) {
+    xstatus(e === 'cancel' ? 'Render cancelled.' : 'The video couldn\'t be rendered: ' + (e && e.message ? e.message : e));
+  } finally {
+    for (const enc of [venc, aenc]) if (enc && enc.state !== 'closed') { try { enc.close(); } catch (e) {} }
+    if (wake) wake.release().catch(() => {});
+    rendering = null; setRenderUI(false); screenCam.snap = true;
+  }
+}
+// what this browser can render; unsupported choices are marked, and without encoders only Record live is offered
+async function probeRendering() {
+  if (!CAN_RENDER) { document.querySelector('.video-box').classList.add('no-render'); $('vhint').textContent = 'Records the piece in real time with sound. Keep this tab in front while it records. (Frame-by-frame rendering needs Chrome, Edge or Safari.)'; return; }
+  for (const opt of $('vformat').options) {
+    const ok = !!(await pickVideoConfig(opt.value, 1920, 1080, 30, 8e6));
+    if (!ok) { opt.textContent += ' (not supported here)'; opt.disabled = true; }
+  }
+  // without AAC, H.264 renders are saved as QuickTime .mov files with uncompressed audio: say so on the menu
+  aacOk = !!(await tryAudioCodec('mp4a.40.2', 320000));
+  const h264 = [...$('vformat').options].find(x => x.value === 'mp4');
+  if (h264 && !aacOk && !h264.disabled) h264.textContent = 'MOV (H.264)';
+  showVideoEstimate();
+  if ($('vformat').selectedOptions[0] && $('vformat').selectedOptions[0].disabled) { const ok = [...$('vformat').options].find(x => !x.disabled); if (ok) $('vformat').value = ok.value; else document.querySelector('.video-box').classList.add('no-render'); }
+}
+{ // remembered video choices (this browser only; not part of the piece)
+  try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v) for (const [id, k] of [['vaspect', 'aspect'], ['vsize', 'size'], ['vfps', 'fps'], ['vformat', 'format'], ['vquality', 'quality']]) if (v[k] !== undefined && [...$(id).options].some(x => x.value == v[k])) $(id).value = String(v[k]); } catch (e) {}
+  for (const id of ['vaspect', 'vsize', 'vfps', 'vformat', 'vquality']) $(id).addEventListener('change', () => { saveVideoOpts(); showVideoEstimate(); });
+  $('vrender').addEventListener('click', () => { if (rendering) { rendering.cancelled = true; rendering.onCancel(); } else renderVideo(); });
+  probeRendering();
 }
 
 /* ---------- Wiring ---------- */
@@ -778,14 +1051,14 @@ function showVolume() {
 function setVolume(v) {
   volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
   if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.03);
-    const end = startAt + built.total; if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); } }
+    const end = startAt + (built ? built.total : 0); if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); } }
 }
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
 $('mute').addEventListener('click', toggleMute);
 $('play').addEventListener('click', () => setPlaying(!playing));
 $('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
-$('scrub').addEventListener('input', () => { offset = built.total * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
+$('scrub').addEventListener('input', () => { if (!built) return; offset = built.total * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
 $('save').addEventListener('click', () => savePiece(false));
 $('saveas').addEventListener('click', () => savePiece(true));
 $('libtoggle').addEventListener('click', () => { const lb = $('library'); lb.hidden = !lb.hidden; $('libtoggle').setAttribute('aria-expanded', String(!lb.hidden)); });
@@ -797,7 +1070,7 @@ $('newpiece').addEventListener('click', () => {
   p.chords = composeFromSeed(p.seeds.harmony, p.timing.chordSec);
   p.created = new Date().toISOString();
   currentLibId = null; savedJSON = null;
-  applyPiece(p); setStatus('New piece written from a fresh harmony seed');
+  applyPiece(p, { fresh: true }); setStatus('New piece written from a fresh harmony seed');
 });
 $('revoice').addEventListener('click', () => { unfreeze(); afterChange(); });
 $('undo').addEventListener('click', undo);
@@ -811,13 +1084,13 @@ $('importfile').addEventListener('change', async () => {
     if (!obj || (obj.format !== PIECE_FORMAT && typeof obj.chords !== 'string')) throw new Error('That file isn\'t a Chord Glide piece.');
     prepPiece(obj); // throws for a newer format
     setPlaying(false); currentLibId = null; savedJSON = null;
-    applyPiece(obj);
+    applyPiece(obj, { fresh: true });
     setStatus('Opened “' + piece.name + '” from a file' + openNote(obj) + '. Save to keep it in your library.');
   } catch (e) { setStatus(e && e.message ? e.message : 'That file isn\'t a Chord Glide piece.', true); }
 });
 EXAMPLES.forEach(ex => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = ex.name;
-  b.onclick = () => { setPlaying(false); currentLibId = null; savedJSON = null; applyPiece(examplePiece(ex)); setStatus('Opened the example “' + ex.name + '”'); };
+  b.onclick = () => { setPlaying(false); currentLibId = null; savedJSON = null; applyPiece(examplePiece(ex), { fresh: true }); setStatus('Opened the example “' + ex.name + '”'); };
   $('examples').appendChild(b);
 });
 document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => doExport(b.dataset.export)));
@@ -829,6 +1102,7 @@ tabs.forEach((t, i) => {
   t.addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; selectTab(n); n.focus(); } });
 });
 document.addEventListener('keydown', e => {
+  if (rendering) return; // the render works from a snapshot, but editing mid-render would only confuse
   const tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select';
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); savePiece(false); }
@@ -925,8 +1199,8 @@ function showGuidePage(k, focusTab) {
 })();
 // About page: say what this particular copy touches on the network
 $('about-where').textContent = (HOST && HOST.aboutText) || (location.protocol === 'file:'
-  ? 'This copy runs from a file on your computer. Your Library and settings stay in this browser\'s storage until you clear them, and with lame.min.js beside the page it makes no network requests at all.'
-  : 'This copy is served from a website. Your Library and settings stay in this browser\'s storage until you clear them. Like any website, its host may keep standard logs of page requests, such as IP addresses, but Chord Glide sends nothing back.');
+  ? 'This copy runs from a file on your computer. Exported files download straight to your computer. Your Library and settings stay in this browser\'s storage until you clear them, and with lame.min.js beside the page it makes no network requests at all.'
+  : 'This copy is served from a website. Exported files download straight to your computer. Your Library and settings stay in this browser\'s storage until you clear them. Like any website, its host may keep standard logs of page requests, such as IP addresses, but Chord Glide sends nothing back.');
 function openGuide(k) { if (!aboutDlg.open) aboutDlg.showModal(); showGuidePage(k || lsGet('cge.guide') || 'how'); }
 document.querySelectorAll('[data-about]').forEach(b => b.addEventListener('click', () => openGuide(b.dataset.about)));
 document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => showGuidePage(b.dataset.goto, true)));
@@ -999,6 +1273,7 @@ aboutDlg.addEventListener('click', e => { if (e.target === aboutDlg) aboutDlg.cl
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   for (const [pop, btn] of POPS) if (e.key === 'Escape' && !pop.hidden) { setPop(pop, btn, false); btn.focus(); return; }
+  if (rendering && e.key !== '?') return;
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || recording) return;
   if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }

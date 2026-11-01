@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 3.9.1
+# Chord Glide 4.0
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -18,7 +18,7 @@ Chord Glide is a single web page. Run it from a file on your computer or host it
 
 - **Saving pieces.** The Library keeps pieces in this browser's storage. Some browsers don't keep storage for a page opened straight from a file. When that happens, the Library turns itself off and says so, rather than appearing to save. Either way, **Export → Piece file** always works. Open the file again with **Library → Open a piece file**, which is also how you back up pieces or move them between computers.
 - **MP3** needs `lame.min.js` beside the HTML file. If it's missing, MP3 export says so; Chord Glide never fetches it from the internet.
-- **Video.** It records in real time, so keep the tab in front while it records. Chrome and Edge save MP4 where they can, otherwise WebM. Firefox saves WebM. Safari saves MP4.
+- **Video.** **Render video** draws every frame at its exact time and encodes it with the browser's built-in encoder, so nothing stutters or freezes. It saves MP4 (H.264 with AAC audio) or WebM (VP9 with Opus) at 1080p or 1440p, 60 or 30 fps. Where the browser can't encode AAC, the H.264 choice is labelled MOV and saves a QuickTime .mov with H.264 and uncompressed 16-bit audio instead, because QuickTime won't play MP3 or Opus inside an MP4; the .mov plays in QuickTime, VLC and editors, uploads to YouTube, and is about 11 MB a minute larger. Standard quality uses YouTube's recommended bitrates; High doubles them. It needs Chrome, Edge or Safari, and it's fastest with the tab in front. The whole video is held in memory until it's saved, so the Export tab shows the expected size, and anything over 1 GB asks for a second click: a few minutes at 1440p High can need several gigabytes of RAM. **Record live** plays the piece once in real time instead (MP4 or WebM, whichever the browser records), for browsers that can't render.
 - **Fonts.** This copy uses your system fonts, so it makes no font requests to Google.
 
 ## Put it on the web (Cloudflare Pages or any static host)
@@ -58,8 +58,8 @@ node cli/chord-glide-export.js "My piece.json" --musicxml --tempo 72
 
 - **Build.** `source/` holds the real source: `head.html`, `engine.js`, `writers.js` and `app.js`. Edit those, then run `node source/build.js` to rebuild `Chord Glide.html`. The build also copies the engine and writers into `cli/`, so the two never drift, and it refuses a `head.html` that loads external fonts.
 - **Engine tests:** `node source/test_engine.js` runs 32 checks.
-- **Writer samples:** `node source/test_writers.js [folder]` writes sample MIDI, MusicXML, WAV and ZIP files to that folder (created if needed), or to a temporary folder if you leave it out.
-- **Making a release:** `node source/release.js` runs the tests, rebuilds, and writes `releases/chord-glide-<version>.zip` containing only the release files. Use it instead of Finder's Compress, which adds `.DS_Store` files and a `__MACOSX` folder.
+- **Writer tests:** `node source/test_writers.js [folder]` writes sample MIDI, MusicXML, WAV and ZIP files to that folder (created if needed, or a temporary folder if you leave it out), and checks the structure of the MP4 and WebM writers with stand-in data. Real encoding needs a browser, so the three sample videos it writes aren't playable footage.
+- **Making a release:** `node source/release.js` runs the engine and writer tests, rebuilds, and writes `releases/chord-glide-<version>.zip` containing only the release files. Use it instead of Finder's Compress, which adds `.DS_Store` files and a `__MACOSX` folder.
 
 ## Files
 

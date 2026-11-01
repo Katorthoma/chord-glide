@@ -19,9 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This license covers Chord Glide's own code: everything in this folder
-except lame.min.js. lame.min.js is lamejs 1.2.1 by Alex Zhukov, licensed
-separately under the LGPL-3.0; see LICENSES/lamejs-NOTICE.txt.

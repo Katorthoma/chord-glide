@@ -4,7 +4,7 @@
  *
  *   node source/release.js
  *
- * 1. runs the engine tests and stops if any fail
+ * 1. runs the engine tests and the writer tests, and stops if any fail
  * 2. rebuilds "Chord Glide.html", cli/ and dist/
  * 3. copies only the files listed below into releases/chord-glide-<version>/
  * 4. zips that folder as releases/chord-glide-<version>.zip
@@ -17,7 +17,7 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
 const root = path.join(__dirname, '..');
 const run = f => execFileSync(process.execPath, [path.join(root, f)], { cwd: root, stdio: 'inherit' });
 
-try { run('source/test_engine.js'); } catch (e) { console.error('\nTests failed, so no release was made.'); process.exit(1); }
+try { run('source/test_engine.js'); run('source/test_writers.js'); } catch (e) { console.error('\nTests failed, so no release was made.'); process.exit(1); }
 run('source/build.js');
 
 const version = (fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8').match(/APP_VERSION = '([^']+)'/) || [])[1];
