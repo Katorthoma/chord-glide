@@ -18,7 +18,7 @@
  */
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8') + fs.readFileSync(path.join(__dirname, 'writers.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, normalizePiece, parseProgression, buildPiece, builtFromRealization, validRealization, midiWithGlides, midiChords, musicXml};')();
+const E = new Function(SRC + '; return {ENGINE_VERSION, normalizePiece, parseProgression, buildPiece, builtFromRealization, validRealization, midiWithGlides, midiGlideFiles, midiChords, musicXml};')();
 
 const args = process.argv.slice(2);
 const flag = f => args.includes(f);
@@ -39,7 +39,7 @@ const frozen = !flag('--revoice') && piece.realization && piece.realization.engi
 let built;
 if (frozen) {
   built = E.builtFromRealization(piece.realization, piece);
-  console.log('Using the notes saved by engine ' + piece.realization.engine + ' (pass --revoice to voice it with engine ' + E.ENGINE_VERSION + ').');
+  console.log((piece.realization.engine === 'custom' ? 'Using the notes written into this piece' : 'Using the notes saved by engine ' + piece.realization.engine) + ' (pass --revoice to voice it with engine ' + E.ENGINE_VERSION + ').');
 } else {
   const { items, errors } = E.parseProgression(piece.chords);
   if (errors.length) console.warn('Skipped chords it could not read: ' + errors.join(', '));
@@ -54,6 +54,6 @@ fs.mkdirSync(outDir, { recursive: true });
 const base = (String(piece.name || 'Untitled piece').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Untitled piece').slice(0, 80);
 const o = { tempo, title: piece.name, artist: opt('--artist') || '' };
 const write = (name, data) => { const p = path.join(outDir, name); fs.writeFileSync(p, data); console.log('wrote ' + p + ' (' + data.length + ' bytes)'); };
-if (all || flag('--midi')) write(base + ' (glides).mid', E.midiWithGlides(built, o));
+if (all || flag('--midi')) { const parts = E.midiGlideFiles(built, o); for (const m of parts) write(base + (parts.length > 1 ? ' (glides, voices ' + m.voices[0] + '–' + m.voices[1] + ').mid' : ' (glides).mid'), m.data); if (parts.length > 1) console.log('MIDI with glides holds 15 voices per file, so this piece is split across ' + parts.length + ' files.'); }
 if (all || flag('--chords')) write(base + ' (chords).mid', E.midiChords(built, o));
 if (all || flag('--musicxml')) write(base + '.musicxml', E.musicXml(built, o));

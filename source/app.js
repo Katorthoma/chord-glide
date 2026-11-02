@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.0.2';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -12,7 +12,6 @@ const EXAMPLES = [
     chords: '=F#6:0.6\nBmaj9\nG#m11\nEmaj9\nGmaj7#11\nC#m9\nF#13sus4\nD#m7\nGmaj9\nF#9sus4\nBmaj9:3\n=D#6',
     timing: { chordSec: 4, glide: 1.3, easing: 'smooth', tempo: 60 }, voicing: { variation: 20, spread: 85, coverage: 65 }, motion: { order: 'low-high', stagger: 70 }, sound: { tone: 'glass', detune: 6, brightness: 6000 } }
 ];
-const TONES = { pure: [0, 1], soft: [0, 1, .2, .06, .02], warm: [0, 1, .5, .25, .12, .06, .03], glass: [0, 1, 0, .32, 0, .16, 0, .08], reed: [0, 1, .6, .45, .3, .2, .12, .08, .05] };
 const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
 
 const $ = id => document.getElementById(id);
@@ -106,7 +105,7 @@ function rebuild(keepTime = true) {
   built = isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece);
   marks = landmarks(built);
   $('revoice').hidden = !isFrozen();
-  if (isFrozen()) msgs.unshift('Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were. Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
+  if (isFrozen()) msgs.unshift((piece.realization.engine === 'custom' ? 'Playing the notes written into this piece, exactly as they are.' : 'Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were.') + ' Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
   if (built.warnings.length) msgs.push('The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.');
   showErr(msgs);
   offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
@@ -116,12 +115,14 @@ function rebuild(keepTime = true) {
 }
 /* Playback and exports need a built piece; a piece file can always be saved (without notes if there are none) */
 function updateAvailability() {
+  if (built) $('midi-note').textContent = built.N > 15 ? 'one channel per voice (MPE), in ' + Math.ceil(built.N / 15) + ' files of up to 15 voices' : 'one channel per voice (MPE)';
   if (rendering || recording || exporting) return;
   const has = !!built, save = canSave();
   for (const id of ['play', 'restart', 'scrub']) $(id).disabled = !has;
   document.querySelectorAll('[data-export]').forEach(b => b.disabled = !save || (!has && b.dataset.export !== 'json'));
   for (const id of ['vrender', 'vrecord']) $(id).disabled = !save || !has;
 }
+// saved notes play exactly as written when they come from another engine, or are marked "custom" (written by hand or by another program)
 const isFrozen = () => !!(piece && piece.realization && piece.realization.engine !== ENGINE_VERSION && validRealization(piece.realization));
 /* Normalize, and drop a saved realization from this same engine: the settings reproduce it exactly */
 function prepPiece(p) { const q = normalizePiece(p); if (q.realization && q.realization.engine === ENGINE_VERSION) delete q.realization; return q; }
@@ -233,7 +234,7 @@ function renderLibrary() {
 }
 /* What to say about the engine a piece came from */
 function openNote(src) {
-  if (isFrozen()) return ', playing the notes saved by engine ' + piece.realization.engine + '. Use “Re-voice with this engine” to update it';
+  if (isFrozen()) return piece.realization.engine === 'custom' ? ', playing the notes written into this piece' : ', playing the notes saved by engine ' + piece.realization.engine + '. Use “Re-voice with this engine” to update it';
   if (src && src.engine && src.engine !== ENGINE_VERSION) return ' (made with engine ' + src.engine + ' before notes were saved with pieces, so voicings may differ slightly)';
   return '';
 }
@@ -309,8 +310,8 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const span = Math.max(0.05, T - from);
   const now = offline ? 0 : ctx.currentTime + lead;
   const master = ctx.createGain();
-  // fade in, hold, then the closing 2.8 s fade. Started inside that fade (from past the end), pick it up at the volume it has reached.
-  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, 2.8 - into), top = level * Math.max(0, 1 - into / 2.8);
+  // fade in, hold, then the closing fade (FADE). Started inside that fade (from past the end), pick it up at the volume it has reached.
+  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, FADE - into), top = level * Math.max(0, 1 - into / FADE);
   const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
   master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
   master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
@@ -324,8 +325,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   bus.connect(lp); lp.connect(dry); lp.connect(conv); conv.connect(wet);
   dry.connect(comp); wet.connect(comp); comp.connect(master);
   for (const o of outs) master.connect(o);
-  const imag = new Float32Array(TONES[S.tone] || TONES.soft);
-  const wave = ctx.createPeriodicWave(new Float32Array(imag.length), imag);
+  const tw = toneWave(S.tone), wave = ctx.createPeriodicWave(Float32Array.from(tw.real), Float32Array.from(tw.imag));
   const r = mulberry32((P.seeds.sound ^ 0xA5A5A5A5) >>> 0);
   const rate = span > 120 ? 60 : 120, n = Math.max(2, Math.ceil(span * rate) + 1);
   const oscs = [];
@@ -338,11 +338,11 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     for (let i = 0; i < n; i++) curve[i] = hz(pitchAt(b, v, from + span * i / (n - 1)));
     osc.frequency.value = curve[0];
     osc.frequency.setValueCurveAtTime(curve, now, span);
-    const g = ctx.createGain(); g.gain.value = 1.5 / N;
+    const g = ctx.createGain(); g.gain.value = 1.5 / N * (TONE_GAIN[S.tone] || 1);
     osc.connect(g);
     if (ctx.createStereoPanner) { const pan = ctx.createStereoPanner(); pan.pan.value = (hasBass && v === 0) ? 0 : pz * (S.width / 100); g.connect(pan); pan.connect(bus); }
     else g.connect(bus);
-    osc.start(now); osc.stop(now + span + 3);
+    osc.start(now); osc.stop(now + span + TAIL);
     oscs.push(osc);
   }
   return { master, oscs, now };
@@ -742,9 +742,9 @@ function withRealization() {
   if (isFrozen()) p.realization = piece.realization; else if (built) p.realization = realizationOf(built); else delete p.realization; // no chords, no notes
   return p;
 }
-function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return JSON.stringify(p, null, 2); }
+function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return pieceJson(p) + '\n'; }
 async function renderOffline(b) {
-  const sr = 48000, len = Math.ceil((b.total + 3) * sr);
+  const sr = 48000, len = Math.ceil((b.total + TAIL) * sr);
   const ctx = new OfflineAudioContext(2, len, sr);
   buildGraph(ctx, b, 0, [ctx.destination], 1, true);
   const buf = await ctx.startRendering();
@@ -780,9 +780,7 @@ async function encodeMp3(a, kbps = 192, stop = null) {
     if (blk % 400 === 0) { if (stop && stop()) throw 'cancel'; xstatus((stop ? 'Encoding audio… ' : 'Encoding MP3… ') + Math.round(100 * i / n) + '%'); await (stop ? nextTask() : new Promise(r2 => setTimeout(r2, 0))); }
   }
   const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
-  const total = parts.reduce((s, p) => s + p.length, 0), mp3 = new Uint8Array(total);
-  let o = 0; for (const p of parts) { mp3.set(p, o); o += p.length; }
-  return mp3;
+  return mp3WithInfo(catBytes(parts)); // with an Info frame, so players know the exact length
 }
 let exporting = false;
 async function doExport(kind) {
@@ -801,14 +799,19 @@ async function doExport(kind) {
       try { files.push({ name: name + '.mp3', data: catBytes([id3v2(opts), await encodeMp3(audio)]) }); }
       catch (e) { if (kind === 'mp3') throw e; mp3Note = ' The MP3 was left out: ' + e.message; }
     }
-    if (kind === 'midi' || kind === 'all') files.push({ name: name + ' (glides).mid', data: midiWithGlides(built, opts) });
+    let midiNote = '';
+    if (kind === 'midi' || kind === 'all') {
+      const parts = midiGlideFiles(built, opts);
+      parts.forEach(m => files.push({ name: name + (parts.length > 1 ? ' (glides, voices ' + m.voices[0] + '–' + m.voices[1] + ').mid' : ' (glides).mid'), data: m.data }));
+      if (parts.length > 1) midiNote = ' MIDI with glides is in ' + parts.length + ' files of up to 15 voices each, the most one file can carry.';
+    }
     if (kind === 'midichords' || kind === 'all') files.push({ name: name + ' (chords).mid', data: midiChords(built, opts) });
     if (kind === 'musicxml' || kind === 'all') files.push({ name: name + '.musicxml', data: musicXml(built, opts) });
     const label = { wav: 'WAV', mp3: 'MP3', midi: 'MIDI glides', midichords: 'MIDI chords', musicxml: 'MusicXML', all: 'all files' }[kind];
     let ok;
     if (saveMode === 'browser' && files.length === 1) ok = await saveFile(files[0].name, new Blob([files[0].data]));
     else { xstatus('Packing…'); ok = await saveFile(name + ' (' + label + ').zip', new Blob([zipStore(files)])); }
-    if (ok && mp3Note) xstatus($('xstatus').textContent + mp3Note);
+    if (ok && (mp3Note || midiNote)) xstatus($('xstatus').textContent + mp3Note + midiNote);
   } catch (e) { xstatus(e && e.message ? e.message : 'Export failed.'); }
   finally { exporting = false; updateAvailability(); }
 }
@@ -1149,8 +1152,8 @@ function setVolume(v) {
   volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
   if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.03);
     const end = startAt + (built ? built.total : 0);
-    if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); }
-    else if (end + 2.8 > now) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(volume * Math.max(0, (end + 2.8 - now) / 2.8), now + 0.03); g.linearRampToValueAtTime(0, end + 2.8); } }
+    if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + FADE); }
+    else if (end + FADE > now) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(volume * Math.max(0, (end + FADE - now) / FADE), now + 0.03); g.linearRampToValueAtTime(0, end + FADE); } }
 }
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });

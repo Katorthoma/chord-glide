@@ -98,6 +98,27 @@ function parseProgression(text) {
 
 const ORDERS = ['together', 'low-high', 'high-low', 'largest', 'smallest', 'random'];
 const LOOKS = ['theme', 'phosphor', 'laserred', 'laserblue', 'amber', 'aurora', 'spectrum', 'neon', 'custom'];
+/* ---- Tones ----
+   Each tone is a fixed mix of harmonics, given as the strength of harmonic n (index n; index 0 is unused), in the sine terms
+   unless it's an object { real, imag } with cosine terms too. The first five are hand-tuned recipes; the rest are formulas.
+   The browser removes harmonics above the audible limit for each note, so long lists are safe. */
+const harmonics = (count, f) => [0, ...Array.from({ length: count }, (_, i) => f(i + 1))];
+const TONES = {
+  pure: [0, 1], soft: [0, 1, .2, .06, .02], warm: [0, 1, .5, .25, .12, .06, .03], glass: [0, 1, 0, .32, 0, .16, 0, .08], reed: [0, 1, .6, .45, .3, .2, .12, .08, .05],
+  triangle: harmonics(31, n => n % 2 ? (n % 4 === 1 ? 1 : -1) / (n * n) : 0),            // odd harmonics at 1/n², alternating sign
+  square: harmonics(31, n => n % 2 ? 1 / n : 0),                                        // odd harmonics at 1/n
+  pulse: { real: harmonics(32, n => Math.sin(n * Math.PI / 4) / n), imag: harmonics(32, () => 0) }, // a centred 25% pulse: cosine terms sin(nπ/4)/n, every 4th harmonic missing
+  saw: harmonics(32, n => 1 / n),                                                      // every harmonic at 1/n
+  organ: harmonics(8, n => ({ 1: 8, 2: 6, 3: 5, 4: 4, 6: 3, 8: 2 })[n] ? Math.pow(10, -3 * (8 - { 1: 8, 2: 6, 3: 5, 4: 4, 6: 3, 8: 2 }[n]) / 20) : 0), // drawbars 8' 4' 2⅔' 2' 1⅓' 1' at 8-6-5-4-3-2, 3 dB a step
+  bowed: harmonics(16, n => (1 / n) * (1 + 0.9 * Math.exp(-Math.pow(n - 3.5, 2) / 3))), // a saw with harmonics 2–5 lifted by a resonance
+  cello: harmonics(40, n => (Math.sin(n * Math.PI / 9) / n) * (1 + 0.6 * Math.exp(-Math.pow(n - 4, 2) / 3)) * Math.exp(-n / 28)) // bowed-string-inspired:
+  // notches at multiples of the 9th harmonic (as from bowing at 1/9 of the length), a body resonance around harmonics 3–5, and a gentle roll-off
+};
+/* Gains for the formula tones, measured so a reference piece at default settings reaches Soft's loudness (the original five stay
+   at 1, unchanged). Brightness, register and voicing change each tone's level differently, so this keeps changes reasonable, not exact. */
+const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84 }; // measured: EBU R128 loudness of the same piece, matched to Soft
+/* The tone as the two coefficient arrays the Web Audio API wants, of equal length */
+function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
 const PIECE_FORMAT_VERSION = 3;
@@ -144,7 +165,7 @@ function normalizePiece(p) {
   out.voicing.bassOctave = Math.round(num(out.voicing.bassOctave, 1, 3, 2));
   out.voicing.bassMode = pickFrom(out.voicing.bassMode, ['root', 'nearest', 'pedal', 'none'], 'root');
   out.motion.order = pickFrom(out.motion.order, ORDERS, 'together'); out.motion.stagger = num(out.motion.stagger, 0, 100, 0);
-  out.sound.tone = pickFrom(out.sound.tone, ['pure', 'soft', 'warm', 'glass', 'reed'], 'soft');
+  out.sound.tone = pickFrom(out.sound.tone, Object.keys(TONES), 'soft');
   out.sound.detune = num(out.sound.detune, 0, 20, 4); out.sound.width = num(out.sound.width, 0, 100, 70);
   out.sound.reverb = num(out.sound.reverb, 0, 100, 38); out.sound.brightness = num(out.sound.brightness, 800, 12000, 4200);
   out.view.mode = pickFrom(out.view.mode, ['auto', 'scroll', 'whole'], 'auto'); out.view.labels = pickFrom(out.view.labels, ['notes', 'hz'], 'notes');
@@ -155,6 +176,7 @@ function normalizePiece(p) {
     out.view.trace = { look: pickFrom(tr.look, LOOKS, 'theme'), glow: num(tr.glow, 0, 100, 60), weight: num(tr.weight, 0.5, 3, 1),
       custom: { line: hex(c.line, dc.line), line2: hex(c.line2, hex(c.line, dc.line2)), bg: hex(c.bg, dc.bg) } };
   }
+  { const big = realizationTooLarge(p.realization); if (big) throw new Error('This piece can\'t be opened safely: ' + big + '.'); }
   if (validRealization(p.realization)) out.realization = JSON.parse(JSON.stringify(p.realization));
   return out;
 }
@@ -294,8 +316,20 @@ function leadVoicing(prev, ch, rng, W) {
 }
 
 /* ---- Realization: the resolved notes and timing, saved so a piece can reopen exactly even after the engine changes ---- */
+/* Saved notes from a file are played as written, so they're bounded: a broken or hostile file mustn't be able to freeze the page */
+const REALIZATION_LIMITS = { voices: 64, seconds: 3600, values: 2000000 }; // values: voices × events
+function realizationTooLarge(r) {
+  if (!r || typeof r !== 'object' || !Array.isArray(r.events)) return '';
+  const L = REALIZATION_LIMITS;
+  if (+r.N > L.voices) return 'it asks for ' + r.N + ' voices (at most ' + L.voices + ')';
+  if (+r.total > L.seconds) return 'it lasts ' + Math.round(r.total / 60) + ' minutes (at most ' + L.seconds / 60 + ')';
+  if (r.events.length * (+r.N || 1) > L.values) return 'it has ' + r.events.length + ' snapshots of ' + r.N + ' voices (at most ' + L.values.toLocaleString('en-US') + ' notes in all)';
+  if (r.events.some(e => e && Array.isArray(e.targets) && e.targets.some(p => typeof p === 'number' && (p < 0 || p > 127)))) return 'some of its notes are outside the playable range (MIDI 0–127)';
+  return '';
+}
 function validRealization(r) {
   if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !(r.N >= 1) || !(r.total > 0)) return false;
+  if (!Number.isInteger(+r.N) || realizationTooLarge(r)) return false;
   const okNum = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
   let lastT = -Infinity;
   return r.events.every(e => {

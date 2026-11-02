@@ -335,7 +335,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0.1 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.2 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -517,7 +517,7 @@ figure.vl circle { fill: var(--ink); }
           <p class="hint" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
         </div>
         <div class="group"><label for="tone">Tone</label>
-          <select id="tone"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="glass">Glass</option><option value="reed">Reed</option></select>
+          <select id="tone"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="glass">Glass</option><option value="reed">Reed</option><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option><option value="organ">Organ</option><option value="bowed">Bowed</option><option value="cello">Cello</option></select>
         </div>
         <div class="slider"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
         <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
@@ -531,7 +531,7 @@ figure.vl circle { fill: var(--ink); }
           <button type="button" data-export="json">Piece file<small>.json with its notes; reopens exactly</small></button>
           <button type="button" data-export="wav">WAV<small>24-bit, 48 kHz</small></button>
           <button type="button" data-export="mp3">MP3<small>192 kbps</small></button>
-          <button type="button" data-export="midi">MIDI with glides<small>one channel per voice (MPE)</small></button>
+          <button type="button" data-export="midi">MIDI with glides<small id="midi-note">one channel per voice (MPE)</small></button>
           <button type="button" data-export="midichords">MIDI chords<small>settled chords; stacked voices merged</small></button>
           <button type="button" data-export="musicxml">MusicXML<small>harmonic score; stacked voices merged</small></button>
           <button type="button" data-export="all" class="wide">Everything<small>all of the above in one .zip</small></button>
@@ -643,7 +643,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Motion</b> tab controls how voices travel: the <b>glide time</b>, the shape of the <b>curve</b>, and the <b>departure order</b>. Add <b>stagger</b> and the voices leave one after another, low to high, high to low, largest leap first, or at random.</p>
 
           <h4><span class="step">5</span>Choose the sound and the look</h4>
-          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
+          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
 
           <h4><span class="step">6</span>Lock what you love, reroll the rest</h4>
           <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
@@ -778,6 +778,10 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.0.2</span>Seven new tones<span class="when">1 Nov 2026</span></h4>
+          <p>The Sound tab has seven new tones, each defined by a formula for its harmonics. Triangle is soft and round, Square hollow like a clarinet, Pulse a true 25% pulse wave, nasal and reedy, and Saw bright and buzzy. Organ is built from drawbar-style levels. Bowed and Cello are inspired by a bowed string; Cello is the richer one, with 40 harmonics, a body resonance and gaps in the spectrum like those a bow creates. The new tones are gain-matched to Soft on a reference piece, so changing tone keeps a similar level, and the original five sound exactly as before.</p>
+          <p>Also: a piece with more than 15 voices exports its MIDI glides as several files of up to 15 voices each, the most one file can carry, instead of quietly leaving voices out. Piece files are saved readably, with each list of numbers on one line. MP3s record their exact length, so players don't have to estimate it. Piece files that would ask for more than the app can safely play (more than 64 voices, more than an hour of saved notes, or notes outside the playable range) are refused with an explanation, and saved notes written by hand or by another program can be marked <code>"custom"</code> to play exactly as written.</p>
 
           <h4><span class="step ver">4.0.1</span>The fade at the end counts<span class="when">1 Nov 2026</span></h4>
           <p>Every piece ends with a three-second fade as the last chord rings out, and now you can see it. The picture carries on through the fade: the final notes continue as lines that fade into the background as the sound does, and the dots and labels dim with them, on the stage and in rendered videos. The clock and the scrubber include the fade too, so a piece whose last change is at 0:28 plays to 0:31 / 0:31, instead of everything stopping at 0:28 while you can still hear it. You can scrub, pause and resume inside the fade, and it carries on at the volume it had reached; changing the volume during the fade no longer brings the chord back to full. With auto zoom, pieces saved as dense snapshots of every voice (such as ones that shimmer to the end) now zoom back out once their voices settle, and the next-chord label no longer repeats the current one. New in Settings: <b>Name on exports</b>. Type an artist name and it's written into WAV, MP3, rendered video, MIDI and MusicXML files, with the piece name as the title, so music apps and players show both. It stays on this device and is never put in piece files; leave it empty and no name is added. Videos can show it under the title too, a choice you make with a tick box for each render. Video titles fit the frame: in portrait and square, long names shrink a little or wrap onto two lines instead of running to the edge.</p>

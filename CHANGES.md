@@ -1,3 +1,24 @@
+# Chord Glide 4.0.2 · 1 Nov 2026
+
+Engine 3.1 and file format 3 are unchanged. Pieces using a new tone open in older versions with the default tone (Soft).
+
+- **Seven new tones**, each a formula for the strength of harmonic n (`TONES`, now in `engine.js` so they can be tested; `toneWave()` gives the cosine and sine arrays for `createPeriodicWave`):
+  - **Triangle:** odd harmonics at 1/n², alternating in sign (31 harmonics).
+  - **Square:** odd harmonics at 1/n (31).
+  - **Pulse:** a true centred 25% pulse: cosine terms sin(nπ/4)/n, so every 4th harmonic is missing (32). (An early 4.0.2 build put these in the sine terms, which gives the same harmonics but a 50% waveform; caught in review.)
+  - **Saw:** every harmonic at 1/n (32).
+  - **Organ:** drawbars 8', 4', 2⅔', 2', 1⅓' and 1' (harmonics 1, 2, 3, 4, 6, 8) set to 8-6-5-4-3-2, 3 dB a step.
+  - **Bowed:** a saw with harmonics 2–5 lifted by a resonance, (1/n)·(1 + 0.9·e^(−(n−3.5)²/3)) (16).
+  - **Cello:** a bowed-string-inspired spectrum: sin(nπ/9)/n, giving notches at multiples of the 9th harmonic (as from bowing at 1/9 of the length), a body resonance around harmonics 3–5, ×(1 + 0.6·e^(−(n−4)²/3)), and a gradual roll-off, ×e^(−n/28) (40).
+  - Checked two ways: a sustained C3 measured in the browser (missing harmonics 60 dB or more down, the rest following their formulas), and new engine tests that check every formula, build one cycle of Pulse and measure it high for 25% of the cycle, and confirm the original five tones are unchanged.
+- **Level matching.** Each new tone has a gain (`TONE_GAIN`) measured so a reference piece at default settings reaches Soft's EBU R128 loudness (all within 0.4 dB). Brightness, register and voicing change each tone's level differently, so this keeps tone changes reasonably consistent rather than exact. The original five tones are untouched, so existing pieces sound exactly as before.
+- **MIDI glides above 15 voices.** `midiGlideFiles()` splits a piece with more than 15 voices into files of up to 15 (MPE lower zone: 15 member channels), named "(glides, voices 1–15)", "(glides, voices 16–30)" and so on, with matching titles. The export button says so for such pieces, and so does the status line after exporting. Before, voices beyond 15 were silently left out. The command-line exporter does the same.
+- **Limits on saved notes.** `validRealization()` now caps saved notes at 64 voices, 60 minutes and 2,000,000 notes in all (voices × snapshots), with every pitch in MIDI range 0–127. A piece file beyond those is refused with the reason (`realizationTooLarge()`), rather than being allowed to freeze the page. Broken saved notes are still dropped quietly, as before.
+- **`"engine": "custom"`.** Saved notes written by hand or by another program can say so: they always play exactly as written, and the app says "Playing the notes written into this piece". Before, such files had to claim an older engine.
+- **Readable piece files.** `pieceJson()` saves pieces indented, with each list of plain values on one line, so a 30-voice snapshot is one line instead of 30.
+- **MP3 length.** `mp3WithInfo()` puts an Info frame (the constant-bitrate Xing header) in front of exported MP3s, with the frame count, byte count and an even seek table, so players show the exact length instead of estimating it. ffprobe and ffmpeg read it without warnings.
+- **`TAIL` and `FADE` everywhere.** The 3-second tail and 2.8-second fade were still written as numbers in the audio graph, the offline render and the volume control; they now all use the constants.
+
 # Chord Glide 4.0.1 · 1 Nov 2026
 
 Engine 3.1 and file format 3 are unchanged.

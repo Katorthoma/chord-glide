@@ -1,7 +1,7 @@
 // node test_engine.js — engine v3 checks
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks};')();
+const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge};')();
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (d ? '  ' + d : '')); };
 console.log('engine v' + E.ENGINE_VERSION);
@@ -89,6 +89,7 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const n = E.normalizePiece({ name: 'x', voicing: { coverage: 80 } });
   check('normalizePiece fills defaults', n.voicing.coverage === 80 && n.voicing.continuity === 50 && n.motion.order === 'together' && n.formatVersion === 3);
   const L = E.landmarks(E.buildPiece(E.parseProgression('=E6, Amaj9, Dmaj9, =E6').items, base()));
+  check('Every tone is accepted; an unknown one falls back to Soft', ['pure', 'soft', 'warm', 'glass', 'reed', 'triangle', 'square', 'pulse', 'saw', 'organ', 'bowed', 'cello'].every(t => E.normalizePiece(Object.assign(base(), { sound: { tone: t } })).sound.tone === t) && E.normalizePiece(Object.assign(base(), { sound: { tone: 'kazoo' } })).sound.tone === 'soft');
   check('Auto-zoom landmarks are ordered', L.inStart <= L.inEnd && L.inEnd <= L.outStart && L.outStart <= L.outEnd, JSON.stringify(L));
   // saved notes as dense snapshots: tiny trailing moves (shimmer) don't count as arrivals, so auto zoom still zooms out at the end
   const snaps = [{ t: 0, g: 0, label: 'a', kind: 'chord', targets: [50, 60, 70] }, { t: 1, g: 4, label: 'b', kind: 'chord', targets: [40, 64, 80] }];
@@ -134,6 +135,33 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('Realization check rejects bad timing values', !bad(r => {}) === false && !bad(r => { r.events[1].dur[0] = 'oops'; }) === true && !bad(r => { r.events[1].off[2] = null; }) === true
     && !bad(r => { r.events[1].dur[3] = -9; }) === true && !bad(r => { r.events[2].t = r.events[1].t - 1; }) === true && !bad(r => { r.events[1].g = -1; }) === true && !bad(r => { delete r.events[1].dur; }) === true);
   check('Piece keeps a valid realization; rejects a broken one', !!withReal.realization && !E.normalizePiece(Object.assign(base(), { realization: { events: [{ targets: [1] }], N: 3, total: 1 } })).realization);
+}
+// ---- Tones: each formula checked against its definition, and the original five unchanged ----
+{
+  const T = E.TONES, near = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
+  const original = { pure: [0, 1], soft: [0, 1, .2, .06, .02], warm: [0, 1, .5, .25, .12, .06, .03], glass: [0, 1, 0, .32, 0, .16, 0, .08], reed: [0, 1, .6, .45, .3, .2, .12, .08, .05] };
+  check('Tones: the original five are exactly as they were, with no gain change', Object.entries(original).every(([k, v]) => JSON.stringify(T[k]) === JSON.stringify(v) && !(k in E.TONE_GAIN)));
+  check('Tones: Square has only odd harmonics, at 1/n', T.square.slice(1).every((a, i) => near(a, (i + 1) % 2 ? 1 / (i + 1) : 0)));
+  check('Tones: Triangle has only odd harmonics, at ±1/n²', T.triangle.slice(1).every((a, i) => { const n = i + 1; return near(Math.abs(a), n % 2 ? 1 / (n * n) : 0) && (n % 2 === 0 || Math.sign(a) === (n % 4 === 1 ? 1 : -1)); }));
+  check('Tones: Saw has every harmonic at 1/n', T.saw.slice(1).every((a, i) => near(a, 1 / (i + 1))));
+  // Pulse: build one cycle of the actual waveform and measure how much of it is "high"
+  const pw = E.toneWave('pulse'), M = 4096, x = Array.from({ length: M }, (_, i) => { const th = 2 * Math.PI * i / M; let v = 0; for (let n = 1; n < pw.real.length; n++) v += pw.real[n] * Math.cos(n * th) + pw.imag[n] * Math.sin(n * th); return v; });
+  const mid = (Math.max(...x) + Math.min(...x)) / 2, duty = x.filter(v => v > mid).length / M;
+  check('Tones: Pulse is a real 25% pulse (high for ' + (duty * 100).toFixed(1) + '% of each cycle), every 4th harmonic missing', Math.abs(duty - 0.25) < 0.02 && [4, 8, 12, 16].every(n => near(pw.real[n], 0, 1e-12)));
+  const db = n => 20 * Math.log10(T.organ[n]);
+  check('Tones: Organ drawbars 8-6-5-4-3-2 step down 3 dB each, harmonics 5 and 7 absent', near(db(2), -6, 0.01) && near(db(3), -9, 0.01) && near(db(4), -12, 0.01) && near(db(6), -15, 0.01) && near(db(8), -18, 0.01) && T.organ[5] === 0 && T.organ[7] === 0);
+  check('Tones: Bowed lifts harmonics 2–5 above a plain saw', [2, 3, 4, 5].every(n => T.bowed[n] > 1.05 / n));
+  check('Tones: Cello has notches at every 9th harmonic and its peak among harmonics 1–5', [9, 18, 27, 36].every(n => Math.abs(T.cello[n]) < 1e-12) && T.cello.slice(1, 6).some(a => Math.abs(a) === Math.max(...T.cello.slice(1).map(Math.abs))));
+  check('Tones: every tone gives cosine and sine arrays of equal length, and unknown names fall back to Soft', Object.keys(T).every(k => { const w = E.toneWave(k); return w.real.length === w.imag.length && w.real.length >= 2; }) && JSON.stringify(E.toneWave('kazoo').imag) === JSON.stringify(T.soft));
+}
+// ---- Saved notes: generous limits, a clear refusal beyond them, and a "custom" label that's kept ----
+{
+  const real = (N, events, total, p = 60) => ({ engine: 'custom', easing: 'linear', N, total, events: Array.from({ length: events }, (_, i) => ({ t: i * total / events, g: 0, label: 'x', kind: 'chord', targets: new Array(N).fill(p) })) });
+  const opens = r => { try { return !!E.normalizePiece(Object.assign(base(), { realization: r })).realization; } catch (e) { return e.message; } };
+  check('Saved notes: 30 voices × 561 snapshots, marked "custom", open and are kept', opens(real(30, 561, 28)) === true);
+  const msgs = [opens(real(65, 10, 10)), opens(real(8, 10, 4000)), opens(real(64, 40000, 600)), opens(real(8, 10, 10, 300))];
+  check('Saved notes: too many voices, too long, too many notes or unplayable pitches are refused with a reason', msgs.every(m => typeof m === 'string' && /can't be opened safely/.test(m)), msgs.join(' | '));
+  check('Saved notes: merely broken ones are still dropped quietly', !E.normalizePiece(Object.assign(base(), { realization: { events: [{ targets: [1] }], N: 3, total: 1 } })).realization);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

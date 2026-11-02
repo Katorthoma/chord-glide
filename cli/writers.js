@@ -74,6 +74,35 @@ function id3v2(meta) {
   return Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size, ...frames]);
 }
 
+/* Put an "Info" frame (the constant-bitrate form of the Xing header) at the front of an MP3 stream, so players know its exact
+   length and can seek in it. The frame copies the first frame's header and holds the frame count, byte count and a seek table.
+   Returns the stream unchanged if it already has one or doesn't start with an MPEG-1 Layer III frame. */
+function mp3WithInfo(u8) {
+  const rates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320], srs = [44100, 48000, 32000];
+  const head = i => { if (u8[i] !== 0xFF || (u8[i + 1] & 0xFE) !== 0xFA) return null; const br = rates[u8[i + 2] >> 4], sr = srs[(u8[i + 2] >> 2) & 3];
+    return br && sr ? { br, sr, len: Math.floor(144000 * br / sr) + ((u8[i + 2] >> 1) & 1), mono: (u8[i + 3] >> 6) === 3 } : null; };
+  const h0 = head(0);
+  if (!h0) return u8;
+  let frames = 0; for (let i = 0; i + 4 <= u8.length;) { const h = head(i); if (!h) break; frames++; i += h.len; }
+  const side = h0.mono ? 17 : 32, size = Math.floor(144000 * h0.br / h0.sr);
+  if (/Xing|Info/.test(String.fromCharCode(...u8.subarray(4 + side, 8 + side)))) return u8;
+  const f = new Uint8Array(size);
+  f.set([0xFF, u8[1], u8[2] & 0xFD, u8[3]]); // same header, no padding
+  const o = 4 + side, total = size + u8.length;
+  f.set(fourcc('Info'), o); f.set(be32(0x0F), o + 4); f.set(be32(frames), o + 8); f.set(be32(total), o + 12); // flags: frames, bytes, seek table, quality. Frames counts audio frames only (as LAME does); bytes includes this one
+  for (let k = 0; k < 100; k++) f[o + 16 + k] = Math.floor(k * 256 / 100); // constant bitrate: an even seek table
+  f.set(be32(0), o + 116);
+  return catBytes([f, u8]);
+}
+
+/* A piece file as readable JSON: indented, but each list of plain values on one line (a list of 30 pitches stays one line) */
+function pieceJson(x, ind = '') {
+  const pad = ind + '  ';
+  if (Array.isArray(x)) return x.every(y => y === null || typeof y !== 'object') ? '[' + x.map(y => JSON.stringify(y)).join(', ') + ']' : (x.length ? '[\n' + x.map(y => pad + pieceJson(y, pad)).join(',\n') + '\n' + ind + ']' : '[]');
+  if (x && typeof x === 'object') { const k = Object.keys(x).filter(k => x[k] !== undefined); return k.length ? '{\n' + k.map(key => pad + JSON.stringify(key) + ': ' + pieceJson(x[key], pad)).join(',\n') + '\n' + ind + '}' : '{}'; }
+  return JSON.stringify(x === undefined ? null : x);
+}
+
 /* ---- MIDI ---- */
 const PPQ = 960;
 function vlq(n) { const b = [n & 0x7F]; while ((n >>= 7)) b.unshift((n & 0x7F) | 0x80); return b; }
@@ -104,6 +133,18 @@ function conductorTrack(built, tempo, title, extra = [], artist = '') {
 }
 const clampMidi = m => Math.max(0, Math.min(127, Math.round(m)));
 
+/* MIDI with glides holds 15 voices (one MPE member channel each). A larger piece goes into several files of up to 15 voices:
+   returns [{ voices: [first, last] (1-based), data }], one entry when it all fits. */
+function midiGlideFiles(built, opts = {}) {
+  if (built.N <= 15) return [{ voices: [1, built.N], data: midiWithGlides(built, opts) }];
+  const out = [];
+  for (let a = 0; a < built.N; a += 15) {
+    const b = Math.min(built.N, a + 15), cut = arr => arr.slice(a, b);
+    const part = Object.assign({}, built, { N: b - a, events: built.events.map(e => Object.assign({}, e, { targets: cut(e.targets), off: cut(e.off), dur: cut(e.dur) })) });
+    out.push({ voices: [a + 1, b], data: midiWithGlides(part, Object.assign({}, opts, { title: (opts.title || 'Piece') + ' (voices ' + (a + 1) + '–' + b + ')' })) });
+  }
+  return out;
+}
 /* Glides kept as per-voice pitch bend: MPE lower zone, one member channel per voice, ±48 semitones */
 /* Pitch bend is sent whenever the curve moves more than `tolerance` semitones from the last value sent (default 3 cents). */
 function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.03 } = {}) {

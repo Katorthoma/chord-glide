@@ -1,6 +1,6 @@
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8') + fs.readFileSync(path.join(__dirname, 'writers.js'), 'utf8');
-const W = new Function(SRC + '; return {parseProgression, buildPiece, defaultPiece, normalizePiece, pitchAt, zipStore, encodeWav24, midiWithGlides, midiChords, musicXml, mp4Mux, webmMux, id3v2};')();
+const W = new Function(SRC + '; return {parseProgression, buildPiece, defaultPiece, normalizePiece, pitchAt, zipStore, encodeWav24, midiWithGlides, midiChords, musicXml, mp4Mux, webmMux, id3v2, midiGlideFiles, pieceJson, mp3WithInfo, builtFromRealization};')();
 const p = W.normalizePiece(Object.assign(W.defaultPiece(), { name: 'Test piece', motion: { order: 'low-high', stagger: 50 } }));
 const b = W.buildPiece(W.parseProgression('=Bb6:1, Ebmaj9, Cm11:3.2, Abmaj9#11, Bb13sus4, Gm7, Ebmaj9:2, =Bb6').items, p);
 const out = process.argv[2] || fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'chord-glide-test-'));
@@ -81,6 +81,23 @@ check('MP4: every sample lies inside mdat', vOffsets.every((o, k) => o >= boxes[
   const xml = Buffer.from(W.musicXml(b, { title: 'T', artist: 'Noi<z>genie' })).toString('utf8');
   check('MusicXML: the artist as the composer (escaped), none without one', xml.includes('<creator type="composer">Noi&lt;z&gt;genie</creator>') && !Buffer.from(W.musicXml(b, { title: 'T' })).toString('utf8').includes('<creator'));
   check('Video: no tags without a title or artist', plain.indexOf(Buffer.from([0x12, 0x54, 0xC3, 0x67])) < 0 && Buffer.concat(W.mp4Mux({ video: { width: 640, height: 360, fps, samples: vSamples } }).map(x => Buffer.from(x))).indexOf(Buffer.from('udta')) < 0);
+}
+// MIDI glides for more than 15 voices: split into files of up to 15, nothing dropped
+{
+  const N = 30, r = { engine: 'custom', easing: 'linear', N, total: 4, events: [{ t: 0, g: 0, label: 'a', kind: 'chord', targets: Array.from({ length: N }, (_, v) => 40 + v) }, { t: 1, g: 2, label: 'b', kind: 'chord', targets: Array.from({ length: N }, (_, v) => 70 - v) }] };
+  const bb = W.builtFromRealization(r, W.defaultPiece()), parts = W.midiGlideFiles(bb, { title: 'T' });
+  const tracksIn = d => Buffer.from(d).readUInt16BE(10), noteOns = d => { let n = 0; const u = Buffer.from(d); for (let i = 0; i + 2 < u.length; i++) if ((u[i] & 0xF0) === 0x90 && u[i + 2] > 0 && u[i - 1] !== 0xFF) n++; return n; };
+  check('MIDI: a 30-voice piece gives two glide files, voices 1–15 and 16–30, each with all its voices', parts.length === 2 && parts[0].voices.join() === '1,15' && parts[1].voices.join() === '16,30' && parts.every(p => tracksIn(p.data) === 16) && Buffer.from(parts[1].data).includes(Buffer.from('T (voices 16–30)')));
+  const small = W.midiGlideFiles(b, { title: 'T' });
+  check('MIDI: a piece of 15 voices or fewer still gives one file', small.length === 1 && small[0].voices[0] === 1);
+}
+// Readable piece files and the MP3 Info frame
+{
+  const p = { name: 'x', seeds: { a: 1 }, list: [1, 2.5, 3], nested: [{ t: 0, targets: [60, 61] }], empty: [], none: {} }, s = W.pieceJson(p);
+  check('Piece files: indented, each list of numbers on one line, and read back identically', s.includes('\n  "seeds": {\n') && s.includes('"list": [1, 2.5, 3]') && s.includes('"targets": [60, 61]') && JSON.stringify(JSON.parse(s)) === JSON.stringify(p));
+  const frame = () => { const f = new Uint8Array(576); f.set([0xFF, 0xFB, 0xB4, 0x04]); return f; }, stream = Buffer.concat(Array.from({ length: 10 }, () => Buffer.from(frame())));
+  const m = Buffer.from(W.mp3WithInfo(new Uint8Array(stream))), at = m.indexOf(Buffer.from('Info'));
+  check('MP3: an Info frame in front, counting 10 audio frames and every byte, added only once', at === 36 && m.length === 11 * 576 && m.readUInt32BE(at + 8) === 10 && m.readUInt32BE(at + 12) === m.length && W.mp3WithInfo(new Uint8Array(m)).length === m.length);
 }
 // QuickTime .mov with uncompressed audio (for browsers that can't encode AAC): QuickTime won't play MP3 or Opus inside an MP4
 {

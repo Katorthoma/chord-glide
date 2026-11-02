@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.0.1
+# Chord Glide 4.0.2
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -52,7 +52,7 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 
 **What it writes:** `(glides).mid` (one MPE channel per voice, with pitch bend), `(chords).mid` (settled chords only) and `.musicxml` (a harmonic score).
 
-**Saved notes.** If a piece was saved by an older engine, the exporter uses that engine's saved notes so the result matches what you heard. Add `--revoice` to voice the piece again with the current engine.
+**Saved notes.** Saved notes marked `"engine": "custom"` (written by hand or by another program) always play exactly as written, in the app and here. Files asking for more than 64 voices, more than an hour of saved notes or notes outside MIDI's range are refused. If a piece was saved by an older engine, the exporter uses that engine's saved notes so the result matches what you heard. Add `--revoice` to voice the piece again with the current engine.
 
 **Audio and video** come from the HTML page, because rendering them needs a browser's audio engine.
 
