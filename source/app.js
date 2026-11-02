@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0.4';
+const APP_VERSION = '4.0.5';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -337,21 +337,19 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   for (const o of outs) master.connect(o);
   const wave = periodicWave(ctx, S.tone);
   const r = mulberry32((P.seeds.sound ^ 0xA5A5A5A5) >>> 0);
-  const rate = span > 120 ? 60 : 120, n = Math.max(2, Math.ceil(span * rate) + 1);
-  const oscs = [], gains = [], curves = [];
+  const oscs = [], gains = [], moves = [];
   const hasBass = P.voicing.bassMode !== 'none';
   for (let v = 0; v < N; v++) {
     const dz = r() * 2 - 1, pz = r() * 2 - 1;
     const osc = ctx.createOscillator(); osc.setPeriodicWave(wave);
     osc.detune.value = dz * S.detune;
-    const curve = new Float32Array(n);
-    for (let i = 0; i < n; i++) curve[i] = hz(pitchAt(b, v, from + span * i / (n - 1)));
-    osc.frequency.value = curve[0]; // set before the clock is read below, so it can never land inside the glide
+    const mv = pitchMoves(b, v, from); // the glides themselves, so accuracy never depends on the piece's length
+    osc.frequency.value = hz(mv[0].p); // set before the clock is read below, so it can never land inside a glide
     const g = ctx.createGain(); g.gain.value = voiceLevel(N, S.tone);
     osc.connect(g);
     if (ctx.createStereoPanner) { const pan = ctx.createStereoPanner(); pan.pan.value = (hasBass && v === 0) ? 0 : pz * (S.width / 100); g.connect(pan); pan.connect(bus); }
     else g.connect(bus);
-    oscs.push(osc); gains.push(g); curves.push(curve);
+    oscs.push(osc); gains.push(g); moves.push(mv);
   }
   /* Read the clock only now, after the slow work above (reverb, pitch curves), and schedule everything against it.
      If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
@@ -362,7 +360,21 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
   master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
   master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
-  oscs.forEach((osc, v) => { osc.frequency.setValueCurveAtTime(curves[v], now, span); osc.start(now); osc.stop(now + span + TAIL); });
+  /* Schedule in two passes: every voice's first second, then the rest. A long piece can need tens of thousands of moves;
+     this way only the first pass has to fit inside the lead time, and the rest has a whole second to be scheduled. */
+  const at = t => now + (t - from), soon = from + 1, done = new Array(N).fill(0);
+  const schedule = (v, until) => {
+    const f = oscs[v].frequency, mv = moves[v]; let k = done[v];
+    for (; k < mv.length && mv[k].t < until; k++) {
+      const m = mv[k];
+      if (m.kind === 'set') f.setValueAtTime(hz(m.p), at(m.t));
+      else if (m.kind === 'ramp') f.exponentialRampToValueAtTime(hz(m.p), at(m.t)); // linear in pitch
+      else f.setValueCurveAtTime(Float32Array.from(m.ps, hz), at(m.t), m.d);
+    }
+    done[v] = k;
+  };
+  oscs.forEach((osc, v) => { schedule(v, soon); osc.start(now); osc.stop(now + span + TAIL); });
+  oscs.forEach((osc, v) => schedule(v, Infinity));
   return { master, oscs, gains, now, tone: S.tone };
 }
 function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }

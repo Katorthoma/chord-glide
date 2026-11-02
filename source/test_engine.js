@@ -1,7 +1,7 @@
 // node test_engine.js — engine v3 checks
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge};')();
+const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES};')();
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (d ? '  ' + d : '')); };
 console.log('engine v' + E.ENGINE_VERSION);
@@ -121,8 +121,8 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('A newer file format is refused, not silently downgraded', refused);
   const kept = E.normalizePiece({ formatVersion: 3, chords: 'C', myNotes: { a: 1 } });
   check('Unknown fields are kept', kept.myNotes && kept.myNotes.a === 1);
-  const cl = E.normalizePiece({ voicing: { top: 120 }, timing: { tempo: 999, glide: 40 }, sound: { detune: 90 } });
-  check('Imported values are limited to what the controls can show', cl.voicing.top === 96 && cl.timing.tempo === 180 && cl.timing.glide === 5 && cl.sound.detune === 20);
+  const cl = E.normalizePiece({ voices: 99, voicing: { top: 120 }, timing: { tempo: 999, glide: 40 }, sound: { detune: 90 } });
+  check('Imported values are limited to what the controls can show', cl.voicing.top === 96 && cl.timing.tempo === 180 && cl.timing.glide === 12 && cl.sound.detune === 20 && cl.voices === 32);
   // realization round trip: frozen playback equals the original
   const items = E.parseProgression('=F6:0.8, Dbmaj9, Fm7, Gbmaj9#11, Ebm9, Ab9sus4, Dbmaj9:3, =F6').items;
   const orig = E.buildPiece(items, base({ motion: { order: 'low-high', stagger: 60 } }));
@@ -175,6 +175,38 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const asText = real(4, 10, 10); asText.total = '28'; const nText = real(4, 10, 10); nText.N = '4';
   check('Saved notes: a length or voice count written as text is not accepted', !E.validRealization(asText) && !E.validRealization(nText) && opens(asText) === false);
   check('Saved notes: merely broken ones are still dropped quietly', !E.normalizePiece(Object.assign(base(), { realization: { events: [{ targets: [1] }], N: 3, total: 1 } })).realization);
+}
+// ---- 4.1 foundations: more voices, longer glides, cents, and a pitch schedule that doesn't depend on length ----
+{
+  const prog = 'Cmaj9, Am11, Fmaj7#11, G13sus4, Em9, A7b9, Dm9, G7';
+  const b32 = E.buildPiece(E.parseProgression(prog).items, base({ voices: 32 }));
+  const okTones = b32.events.every(e => { const it = E.parseItem(e.label); return e.targets.slice(1).every(p => it.pcs.includes(((Math.round(p) % 12) + 12) % 12)); });
+  check('32 voices: the editor allows ' + E.MAX_VOICES + ', and every upper voice is a chord tone under the highest-note limit', b32.N === 32 && E.MAX_VOICES === 32 && okTones && b32.max <= base().voicing.top && !b32.warnings.length, b32.N + ' voices, top ' + b32.max);
+  check('Voice counts above the limit are clamped to it', base({ voices: 99 }).voices === 32);
+  const long = E.buildPiece(E.parseProgression('C:14, Am:14, F:14').items, base({ timing: { glide: 12, chordSec: 12 } }));
+  check('Glides up to 12 seconds: a 12 s glide is kept, and 20 is clamped to 12', long.events[1].g === 12 && long.events[2].g === 12 && base({ timing: { glide: 20 } }).timing.glide === 12);
+  check('Cents after the octave: D3+33, B3-14, A4+12.5¢; C-1 is still octave -1; over 99 cents is refused',
+    E.parseNoteOct('D3+33') === 50.33 && E.parseNoteOct('B3-14') === 58.86 && E.parseNoteOct('A4+12.5¢') === 69.125 && E.parseNoteOct('C-1') === 0 && E.parseNoteOct('D3+150') === null);
+  const pc = E.buildPiece(E.parseProgression('=C4-14, Emaj9[E2 B3-14 G#4+41], Amaj9').items, base({ voices: 3 }));
+  check('Cents reach the voices: a unison at C4-14 and a pinned voicing keep their exact pitches', pc.events[0].targets.every(p => p === 59.86) && JSON.stringify(pc.events[1].targets) === '[40,58.86,68.41]', JSON.stringify(pc.events[1].targets));
+  // replay the schedule as an AudioParam would (ramps: exponential in Hz, so linear in pitch; curves: linear in Hz between samples)
+  const replay = (mv, t) => { let p = mv[0].p, pt = mv[0].t;
+    for (const m of mv) {
+      if (m.kind === 'set') { if (m.t > t) break; p = m.p; pt = m.t; }
+      else if (m.kind === 'ramp') { if (m.t <= t) { p = m.p; pt = m.t; } else { if (t >= pt) return p + (m.p - p) * (t - pt) / (m.t - pt); break; } }
+      else { if (m.t > t) break; if (t >= m.t + m.d) { p = m.ps[m.ps.length - 1]; pt = m.t + m.d; continue; }
+        const f = (t - m.t) / m.d * (m.ps.length - 1), k = Math.floor(f), h = E.hz(m.ps[k]) + (E.hz(m.ps[k + 1]) - E.hz(m.ps[k])) * (f - k); return 12 * Math.log2(h / 440) + 69; } }
+    return p; };
+  const worst = (bt, from) => { let w = 0; for (let v = 0; v < bt.N; v++) { const mv = E.pitchMoves(bt, v, from); for (let k = 0; k <= 4000; k++) { const t = from + (bt.total - from) * k / 4000; w = Math.max(w, Math.abs(replay(mv, t) - E.pitchAt(bt, v, t))); } } return w; };
+  const items = E.parseProgression(prog).items;
+  const wSmooth = Math.max(worst(E.buildPiece(items, base()), 0), worst(E.buildPiece(items, base({ timing: { easing: 'smoother' } })), 5.3));
+  const wLin = worst(E.buildPiece(items, base({ motion: { order: 'low-high', stagger: 60 }, timing: { easing: 'linear' } })), 0);
+  // a 10-minute piece of saved notes 0.05 s apart: accuracy must not depend on length
+  const N = 4, ev = []; for (let i = 0; i < 12000; i++) ev.push({ t: i * 0.05, g: 0.05, label: 'x', kind: 'chord', targets: Array.from({ length: N }, (_, v) => 48 + v * 7 + 5 * Math.sin(i / 7 + v) + (i % 8 < 4 ? 0 : 12)) });
+  const long10 = E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total: 600, events: ev }, base());
+  const wLong = Math.max(worst(long10, 0), worst(long10, 587.3));
+  check('Pitch schedule: linear glides and saved notes replay exactly, at any length; eased glides within 0.01 cent',
+    wLin < 1e-9 && wLong < 1e-9 && wSmooth < 1e-4, 'linear ' + wLin.toExponential(1) + ', 10-minute saved notes ' + wLong.toExponential(1) + ', eased ' + (wSmooth * 100).toFixed(4) + ' cents');
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

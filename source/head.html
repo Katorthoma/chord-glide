@@ -335,7 +335,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0.4 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.5 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -441,7 +441,7 @@ figure.vl circle { fill: var(--ink); }
         <div class="group">
           <label for="chords">Chords</label>
           <textarea id="chords" spellcheck="false"></textarea>
-          <p class="hint">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing.</p>
+          <p class="hint">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
           <p id="err" class="err" hidden></p>
         </div>
         <div class="seed" data-layer="harmony">
@@ -462,7 +462,7 @@ figure.vl circle { fill: var(--ink); }
           <button type="button" class="small" id="roll-voicing">Reroll</button>
           <p class="hint" style="grid-column:1/-1">Same chords, a different realization. Variation sets how far a reroll can wander.</p>
         </div>
-        <div class="slider"><label for="voices">Voices</label><output id="o-voices"></output><input id="voices" type="range" min="3" max="15" step="1"></div>
+        <div class="slider"><label for="voices">Voices</label><output id="o-voices"></output><input id="voices" type="range" min="3" max="32" step="1"></div>
         <div class="slider"><label for="continuity">Continuity</label><output id="o-continuity"></output><input id="continuity" type="range" min="0" max="100" step="1"><span class="ends"><span>voices leap</span><span>voices step</span></span></div>
         <div class="slider"><label for="coverage">Chord-tone coverage</label><output id="o-coverage"></output><input id="coverage" type="range" min="0" max="100" step="1"><span class="ends"><span>loose</span><span>every tone present</span></span></div>
         <div class="slider"><label for="stacking">Stacking</label><output id="o-stacking"></output><input id="stacking" type="range" min="0" max="100" step="1"><span class="ends"><span>avoid unisons</span><span>prefer unisons</span></span></div>
@@ -491,7 +491,7 @@ figure.vl circle { fill: var(--ink); }
           <button type="button" class="small" id="roll-motion">Reroll</button>
           <p class="hint" style="grid-column:1/-1">Used by the random departure order. More motion controls will draw on it later.</p>
         </div>
-        <div class="slider"><label for="glide">Glide time</label><output id="o-glide"></output><input id="glide" type="range" min="0" max="5" step="0.1"></div>
+        <div class="slider"><label for="glide">Glide time</label><output id="o-glide"></output><input id="glide" type="range" min="0" max="12" step="0.1"></div>
         <div class="group"><label for="easing">Glide curve</label>
           <select id="easing"><option value="smooth">Smoothstep (S-curve)</option><option value="smoother">Smootherstep (flatter ends)</option><option value="cosine">Cosine</option><option value="linear">Linear</option></select>
         </div>
@@ -634,7 +634,7 @@ figure.vl circle { fill: var(--ink); }
 
 
           <h4><span class="step">2</span>Write the harmony</h4>
-          <p>On the <b>Harmony</b> tab, type chord names, one per line. A few extras: <code>=G#6</code> gathers every voice onto one note, <code>Amaj9:6</code> holds a chord for 6 seconds, and <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. The <b>harmony seed</b> can write a whole progression for you. Keep it locked to protect chords you've written.</p>
+          <p>On the <b>Harmony</b> tab, type chord names, one per line. A few extras: <code>=G#6</code> gathers every voice onto one note, <code>Amaj9:6</code> holds a chord for 6 seconds, and <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. Notes in those two can carry cents after the octave, so <code>=C4-14</code> is 14 cents flat of C4 and <code>[D3+33 …]</code> pins a D3 33 cents sharp. The <b>harmony seed</b> can write a whole progression for you. Keep it locked to protect chords you've written.</p>
 
           <h4><span class="step">3</span>Shape the voicing</h4>
           <p>The <b>Voicing</b> tab decides which note each voice sings. Choose how many voices, then balance the sliders: <b>continuity</b> (small steps), <b>coverage</b> (every chord note present), <b>stacking</b> (unisons avoided or welcomed), <b>spacing</b> and <b>variation</b>. Each slider is a weight in the score that picks every voice's next note, as step 9 of The math explains. The highest note and the bass rule set the range.</p>
@@ -778,6 +778,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.0.5</span>Longer, wider, finer<span class="when">2 Nov 2026</span></h4>
+          <p>Pieces of any length now play with full pitch accuracy. Before, past two minutes the app tracked pitch half as finely, which blurred fast moves in long pieces; now each glide is scheduled as a curve of its own, so a ten-minute piece is as exact as a ten-second one. The Voices slider goes up to 32 (MIDI with glides comes in files of 15), and glides can last up to 12 seconds. Unison notes and pinned voicings can carry cents: <code>=C4-14</code> or <code>Emaj9[E2 B3-14 G#4+41]</code>.</p>
 
           <h4><span class="step ver">4.0.4</span>Steadier sound and picture<span class="when">2 Nov 2026</span></h4>
           <p>Changing tone while a piece plays now swaps the sound in place: every voice keeps gliding and only its timbre changes. Before, a tone change rebuilt the sound, and in Chrome a slow rebuild could leave the voices stuck on a chord until you paused or moved the playhead. Any other change made while playing (moving the playhead, a Sound slider) now also stays exactly in time with the picture. Lines that wiggle quickly no longer shimmer ahead of the playhead like heat haze: they are drawn from fixed moments of the piece, so the unplayed part holds still. MIDI glides follow the sound within 5 cents again, about 2 to 3 cents at usual tempos (up to about 6 for the very fastest glides at the slowest tempos). Piece files with an unreasonable number of saved snapshots, or with a length written as text, are refused. And the About page says where to share what you make.</p>

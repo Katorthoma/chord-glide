@@ -16,9 +16,11 @@ function mulberry32(a) {
   };
 }
 
+// A note with its octave, and optional cents after the octave: C4, F#2, C-1 (octave -1), D3+33, B3-14, A4+12.5¢
+const NOTE_OCT = '[A-G][#b]?-?\\d(?:[+-]\\d{1,2}(?:\\.\\d+)?¢?)?';
 function parseNoteOct(s) {
-  const m = s.match(/^([A-G][#b]?)(-?\d)$/);
-  return m ? pcOf(m[1]) + 12 * (parseInt(m[2], 10) + 1) : null;
+  const m = s.match(/^([A-G][#b]?)(-?\d)(?:([+-]\d{1,2}(?:\.\d+)?)¢?)?$/);
+  return m ? pcOf(m[1]) + 12 * (parseInt(m[2], 10) + 1) + (m[3] ? parseFloat(m[3]) / 100 : 0) : null;
 }
 
 /* One token -> {kind:'note'|'chord'|'error', ...} */
@@ -35,7 +37,7 @@ function parseItem(raw) {
     if (pin.some(x => x === null)) return { kind: 'error', label: raw.trim() };
     t = t.slice(0, pm.index);
   }
-  const um = t.match(/^(?:=|->|→)([A-G][#b]?-?\d)$/);
+  const um = t.match(new RegExp('^(?:=|->|→)(' + NOTE_OCT + ')$'));
   if (um) return { kind: 'note', midi: parseNoteOct(um[1]), label: um[1], dur };
   const m = t.match(/^([A-G][#b]?)(.*)$/);
   if (!m) return { kind: 'error', label: raw.trim() };
@@ -171,14 +173,14 @@ function normalizePiece(p) {
     else out[k] = p[k];
   }
   out.format = PIECE_FORMAT; out.formatVersion = PIECE_FORMAT_VERSION; out.engine = ENGINE_VERSION;
-  out.voices = Math.max(3, Math.min(15, Math.round(+out.voices || 11)));
+  out.voices = Math.max(3, Math.min(MAX_VOICES, Math.round(+out.voices || 11)));
   for (const k of ['harmony', 'voicing', 'motion', 'sound']) { out.seeds[k] = (+out.seeds[k] >>> 0); out.locks[k] = !!out.locks[k]; }
   const pickFrom = (v, list, dflt) => list.includes(v) ? v : dflt;
   const num = (v, lo, hi, dflt) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt; };
   out.chords = typeof out.chords === 'string' ? out.chords : '';
   out.name = String(out.name || 'Untitled piece').slice(0, 80);
   out.timing.easing = pickFrom(out.timing.easing, ['smooth', 'smoother', 'cosine', 'linear'], 'smooth');
-  out.timing.chordSec = num(out.timing.chordSec, 1.5, 12, 4.5); out.timing.glide = num(out.timing.glide, 0, 5, 1.6); out.timing.tempo = Math.round(num(out.timing.tempo, 30, 180, 60));
+  out.timing.chordSec = num(out.timing.chordSec, 1.5, 12, 4.5); out.timing.glide = num(out.timing.glide, 0, 12, 1.6); out.timing.tempo = Math.round(num(out.timing.tempo, 30, 180, 60));
   for (const k of ['continuity', 'coverage', 'stacking', 'spacing', 'variation', 'spread']) out.voicing[k] = num(out.voicing[k], 0, 100, d.voicing[k]);
   out.voicing.top = Math.round(num(out.voicing.top, 67, 96, 88));
   out.voicing.bassOctave = Math.round(num(out.voicing.bassOctave, 1, 3, 2));
@@ -336,6 +338,7 @@ function leadVoicing(prev, ch, rng, W) {
 
 /* ---- Realization: the resolved notes and timing, saved so a piece can reopen exactly even after the engine changes ---- */
 /* Saved notes from a file are played as written, so they're bounded: a broken or hostile file mustn't be able to freeze the page */
+const MAX_VOICES = 32; // in the editor; saved notes may carry up to REALIZATION_LIMITS.voices
 const REALIZATION_LIMITS = { voices: 64, seconds: 3600, events: 75000, values: 2000000 }; // events: snapshots (an hour at 20 a second); values: voices × events
 function realizationTooLarge(r) {
   if (!r || typeof r !== 'object' || !Array.isArray(r.events)) return '';
@@ -450,6 +453,39 @@ function pitchAt(built, v, t, idx) {
   if (d <= 0) return b;
   const x = Math.min(1, Math.max(0, (t - e.t - e.off[v]) / d));
   return a + (b - a) * built.ease(x);
+}
+/* How one voice's pitch moves from time `from` on, as a list of moves for an AudioParam, in piece time.
+   Built from the glides themselves, not from a grid over the whole piece, so pitch accuracy never depends on how long
+   the piece is. A glide that is linear in pitch is an exact exponential ramp in frequency ('ramp'); an eased glide is
+   sampled `perSec` times a second, during the glide only ('curve'). Holds need no moves at all.
+   Moves: { kind: 'set', t, p } | { kind: 'ramp', t, p } (ramp to p, arriving at t) | { kind: 'curve', t, d, ps } */
+function pitchMoves(built, v, from = 0, perSec = 240) {
+  const ev = built.events, ease = built.ease;
+  const linear = [0.1, 0.3, 0.5, 0.7, 0.9].every(x => Math.abs(ease(x) - x) < 1e-12);
+  const moves = [{ kind: 'set', t: from, p: pitchAt(built, v, from) }];
+  let lastP = moves[0].p, lastT = from; // where the previous move left the voice
+  for (let i = 1; i < ev.length; i++) {
+    const e = ev[i], next = i + 1 < ev.length ? ev[i + 1].t : Infinity;
+    if (next <= from) continue;
+    const a = ev[i - 1].targets[v], b = e.targets[v];
+    // at the event itself the voice holds `a` (a previous glide cut short by this event jumps here, as pitchAt does)
+    if (e.t > from && a !== lastP) { moves.push({ kind: 'set', t: e.t, p: a }); lastP = a; lastT = e.t; }
+    if (a === b) continue;
+    const s = e.t + (e.g > 0 ? e.off[v] : 0), d = e.g > 0 ? e.dur[v] : 0;
+    if (d <= 0) { const t = Math.max(s, from); if (t > from || lastP !== b) { moves.push({ kind: 'set', t, p: b }); lastP = b; lastT = t; } continue; }
+    const t0 = Math.max(s, from), t1 = Math.min(s + d, next);
+    if (t1 <= t0) continue;
+    const p0 = pitchAt(built, v, t0, i), p1 = t1 >= s + d ? b : pitchAt(built, v, t1, i);
+    if (!(t0 === lastT && p0 === lastP)) moves.push({ kind: 'set', t: t0, p: p0 }); // a glide straight on from the last needs no anchor
+    if (linear) moves.push({ kind: 'ramp', t: t1, p: p1 });
+    else {
+      const n = Math.max(3, Math.ceil((t1 - t0) * perSec) + 1), ps = new Array(n);
+      for (let k = 0; k < n; k++) ps[k] = k === n - 1 ? p1 : pitchAt(built, v, t0 + (t1 - t0) * k / (n - 1), i);
+      moves.push({ kind: 'curve', t: t0, d: t1 - t0, ps });
+    }
+    lastP = p1; lastT = t1;
+  }
+  return moves;
 }
 /* Times when the first chord is established and when the last chord arrives (for auto zoom) */
 function landmarks(built) {

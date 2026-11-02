@@ -1,3 +1,15 @@
+# Chord Glide 4.0.5 · 2 Nov 2026
+
+Engine 3.1 and file format 3 are unchanged: every piece the app has saved voices exactly as before. A hand-written file asking for more than 15 voices or a glide over 5 seconds used to be clamped to those, and now gets what it asks for.
+
+The first of the 4.1 foundations (see `TODO.md`).
+
+- **Pitch accuracy no longer depends on length.** Playback sampled every voice's pitch over the whole piece, 120 times a second up to 120 s and 60 beyond, so fast moves in long pieces were smeared (at 2:30 into a 4-minute piece of saved notes, voices were up to 600 cents off around octave jumps). `pitchMoves()` now builds each voice's schedule from its glides: a glide that is linear in pitch is an exact exponential ramp in frequency, an eased glide is sampled 240 times a second during the glide only, and holds need nothing. Replayed against `pitchAt()`, linear glides and saved notes are exact at any length (tested on 10 minutes of saved notes) and eased glides are within 0.005 cents. It also uses less memory and builds faster (Bounce of the Spheres, 21 voices × 120 s: 120 ms, was 200). Every voice's first second is scheduled before the rest, so only that part has to fit in the lead time. An ordinary piece renders within 48 dB of 4.0.4's audio.
+- **Up to 32 voices** in the editor (`MAX_VOICES`); saved notes may still carry up to 64. The voicing engine takes under 60 ms at 32 voices. MIDI with glides splits into files of 15, as before.
+- **Glides up to 12 seconds** (was 5).
+- **Cents in note names:** `parseNoteOct()` accepts cents after the octave, `D3+33`, `B3-14`, `A4+12.5¢` (up to ±99), in unison notes (`=C4-14`) and pinned voicings (`Emaj9[E2 B3-14 G#4+41]`). `C-1` still means octave −1. MIDI glides carry the cents as bends; MIDI chords and MusicXML round to the nearest note.
+- Tests for each, including a replay of the new pitch schedule against `pitchAt()`.
+
 # Chord Glide 4.0.4 · 2 Nov 2026
 
 Engine 3.1 and file format 3 are unchanged.
