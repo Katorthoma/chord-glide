@@ -1,3 +1,16 @@
+# Chord Glide 4.0.4 · 2 Nov 2026
+
+Engine 3.1 and file format 3 are unchanged.
+
+- **Live tone swap.** Changing tone while playing now changes each running voice's waveform and level in place (`swapToneLive()`, with a few milliseconds' dip around the swap so it doesn't click) instead of rebuilding the sound. A tone changes no pitch, so the glides carry on untouched.
+- **Playback stays in time after any rebuild.** `buildGraph()` read the audio clock first and then generated the reverb and every voice's pitch curve. When that work took longer than the 0.08 s lead (a busy moment in Chrome), the glides were scheduled to start in the past; Chrome then played them late or held voices on a chord, and setting each voice's start pitch separately put a fixed value inside its own glide. The clock is now read after all of that work, just before scheduling, so the start pitch is always set before the glide begins. Measured in Chromium with the rebuild artificially slowed by 400 ms: voices were up to 794 cents from the piece before, within the measurement's noise (about 3 cents) after.
+- **No heat haze on the unplayed part.** Lines were sampled every 2 pixels starting from the playhead, which moves a fraction of a pixel each frame, so a line that wiggles faster than the sampling looked different every frame. Samples are now taken at fixed moments of the piece. On an 11-voice piece of saved notes 0.05 s apart, the unplayed part changed on 17% of its pixels between frames 50 ms apart; it now changes on none.
+- **MIDI glides within 5 cents again.** `midiWithGlides()` walks each glide one MIDI tick at a time at the tick's exact time, instead of every 0.5 ms with each bend then rounded to a tick. A bend goes out when the curve would pass 2 cents (was 3) by the end of the tick, carrying the pitch at the middle of the tick. Worst error, measured exactly at every event: 2.3 cents on the test piece (was 6.5), 3.2 cents for glides beyond the bend range (was 8.8); at 30 BPM, where a tick lasts about 2 ms, up to 6.2 cents for the fastest glides (was 8.8). The test now measures at every event instead of on a 4,000-point grid, which could miss the peaks, and checks 5 cents (7 at 30 BPM).
+- **Saved notes:** at most 75,000 snapshots (an hour at 20 a second), so a one-voice file with millions of snapshots is refused with a reason; `N` and `total` must be numbers, so a length written as text (`"28"`) can't later be joined as text instead of added.
+- **`tools/measure-tone-levels.js`** renders the opening piece in every tone and measures EBU R128 loudness in the browser (no ffmpeg), printing the gain that would match each tone to Soft. It needs Playwright and is not part of releases. It agrees with the ffmpeg measurements behind the current gains to about 0.1 dB.
+- **Octaves** is described as inspired by Shepard's and Risset's octave stacks rather than "after" them: a true Shepard tone keeps its bell curve fixed in absolute frequency.
+- **About** says where to share what you make: noizgenie.com. The README's test count is current, and it lists `tools/` and `TODO.md`.
+
 # Chord Glide 4.0.3 · 2 Nov 2026
 
 Engine 3.1 and file format 3 are unchanged. Pieces using a new tone open in older versions with the default tone (Soft).
@@ -5,7 +18,7 @@ Engine 3.1 and file format 3 are unchanged. Pieces using a new tone open in olde
 - **Five more tones**, each a formula for harmonic n (in `TONES`, with tests):
   - **Brass:** Chowning FM with carrier = modulator and index 3; harmonic n is J(n−1, 3) + (−1)ⁿ·J(n+1, 3), the upper sideband plus the reflected lower one (20). `besselJ()` is a power series, checked against published values.
   - **Harp:** a string plucked at 1/7 of its length, sin(nπ/7)/n², so harmonics 7, 14, 21 and 28 vanish (32). Held steady: tones have no envelope yet.
-  - **Octaves:** only harmonics 1, 2, 4, 8, 16 and 32, under a bell curve on log₂ n centred one octave up (σ = 1.2 octaves), after Shepard and Risset.
+  - **Octaves:** only harmonics 1, 2, 4, 8, 16 and 32, under a bell curve on log₂ n centred one octave up (σ = 1.2 octaves), inspired by Shepard's and Risset's octave stacks (theirs keep the bell curve fixed in absolute frequency; this one moves with the note).
   - **Chime:** only the Fibonacci harmonics 1, 2, 3, 5, 8, 13, 21, each 1/φ of the one before.
   - **Air:** a near-pure fundamental, 2nd harmonic at −20 dB, 3rd at −30 dB, and a flat −40 dB shelf over harmonics 5–20.
 - **Grouped tone menu:** Gentle (Pure, Soft, Warm, Air), Classic waves (Triangle, Square, Pulse, Saw), Instruments (Reed, Organ, Brass, Harp, Bowed, Cello) and Spectral (Glass, Chime, Octaves). Stored tone names are unchanged.

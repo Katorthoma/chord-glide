@@ -345,7 +345,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0.3 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.4 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -789,8 +789,11 @@ figure.vl circle { fill: var(--ink); }
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
 
+          <h4><span class="step ver">4.0.4</span>Steadier sound and picture<span class="when">2 Nov 2026</span></h4>
+          <p>Changing tone while a piece plays now swaps the sound in place: every voice keeps gliding and only its timbre changes. Before, a tone change rebuilt the sound, and in Chrome a slow rebuild could leave the voices stuck on a chord until you paused or moved the playhead. Any other change made while playing (moving the playhead, a Sound slider) now also stays exactly in time with the picture. Lines that wiggle quickly no longer shimmer ahead of the playhead like heat haze: they are drawn from fixed moments of the piece, so the unplayed part holds still. MIDI glides follow the sound within 5 cents again, about 2 to 3 cents at usual tempos (up to about 6 for the very fastest glides at the slowest tempos). Piece files with an unreasonable number of saved snapshots, or with a length written as text, are refused. And the About page says where to share what you make.</p>
+
           <h4><span class="step ver">4.0.3</span>Five more tones, grouped<span class="when">2 Nov 2026</span></h4>
-          <p>Five more tones, each from a piece of acoustics or mathematics. <b>Brass</b> uses Chowning's FM recipe for brass, a carrier and modulator at the same frequency, so its harmonics follow Bessel functions. <b>Harp</b> has the spectrum of a string plucked a seventh of the way along, so every 7th harmonic is missing (held steady rather than dying away). <b>Octaves</b> keeps only the octaves of the note under a bell curve, after Shepard and Risset. <b>Chime</b> uses only the Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each one 1/φ of the one before. <b>Air</b> is nearly a pure tone, with a faint, even shimmer above it. The tone menu is now in four groups (Gentle, Classic waves, Instruments and Spectral), and the new tones are gain-matched to Soft like the others.</p>
+          <p>Five more tones, each from a piece of acoustics or mathematics. <b>Brass</b> uses Chowning's FM recipe for brass, a carrier and modulator at the same frequency, so its harmonics follow Bessel functions. <b>Harp</b> has the spectrum of a string plucked a seventh of the way along, so every 7th harmonic is missing (held steady rather than dying away). <b>Octaves</b> keeps only the octaves of the note under a bell curve, inspired by the octave stacks of Shepard and Risset. <b>Chime</b> uses only the Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each one 1/φ of the one before. <b>Air</b> is nearly a pure tone, with a faint, even shimmer above it. The tone menu is now in four groups (Gentle, Classic waves, Instruments and Spectral), and the new tones are gain-matched to Soft like the others.</p>
 
           <h4><span class="step ver">4.0.2</span>Seven new tones<span class="when">1 Nov 2026</span></h4>
           <p>The Sound tab has seven new tones, each defined by a formula for its harmonics. Triangle is soft and round, Square hollow like a clarinet, Pulse a true 25% pulse wave, nasal and reedy, and Saw bright and buzzy. Organ is built from drawbar-style levels. Bowed and Cello are inspired by a bowed string; Cello is the richer one, with 40 harmonics, a body resonance and gaps in the spectrum like those a bow creates. The new tones are gain-matched to Soft on a reference piece, so changing tone keeps a similar level, and the original five sound exactly as before.</p>
@@ -925,6 +928,7 @@ figure.vl circle { fill: var(--ink); }
           <h3>About</h3>
           <p class="lede">Chord Glide is a songwriting instrument by Noizgenie. Write chords, hear them as gliding voices, and shape how they move.</p>
           <p>Use it online at <a href="https://chord-glide.noizgenie.com" target="_blank" rel="noopener noreferrer">chord-glide.noizgenie.com</a>, or get the source code and the downloadable app on <a href="https://github.com/Katorthoma/chord-glide" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+          <p>If Chord Glide helped you make something, I'd love to hear it: <a href="https://noizgenie.com" target="_blank" rel="noopener noreferrer">noizgenie.com</a></p>
 
           <h4>Privacy</h4>
           <p>Chord Glide itself has no accounts, ads, analytics or tracking, and sets no cookies. The voicing, the sound, the video and every export are made in your browser, and Chord Glide never uploads what you write or play.</p>
@@ -1071,7 +1075,8 @@ const TONES = {
   harp: harmonics(32, n => Math.sin(n * Math.PI / 7) / (n * n)),                       // a string plucked at 1/7 of its length: sin(nπ/7)/n²,
   // from the wave equation, so harmonics 7, 14, 21, 28 vanish (sustained here: the spectrum of a pluck, without its decay)
   octaves: harmonics(32, n => (n & (n - 1)) === 0 ? Math.exp(-Math.pow(Math.log2(n) - 1, 2) / (2 * 1.2 * 1.2)) : 0), // only octaves (1, 2, 4, 8,
-  // 16, 32) under a bell curve in log-frequency centred one octave up, after Shepard and Risset
+  // 16, 32) under a bell curve in log-frequency centred one octave up, inspired by Shepard's and Risset's
+  // octave stacks (theirs keep the bell curve fixed in absolute frequency; this one moves with the note)
   chime: harmonics(21, n => { const fib = [1, 2, 3, 5, 8, 13, 21], k = fib.indexOf(n); return k < 0 ? 0 : Math.pow((1 + Math.sqrt(5)) / 2, -k); }), // only
   // Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each 1/φ the strength of the one before: a harmonic chime, not a real bell
   air: harmonics(20, n => n === 1 ? 1 : n === 2 ? 0.1 : n === 3 ? 0.03 : n >= 5 ? 0.01 : 0) // a nearly pure fundamental with a faint, flat
@@ -1288,19 +1293,21 @@ function leadVoicing(prev, ch, rng, W) {
 
 /* ---- Realization: the resolved notes and timing, saved so a piece can reopen exactly even after the engine changes ---- */
 /* Saved notes from a file are played as written, so they're bounded: a broken or hostile file mustn't be able to freeze the page */
-const REALIZATION_LIMITS = { voices: 64, seconds: 3600, values: 2000000 }; // values: voices × events
+const REALIZATION_LIMITS = { voices: 64, seconds: 3600, events: 75000, values: 2000000 }; // events: snapshots (an hour at 20 a second); values: voices × events
 function realizationTooLarge(r) {
   if (!r || typeof r !== 'object' || !Array.isArray(r.events)) return '';
   const L = REALIZATION_LIMITS;
   if (+r.N > L.voices) return 'it asks for ' + r.N + ' voices (at most ' + L.voices + ')';
   if (+r.total > L.seconds) return 'it lasts ' + Math.round(r.total / 60) + ' minutes (at most ' + L.seconds / 60 + ')';
+  if (r.events.length > L.events) return 'it has ' + r.events.length.toLocaleString('en-US') + ' snapshots (at most ' + L.events.toLocaleString('en-US') + ')';
   if (r.events.length * (+r.N || 1) > L.values) return 'it has ' + r.events.length + ' snapshots of ' + r.N + ' voices (at most ' + L.values.toLocaleString('en-US') + ' notes in all)';
   if (r.events.some(e => e && Array.isArray(e.targets) && e.targets.some(p => typeof p === 'number' && (p < 0 || p > 127)))) return 'some of its notes are outside the playable range (MIDI 0–127)';
   return '';
 }
 function validRealization(r) {
-  if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !(r.N >= 1) || !(r.total > 0)) return false;
-  if (!Number.isInteger(+r.N) || realizationTooLarge(r)) return false;
+  // N and total must be real numbers: a total written as text ("28") would later be joined as text, not added
+  if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !Number.isInteger(r.N) || r.N < 1) return false;
+  if (typeof r.total !== 'number' || !Number.isFinite(r.total) || r.total <= 0 || realizationTooLarge(r)) return false;
   const okNum = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
   let lastT = -Infinity;
   return r.events.every(e => {
@@ -1589,8 +1596,10 @@ function midiGlideFiles(built, opts = {}) {
   return out;
 }
 /* Glides kept as per-voice pitch bend: MPE lower zone, one member channel per voice, ±48 semitones */
-/* Pitch bend is sent whenever the curve moves more than `tolerance` semitones from the last value sent (default 3 cents). */
-function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.03 } = {}) {
+/* Glides are written as pitch bend, walked one MIDI tick at a time at each tick's exact time (so nothing is rounded to a tick).
+   A bend is sent at a tick when, by the end of that tick, the curve would be more than `tolerance` semitones (2 cents) from the
+   last value sent; it carries the pitch at the middle of the tick, so inside any tick the error is at most half a tick's movement. */
+function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.02 } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const N = Math.min(built.N, 15);
   const mpe = [ // MPE configuration on the master channel (1): 15 member channels
@@ -1621,13 +1630,11 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
         add(t, [0x90 | ch, note, 88]);
       };
       if (d <= 0) { reach(t0, b); bend(t0, b - note); continue; }
-      // adaptive: walk the curve at 0.5 ms and send a bend only when it drifts past the tolerance
-      const steps = Math.max(2, Math.ceil(d / 0.0005));
+      const spt = 60 / (tempo * PPQ), at = t => pitchAt(built, v, Math.min(Math.max(t, t0), e.t + e.g), i);
       let sent = a;
-      for (let k = 1; k <= steps; k++) {
-        const t = t0 + d * k / steps; const p = pitchAt(built, v, Math.min(t, e.t + e.g), i);
-        reach(t, p);
-        if (Math.abs(p - sent) >= tolerance) { bend(t, p - note); sent = p; }
+      for (let k = Math.ceil(t0 / spt - 1e-9), kEnd = Math.round((t0 + d) / spt); k < kEnd; k++) {
+        const t = k * spt;
+        if (Math.abs(at(t + spt) - sent) > tolerance) { const p = at(t + spt / 2); reach(t, p); bend(t, p - note); sent = p; }
       }
       bend(t0 + d, b - note);
     }
@@ -1958,7 +1965,7 @@ function webmMux({ video, audio, meta = null }) {
 }
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0.3';
+const APP_VERSION = '4.0.4';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -2050,7 +2057,7 @@ function syncUI() {
 }
 
 /* ---------- Build ---------- */
-function rebuild(keepTime = true) {
+function rebuild(keepTime = true, restartAudio = true) {
   const { items, errors } = parseProgression(piece.chords);
   const msgs = [];
   if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6.');
@@ -2068,7 +2075,7 @@ function rebuild(keepTime = true) {
   showErr(msgs);
   offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
   screenCam.snap = true;
-  if (playing && !recording) startAudio(offset);
+  if (playing && !recording && restartAudio) startAudio(offset);
   updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
 }
 /* Playback and exports need a built piece; a piece file can always be saved (without notes if there are none) */
@@ -2263,16 +2270,26 @@ function impulse(ctx, seed) {
   return buf;
 }
 /* One graph for live playback, recording and offline export */
+const voiceLevel = (N, tone) => 1.5 / N * (TONE_GAIN[tone] || 1);
+function periodicWave(ctx, tone) { const tw = toneWave(tone); return ctx.createPeriodicWave(Float32Array.from(tw.real), Float32Array.from(tw.imag)); }
+/* Change tone while playing without rebuilding the sound: every voice keeps its glide, and only its waveform and level change.
+   The voices dip for a few milliseconds around the swap so the change in waveform doesn't click. */
+function swapToneLive(tone) {
+  if (!live || !actx || live.tone === tone) return;
+  const L = live, now = actx.currentTime, wave = periodicWave(actx, tone), level = voiceLevel(L.oscs.length, tone);
+  L.tone = tone;
+  L.gains.forEach(g => { g.gain.cancelScheduledValues(now); g.gain.setTargetAtTime(0, now, 0.004); });
+  setTimeout(() => {
+    if (live !== L) return; // stopped or restarted meanwhile: the new graph already has the new tone
+    const t = actx.currentTime;
+    L.oscs.forEach(o => { try { o.setPeriodicWave(wave); } catch (e) {} });
+    L.gains.forEach(g => { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(level, t, 0.006); });
+  }, 20);
+}
 function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const P = b.piece, S = P.sound, N = b.N, T = b.total;
   const span = Math.max(0.05, T - from);
-  const now = offline ? 0 : ctx.currentTime + lead;
   const master = ctx.createGain();
-  // fade in, hold, then the closing fade (FADE). Started inside that fade (from past the end), pick it up at the volume it has reached.
-  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, FADE - into), top = level * Math.max(0, 1 - into / FADE);
-  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
-  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
-  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
   const bus = ctx.createGain();
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
@@ -2283,10 +2300,10 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   bus.connect(lp); lp.connect(dry); lp.connect(conv); conv.connect(wet);
   dry.connect(comp); wet.connect(comp); comp.connect(master);
   for (const o of outs) master.connect(o);
-  const tw = toneWave(S.tone), wave = ctx.createPeriodicWave(Float32Array.from(tw.real), Float32Array.from(tw.imag));
+  const wave = periodicWave(ctx, S.tone);
   const r = mulberry32((P.seeds.sound ^ 0xA5A5A5A5) >>> 0);
   const rate = span > 120 ? 60 : 120, n = Math.max(2, Math.ceil(span * rate) + 1);
-  const oscs = [];
+  const oscs = [], gains = [], curves = [];
   const hasBass = P.voicing.bassMode !== 'none';
   for (let v = 0; v < N; v++) {
     const dz = r() * 2 - 1, pz = r() * 2 - 1;
@@ -2294,16 +2311,24 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     osc.detune.value = dz * S.detune;
     const curve = new Float32Array(n);
     for (let i = 0; i < n; i++) curve[i] = hz(pitchAt(b, v, from + span * i / (n - 1)));
-    osc.frequency.value = curve[0];
-    osc.frequency.setValueCurveAtTime(curve, now, span);
-    const g = ctx.createGain(); g.gain.value = 1.5 / N * (TONE_GAIN[S.tone] || 1);
+    osc.frequency.value = curve[0]; // set before the clock is read below, so it can never land inside the glide
+    const g = ctx.createGain(); g.gain.value = voiceLevel(N, S.tone);
     osc.connect(g);
     if (ctx.createStereoPanner) { const pan = ctx.createStereoPanner(); pan.pan.value = (hasBass && v === 0) ? 0 : pz * (S.width / 100); g.connect(pan); pan.connect(bus); }
     else g.connect(bus);
-    osc.start(now); osc.stop(now + span + TAIL);
-    oscs.push(osc);
+    oscs.push(osc); gains.push(g); curves.push(curve);
   }
-  return { master, oscs, now };
+  /* Read the clock only now, after the slow work above (reverb, pitch curves), and schedule everything against it.
+     If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
+     past; Chrome then plays it late, or holds the voice at the start pitch set above, so the sound drifts from the picture. */
+  const now = offline ? 0 : ctx.currentTime + lead;
+  // fade in, hold, then the closing fade (FADE). Started inside that fade (from past the end), pick it up at the volume it has reached.
+  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, FADE - into), top = level * Math.max(0, 1 - into / FADE);
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
+  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
+  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
+  oscs.forEach((osc, v) => { osc.frequency.setValueCurveAtTime(curves[v], now, span); osc.start(now); osc.stop(now + span + TAIL); });
+  return { master, oscs, gains, now, tone: S.tone };
 }
 function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
 function stopAudio(fade = 0.2) {
@@ -2536,14 +2561,14 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     if (future && z > 0.995) continue;
     const xa = future ? px : x0, xb = future ? xEnd : px;
     if (xb - xa < 0.5) continue;
+    /* Sample at fixed moments of the piece (every `dt` seconds, about every 2 pixels), plus the two ends. Sampling from the
+       playhead instead would shift the samples a fraction of a pixel every frame, and a line that wiggles faster than the
+       sampling would seem to boil, like heat haze. */
+    const dt = (tB - tA) * step / (xEnd - x0), ta = tA + (tB - tA) * (xa - x0) / (xEnd - x0), tb = tA + (tB - tA) * (xb - x0) / (xEnd - x0);
+    const times = [ta]; for (let k = Math.floor(ta / dt) + 1; k * dt < tb - dt * 0.01; k++) times.push(k * dt); times.push(tb);
     for (let v = 0; v < N; v++) {
       const path = new Path2D();
-      for (let x = xa, first = true; x <= xb + 0.5; x += step, first = false) {
-        const xx = Math.min(x, xb);
-        const tt = Math.max(0, Math.min(T, tA + (tB - tA) * (xx - x0) / (xEnd - x0)));
-        const y = Y(pitchAt(b, v, tt));
-        if (first) path.moveTo(xx, y); else path.lineTo(xx, y);
-      }
+      times.forEach((tt, i) => { const x = X(tt), y = Y(pitchAt(b, v, Math.max(0, Math.min(T, tt)))); if (i) path.lineTo(x, y); else path.moveTo(x, y); });
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
   }
@@ -3073,7 +3098,12 @@ for (const [id, path, fmt] of SLIDERS) {
   });
   el.addEventListener('change', commit);
 }
-for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => { if (STRUCTURAL.has(id)) unfreeze(); setPath(piece, path, conv($(id).value)); rebuild(true); commit(); });
+for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => {
+  if (STRUCTURAL.has(id)) unfreeze(); setPath(piece, path, conv($(id).value));
+  const swap = id === 'tone' && playing && !recording && live; // tone doesn't change any pitch, so the running voices can just change waveform
+  rebuild(true, !swap); if (swap) swapToneLive(piece.sound.tone);
+  commit();
+});
 $('chords').addEventListener('input', () => { unfreeze(); piece.chords = $('chords').value; rebuildSoon(); updateStatus(); saveDraftSoon(); });
 $('chords').addEventListener('change', commit);
 $('name').addEventListener('input', () => { piece.name = $('name').value; updateStatus(); saveDraftSoon(); });

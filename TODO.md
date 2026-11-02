@@ -28,6 +28,7 @@ From the earlier roadmap:
 
 ## Done
 
+- [x] 4.0.4: live tone swap; playback scheduled after the slow work; no heat haze on the unplayed part; MIDI glides within 5 cents; saved-notes snapshot limit; tone-level tool
 - [x] 4.0.3: five more tones (Brass, Harp, Octaves, Chime, Air), gain-matched and tested; tone menu in four groups
 - [x] 4.0.2: seven new tones (Triangle, Square, Pulse, Saw, Organ, Bowed, Cello), gain-matched to Soft and tested
 - [x] 4.0.2: limits on saved notes; `"engine": "custom"`; MIDI glides split into files of up to 15 voices; readable piece files; MP3 Info frame; `TAIL`/`FADE` constants throughout

@@ -145,19 +145,23 @@ function midiPitchError(built, tempo) {
       if (st === 0xFF) { let n = 0, j = i + 2; do { n = (n << 7) | (tr[j] & 127); } while (tr[j++] & 128); i = j + n; continue; }
       const type = st & 0xF0; ev.push({ t: tick / 960 * 60 / tempo, type, a: tr[i + 1], b: tr[i + 2] }); i += 3;
     }
-    let note = null, bend = 0, k = 0;
-    for (let s2 = 0; s2 <= 4000; s2++) {
-      const t = built.total * s2 / 4000;
-      while (k < ev.length && ev[k].t <= t + 1e-9) { const e = ev[k++]; if (e.type === 0x90) note = e.a; if (e.type === 0xE0) bend = ((e.b << 7 | e.a) - 8192) / 8191 * 48; }
-      if (note !== null) worst = Math.max(worst, Math.abs(note + bend - W.pitchAt(built, v, t)));
+    // exact: between two events the played pitch is constant, so check every interval at both ends and points inside
+    let note = null, bend = 0;
+    for (let k = 0; k < ev.length; k++) {
+      const e = ev[k]; if (e.type === 0x90) note = e.a; if (e.type === 0xE0) bend = ((e.b << 7 | e.a) - 8192) / 8191 * 48;
+      if (note === null || e.type === 0x80) continue;
+      const t0 = e.t, t1 = Math.min(k + 1 < ev.length ? ev[k + 1].t : built.total, built.total); if (t1 <= t0) continue;
+      for (let j = 0; j <= 8; j++) { const t = t0 + (t1 - t0) * j / 8 - (j === 8 ? 1e-7 : 0); worst = Math.max(worst, Math.abs(note + bend - W.pitchAt(built, v, t))); }
     }
   });
   return worst;
 }
 const normalErr = midiPitchError(b, 72);
-check('MIDI glides follow the curve within 10 cents, allowing for the 3-cent send threshold and tick timing (worst ' + (normalErr * 100).toFixed(1) + ' cents)', normalErr <= 0.1);
+check('MIDI glides follow the curve within 5 cents, measured exactly at every event (worst ' + (normalErr * 100).toFixed(1) + ' cents)', normalErr <= 0.05);
 const wide = W.buildPiece(W.parseProgression('=C0:1, =G9:6, =C1:6').items, W.normalizePiece(Object.assign(W.defaultPiece(), { voices: 3 })));
 const wideErr = midiPitchError(wide, 60);
-check('MIDI glides beyond the bend range hand over near the current pitch (worst ' + (wideErr * 100).toFixed(1) + ' cents)', wideErr <= 0.1);
+check('MIDI glides beyond the bend range hand over near the current pitch, within 5 cents (worst ' + (wideErr * 100).toFixed(1) + ' cents)', wideErr <= 0.05);
+const slowErr = Math.max(midiPitchError(b, 30), midiPitchError(wide, 30));
+check('MIDI glides at the slowest tempo (30 BPM, the longest ticks) stay within 7 cents (worst ' + (slowErr * 100).toFixed(1) + ' cents)', slowErr <= 0.07);
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

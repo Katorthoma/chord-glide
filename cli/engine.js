@@ -118,7 +118,8 @@ const TONES = {
   harp: harmonics(32, n => Math.sin(n * Math.PI / 7) / (n * n)),                       // a string plucked at 1/7 of its length: sin(nπ/7)/n²,
   // from the wave equation, so harmonics 7, 14, 21, 28 vanish (sustained here: the spectrum of a pluck, without its decay)
   octaves: harmonics(32, n => (n & (n - 1)) === 0 ? Math.exp(-Math.pow(Math.log2(n) - 1, 2) / (2 * 1.2 * 1.2)) : 0), // only octaves (1, 2, 4, 8,
-  // 16, 32) under a bell curve in log-frequency centred one octave up, after Shepard and Risset
+  // 16, 32) under a bell curve in log-frequency centred one octave up, inspired by Shepard's and Risset's
+  // octave stacks (theirs keep the bell curve fixed in absolute frequency; this one moves with the note)
   chime: harmonics(21, n => { const fib = [1, 2, 3, 5, 8, 13, 21], k = fib.indexOf(n); return k < 0 ? 0 : Math.pow((1 + Math.sqrt(5)) / 2, -k); }), // only
   // Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each 1/φ the strength of the one before: a harmonic chime, not a real bell
   air: harmonics(20, n => n === 1 ? 1 : n === 2 ? 0.1 : n === 3 ? 0.03 : n >= 5 ? 0.01 : 0) // a nearly pure fundamental with a faint, flat
@@ -335,19 +336,21 @@ function leadVoicing(prev, ch, rng, W) {
 
 /* ---- Realization: the resolved notes and timing, saved so a piece can reopen exactly even after the engine changes ---- */
 /* Saved notes from a file are played as written, so they're bounded: a broken or hostile file mustn't be able to freeze the page */
-const REALIZATION_LIMITS = { voices: 64, seconds: 3600, values: 2000000 }; // values: voices × events
+const REALIZATION_LIMITS = { voices: 64, seconds: 3600, events: 75000, values: 2000000 }; // events: snapshots (an hour at 20 a second); values: voices × events
 function realizationTooLarge(r) {
   if (!r || typeof r !== 'object' || !Array.isArray(r.events)) return '';
   const L = REALIZATION_LIMITS;
   if (+r.N > L.voices) return 'it asks for ' + r.N + ' voices (at most ' + L.voices + ')';
   if (+r.total > L.seconds) return 'it lasts ' + Math.round(r.total / 60) + ' minutes (at most ' + L.seconds / 60 + ')';
+  if (r.events.length > L.events) return 'it has ' + r.events.length.toLocaleString('en-US') + ' snapshots (at most ' + L.events.toLocaleString('en-US') + ')';
   if (r.events.length * (+r.N || 1) > L.values) return 'it has ' + r.events.length + ' snapshots of ' + r.N + ' voices (at most ' + L.values.toLocaleString('en-US') + ' notes in all)';
   if (r.events.some(e => e && Array.isArray(e.targets) && e.targets.some(p => typeof p === 'number' && (p < 0 || p > 127)))) return 'some of its notes are outside the playable range (MIDI 0–127)';
   return '';
 }
 function validRealization(r) {
-  if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !(r.N >= 1) || !(r.total > 0)) return false;
-  if (!Number.isInteger(+r.N) || realizationTooLarge(r)) return false;
+  // N and total must be real numbers: a total written as text ("28") would later be joined as text, not added
+  if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !Number.isInteger(r.N) || r.N < 1) return false;
+  if (typeof r.total !== 'number' || !Number.isFinite(r.total) || r.total <= 0 || realizationTooLarge(r)) return false;
   const okNum = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
   let lastT = -Infinity;
   return r.events.every(e => {

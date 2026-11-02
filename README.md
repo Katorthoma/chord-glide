@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.0.3
+# Chord Glide 4.0.4
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -59,8 +59,9 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 ## Working on the code
 
 - **Build.** `source/` holds the real source: `head.html`, `engine.js`, `writers.js` and `app.js`. Edit those, then run `node source/build.js` to rebuild `Chord Glide.html`. The build also copies the engine and writers into `cli/`, so the two never drift, and it refuses a `head.html` that loads external fonts.
-- **Engine tests:** `node source/test_engine.js` runs 32 checks.
+- **Engine tests:** `node source/test_engine.js` runs 55 checks.
 - **Writer tests:** `node source/test_writers.js [folder]` writes sample MIDI, MusicXML, WAV and ZIP files to that folder (created if needed, or a temporary folder if you leave it out), and checks the structure of the MP4 and WebM writers with stand-in data. Real encoding needs a browser, so the three sample videos it writes aren't playable footage.
+- **Tone levels:** `node tools/measure-tone-levels.js` measures each tone's loudness on the opening piece and prints the gain that would match it to Soft, for setting `TONE_GAIN` when a tone is added or changed. It needs Playwright (`npm install playwright`) and isn't part of releases.
 - **Making a release:** `node source/release.js` runs the engine and writer tests, rebuilds, and writes `releases/chord-glide-<version>.zip` containing only the release files. Use it instead of Finder's Compress, which adds `.DS_Store` files and a `__MACOSX` folder.
 
 ## Files
@@ -73,8 +74,14 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 | `LICENSES/` | The lamejs notice, plus the full LGPL-3.0 and GPL-3.0 texts that its license requires alongside it |
 | `cli/` | Command-line exporter, plus the engine and file writers it uses |
 | `source/` | Source files, build and release scripts, tests, the logo (`logo.svg`, `apple-touch-icon.png`), the link-preview image (`og-image.jpg`) and `site.json` |
+| `tools/` | Developer tools, not needed to use or build the app (not in releases) |
 | `dist/` | The website folder the build writes (not in git) |
 | `CHANGES.md` | What changed in each version |
+| `TODO.md` | Planned work (not in releases) |
+
+## Made something with it?
+
+If Chord Glide helped you make something, I'd love to hear it: [noizgenie.com](https://noizgenie.com)
 
 ## Licensing
 

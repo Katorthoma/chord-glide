@@ -146,8 +146,10 @@ function midiGlideFiles(built, opts = {}) {
   return out;
 }
 /* Glides kept as per-voice pitch bend: MPE lower zone, one member channel per voice, ±48 semitones */
-/* Pitch bend is sent whenever the curve moves more than `tolerance` semitones from the last value sent (default 3 cents). */
-function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.03 } = {}) {
+/* Glides are written as pitch bend, walked one MIDI tick at a time at each tick's exact time (so nothing is rounded to a tick).
+   A bend is sent at a tick when, by the end of that tick, the curve would be more than `tolerance` semitones (2 cents) from the
+   last value sent; it carries the pitch at the middle of the tick, so inside any tick the error is at most half a tick's movement. */
+function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.02 } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const N = Math.min(built.N, 15);
   const mpe = [ // MPE configuration on the master channel (1): 15 member channels
@@ -178,13 +180,11 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
         add(t, [0x90 | ch, note, 88]);
       };
       if (d <= 0) { reach(t0, b); bend(t0, b - note); continue; }
-      // adaptive: walk the curve at 0.5 ms and send a bend only when it drifts past the tolerance
-      const steps = Math.max(2, Math.ceil(d / 0.0005));
+      const spt = 60 / (tempo * PPQ), at = t => pitchAt(built, v, Math.min(Math.max(t, t0), e.t + e.g), i);
       let sent = a;
-      for (let k = 1; k <= steps; k++) {
-        const t = t0 + d * k / steps; const p = pitchAt(built, v, Math.min(t, e.t + e.g), i);
-        reach(t, p);
-        if (Math.abs(p - sent) >= tolerance) { bend(t, p - note); sent = p; }
+      for (let k = Math.ceil(t0 / spt - 1e-9), kEnd = Math.round((t0 + d) / spt); k < kEnd; k++) {
+        const t = k * spt;
+        if (Math.abs(at(t + spt) - sent) > tolerance) { const p = at(t + spt / 2); reach(t, p); bend(t, p - note); sent = p; }
       }
       bend(t0 + d, b - note);
     }

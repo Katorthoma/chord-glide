@@ -170,6 +170,10 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('Saved notes: 30 voices × 561 snapshots, marked "custom", open and are kept', opens(real(30, 561, 28)) === true);
   const msgs = [opens(real(65, 10, 10)), opens(real(8, 10, 4000)), opens(real(64, 40000, 600)), opens(real(8, 10, 10, 300))];
   check('Saved notes: too many voices, too long, too many notes or unplayable pitches are refused with a reason', msgs.every(m => typeof m === 'string' && /can't be opened safely/.test(m)), msgs.join(' | '));
+  check('Saved notes: one voice with 2,000,000 snapshots is refused for its snapshot count', /snapshots \(at most 75,000\)/.test(String(opens(real(1, 2000000, 3000)))), String(opens(real(1, 2000000, 3000))));
+  check('Saved notes: an hour of 20-a-second snapshots still opens', opens(real(2, 72000, 3600)) === true);
+  const asText = real(4, 10, 10); asText.total = '28'; const nText = real(4, 10, 10); nText.N = '4';
+  check('Saved notes: a length or voice count written as text is not accepted', !E.validRealization(asText) && !E.validRealization(nText) && opens(asText) === false);
   check('Saved notes: merely broken ones are still dropped quietly', !E.normalizePiece(Object.assign(base(), { realization: { events: [{ targets: [1] }], N: 3, total: 1 } })).realization);
 }
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -335,7 +335,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0.3 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.4 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -779,8 +779,11 @@ figure.vl circle { fill: var(--ink); }
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
 
+          <h4><span class="step ver">4.0.4</span>Steadier sound and picture<span class="when">2 Nov 2026</span></h4>
+          <p>Changing tone while a piece plays now swaps the sound in place: every voice keeps gliding and only its timbre changes. Before, a tone change rebuilt the sound, and in Chrome a slow rebuild could leave the voices stuck on a chord until you paused or moved the playhead. Any other change made while playing (moving the playhead, a Sound slider) now also stays exactly in time with the picture. Lines that wiggle quickly no longer shimmer ahead of the playhead like heat haze: they are drawn from fixed moments of the piece, so the unplayed part holds still. MIDI glides follow the sound within 5 cents again, about 2 to 3 cents at usual tempos (up to about 6 for the very fastest glides at the slowest tempos). Piece files with an unreasonable number of saved snapshots, or with a length written as text, are refused. And the About page says where to share what you make.</p>
+
           <h4><span class="step ver">4.0.3</span>Five more tones, grouped<span class="when">2 Nov 2026</span></h4>
-          <p>Five more tones, each from a piece of acoustics or mathematics. <b>Brass</b> uses Chowning's FM recipe for brass, a carrier and modulator at the same frequency, so its harmonics follow Bessel functions. <b>Harp</b> has the spectrum of a string plucked a seventh of the way along, so every 7th harmonic is missing (held steady rather than dying away). <b>Octaves</b> keeps only the octaves of the note under a bell curve, after Shepard and Risset. <b>Chime</b> uses only the Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each one 1/φ of the one before. <b>Air</b> is nearly a pure tone, with a faint, even shimmer above it. The tone menu is now in four groups (Gentle, Classic waves, Instruments and Spectral), and the new tones are gain-matched to Soft like the others.</p>
+          <p>Five more tones, each from a piece of acoustics or mathematics. <b>Brass</b> uses Chowning's FM recipe for brass, a carrier and modulator at the same frequency, so its harmonics follow Bessel functions. <b>Harp</b> has the spectrum of a string plucked a seventh of the way along, so every 7th harmonic is missing (held steady rather than dying away). <b>Octaves</b> keeps only the octaves of the note under a bell curve, inspired by the octave stacks of Shepard and Risset. <b>Chime</b> uses only the Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each one 1/φ of the one before. <b>Air</b> is nearly a pure tone, with a faint, even shimmer above it. The tone menu is now in four groups (Gentle, Classic waves, Instruments and Spectral), and the new tones are gain-matched to Soft like the others.</p>
 
           <h4><span class="step ver">4.0.2</span>Seven new tones<span class="when">1 Nov 2026</span></h4>
           <p>The Sound tab has seven new tones, each defined by a formula for its harmonics. Triangle is soft and round, Square hollow like a clarinet, Pulse a true 25% pulse wave, nasal and reedy, and Saw bright and buzzy. Organ is built from drawbar-style levels. Bowed and Cello are inspired by a bowed string; Cello is the richer one, with 40 harmonics, a body resonance and gaps in the spectrum like those a bow creates. The new tones are gain-matched to Soft on a reference piece, so changing tone keeps a similar level, and the original five sound exactly as before.</p>
@@ -915,6 +918,7 @@ figure.vl circle { fill: var(--ink); }
           <h3>About</h3>
           <p class="lede">Chord Glide is a songwriting instrument by Noizgenie. Write chords, hear them as gliding voices, and shape how they move.</p>
           <p>Use it online at <a href="https://chord-glide.noizgenie.com" target="_blank" rel="noopener noreferrer">chord-glide.noizgenie.com</a>, or get the source code and the downloadable app on <a href="https://github.com/Katorthoma/chord-glide" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+          <p>If Chord Glide helped you make something, I'd love to hear it: <a href="https://noizgenie.com" target="_blank" rel="noopener noreferrer">noizgenie.com</a></p>
 
           <h4>Privacy</h4>
           <p>Chord Glide itself has no accounts, ads, analytics or tracking, and sets no cookies. The voicing, the sound, the video and every export are made in your browser, and Chord Glide never uploads what you write or play.</p>

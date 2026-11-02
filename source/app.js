@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0.3';
+const APP_VERSION = '4.0.4';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -92,7 +92,7 @@ function syncUI() {
 }
 
 /* ---------- Build ---------- */
-function rebuild(keepTime = true) {
+function rebuild(keepTime = true, restartAudio = true) {
   const { items, errors } = parseProgression(piece.chords);
   const msgs = [];
   if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6.');
@@ -110,7 +110,7 @@ function rebuild(keepTime = true) {
   showErr(msgs);
   offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
   screenCam.snap = true;
-  if (playing && !recording) startAudio(offset);
+  if (playing && !recording && restartAudio) startAudio(offset);
   updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
 }
 /* Playback and exports need a built piece; a piece file can always be saved (without notes if there are none) */
@@ -305,16 +305,26 @@ function impulse(ctx, seed) {
   return buf;
 }
 /* One graph for live playback, recording and offline export */
+const voiceLevel = (N, tone) => 1.5 / N * (TONE_GAIN[tone] || 1);
+function periodicWave(ctx, tone) { const tw = toneWave(tone); return ctx.createPeriodicWave(Float32Array.from(tw.real), Float32Array.from(tw.imag)); }
+/* Change tone while playing without rebuilding the sound: every voice keeps its glide, and only its waveform and level change.
+   The voices dip for a few milliseconds around the swap so the change in waveform doesn't click. */
+function swapToneLive(tone) {
+  if (!live || !actx || live.tone === tone) return;
+  const L = live, now = actx.currentTime, wave = periodicWave(actx, tone), level = voiceLevel(L.oscs.length, tone);
+  L.tone = tone;
+  L.gains.forEach(g => { g.gain.cancelScheduledValues(now); g.gain.setTargetAtTime(0, now, 0.004); });
+  setTimeout(() => {
+    if (live !== L) return; // stopped or restarted meanwhile: the new graph already has the new tone
+    const t = actx.currentTime;
+    L.oscs.forEach(o => { try { o.setPeriodicWave(wave); } catch (e) {} });
+    L.gains.forEach(g => { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(level, t, 0.006); });
+  }, 20);
+}
 function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const P = b.piece, S = P.sound, N = b.N, T = b.total;
   const span = Math.max(0.05, T - from);
-  const now = offline ? 0 : ctx.currentTime + lead;
   const master = ctx.createGain();
-  // fade in, hold, then the closing fade (FADE). Started inside that fade (from past the end), pick it up at the volume it has reached.
-  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, FADE - into), top = level * Math.max(0, 1 - into / FADE);
-  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
-  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
-  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
   const bus = ctx.createGain();
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
@@ -325,10 +335,10 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   bus.connect(lp); lp.connect(dry); lp.connect(conv); conv.connect(wet);
   dry.connect(comp); wet.connect(comp); comp.connect(master);
   for (const o of outs) master.connect(o);
-  const tw = toneWave(S.tone), wave = ctx.createPeriodicWave(Float32Array.from(tw.real), Float32Array.from(tw.imag));
+  const wave = periodicWave(ctx, S.tone);
   const r = mulberry32((P.seeds.sound ^ 0xA5A5A5A5) >>> 0);
   const rate = span > 120 ? 60 : 120, n = Math.max(2, Math.ceil(span * rate) + 1);
-  const oscs = [];
+  const oscs = [], gains = [], curves = [];
   const hasBass = P.voicing.bassMode !== 'none';
   for (let v = 0; v < N; v++) {
     const dz = r() * 2 - 1, pz = r() * 2 - 1;
@@ -336,16 +346,24 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     osc.detune.value = dz * S.detune;
     const curve = new Float32Array(n);
     for (let i = 0; i < n; i++) curve[i] = hz(pitchAt(b, v, from + span * i / (n - 1)));
-    osc.frequency.value = curve[0];
-    osc.frequency.setValueCurveAtTime(curve, now, span);
-    const g = ctx.createGain(); g.gain.value = 1.5 / N * (TONE_GAIN[S.tone] || 1);
+    osc.frequency.value = curve[0]; // set before the clock is read below, so it can never land inside the glide
+    const g = ctx.createGain(); g.gain.value = voiceLevel(N, S.tone);
     osc.connect(g);
     if (ctx.createStereoPanner) { const pan = ctx.createStereoPanner(); pan.pan.value = (hasBass && v === 0) ? 0 : pz * (S.width / 100); g.connect(pan); pan.connect(bus); }
     else g.connect(bus);
-    osc.start(now); osc.stop(now + span + TAIL);
-    oscs.push(osc);
+    oscs.push(osc); gains.push(g); curves.push(curve);
   }
-  return { master, oscs, now };
+  /* Read the clock only now, after the slow work above (reverb, pitch curves), and schedule everything against it.
+     If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
+     past; Chrome then plays it late, or holds the voice at the start pitch set above, so the sound drifts from the picture. */
+  const now = offline ? 0 : ctx.currentTime + lead;
+  // fade in, hold, then the closing fade (FADE). Started inside that fade (from past the end), pick it up at the volume it has reached.
+  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, FADE - into), top = level * Math.max(0, 1 - into / FADE);
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
+  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
+  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
+  oscs.forEach((osc, v) => { osc.frequency.setValueCurveAtTime(curves[v], now, span); osc.start(now); osc.stop(now + span + TAIL); });
+  return { master, oscs, gains, now, tone: S.tone };
 }
 function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
 function stopAudio(fade = 0.2) {
@@ -578,14 +596,14 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     if (future && z > 0.995) continue;
     const xa = future ? px : x0, xb = future ? xEnd : px;
     if (xb - xa < 0.5) continue;
+    /* Sample at fixed moments of the piece (every `dt` seconds, about every 2 pixels), plus the two ends. Sampling from the
+       playhead instead would shift the samples a fraction of a pixel every frame, and a line that wiggles faster than the
+       sampling would seem to boil, like heat haze. */
+    const dt = (tB - tA) * step / (xEnd - x0), ta = tA + (tB - tA) * (xa - x0) / (xEnd - x0), tb = tA + (tB - tA) * (xb - x0) / (xEnd - x0);
+    const times = [ta]; for (let k = Math.floor(ta / dt) + 1; k * dt < tb - dt * 0.01; k++) times.push(k * dt); times.push(tb);
     for (let v = 0; v < N; v++) {
       const path = new Path2D();
-      for (let x = xa, first = true; x <= xb + 0.5; x += step, first = false) {
-        const xx = Math.min(x, xb);
-        const tt = Math.max(0, Math.min(T, tA + (tB - tA) * (xx - x0) / (xEnd - x0)));
-        const y = Y(pitchAt(b, v, tt));
-        if (first) path.moveTo(xx, y); else path.lineTo(xx, y);
-      }
+      times.forEach((tt, i) => { const x = X(tt), y = Y(pitchAt(b, v, Math.max(0, Math.min(T, tt)))); if (i) path.lineTo(x, y); else path.moveTo(x, y); });
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
   }
@@ -1115,7 +1133,12 @@ for (const [id, path, fmt] of SLIDERS) {
   });
   el.addEventListener('change', commit);
 }
-for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => { if (STRUCTURAL.has(id)) unfreeze(); setPath(piece, path, conv($(id).value)); rebuild(true); commit(); });
+for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => {
+  if (STRUCTURAL.has(id)) unfreeze(); setPath(piece, path, conv($(id).value));
+  const swap = id === 'tone' && playing && !recording && live; // tone doesn't change any pitch, so the running voices can just change waveform
+  rebuild(true, !swap); if (swap) swapToneLive(piece.sound.tone);
+  commit();
+});
 $('chords').addEventListener('input', () => { unfreeze(); piece.chords = $('chords').value; rebuildSoon(); updateStatus(); saveDraftSoon(); });
 $('chords').addEventListener('change', commit);
 $('name').addEventListener('input', () => { piece.name = $('name').value; updateStatus(); saveDraftSoon(); });
