@@ -335,7 +335,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0.2 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.3 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -517,7 +517,7 @@ figure.vl circle { fill: var(--ink); }
           <p class="hint" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
         </div>
         <div class="group"><label for="tone">Tone</label>
-          <select id="tone"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="glass">Glass</option><option value="reed">Reed</option><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option><option value="organ">Organ</option><option value="bowed">Bowed</option><option value="cello">Cello</option></select>
+          <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup></select>
         </div>
         <div class="slider"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
         <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
@@ -643,7 +643,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Motion</b> tab controls how voices travel: the <b>glide time</b>, the shape of the <b>curve</b>, and the <b>departure order</b>. Add <b>stagger</b> and the voices leave one after another, low to high, high to low, largest leap first, or at random.</p>
 
           <h4><span class="step">5</span>Choose the sound and the look</h4>
-          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
+          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone and Air nearly so, with a faint shimmer above; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Brass follows FM synthesis; Harp has the gaps of a plucked string; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates; Octaves keeps only the octaves of the note, and Chime only its Fibonacci harmonics. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
 
           <h4><span class="step">6</span>Lock what you love, reroll the rest</h4>
           <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
@@ -778,6 +778,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.0.3</span>Five more tones, grouped<span class="when">2 Nov 2026</span></h4>
+          <p>Five more tones, each from a piece of acoustics or mathematics. <b>Brass</b> uses Chowning's FM recipe for brass, a carrier and modulator at the same frequency, so its harmonics follow Bessel functions. <b>Harp</b> has the spectrum of a string plucked a seventh of the way along, so every 7th harmonic is missing (held steady rather than dying away). <b>Octaves</b> keeps only the octaves of the note under a bell curve, after Shepard and Risset. <b>Chime</b> uses only the Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each one 1/φ of the one before. <b>Air</b> is nearly a pure tone, with a faint, even shimmer above it. The tone menu is now in four groups (Gentle, Classic waves, Instruments and Spectral), and the new tones are gain-matched to Soft like the others.</p>
 
           <h4><span class="step ver">4.0.2</span>Seven new tones<span class="when">1 Nov 2026</span></h4>
           <p>The Sound tab has seven new tones, each defined by a formula for its harmonics. Triangle is soft and round, Square hollow like a clarinet, Pulse a true 25% pulse wave, nasal and reedy, and Saw bright and buzzy. Organ is built from drawbar-style levels. Bowed and Cello are inspired by a bowed string; Cello is the richer one, with 40 harmonics, a body resonance and gaps in the spectrum like those a bow creates. The new tones are gain-matched to Soft on a reference piece, so changing tone keeps a similar level, and the original five sound exactly as before.</p>

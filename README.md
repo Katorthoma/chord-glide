@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.0.2
+# Chord Glide 4.0.3
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 

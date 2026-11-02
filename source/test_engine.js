@@ -89,7 +89,7 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const n = E.normalizePiece({ name: 'x', voicing: { coverage: 80 } });
   check('normalizePiece fills defaults', n.voicing.coverage === 80 && n.voicing.continuity === 50 && n.motion.order === 'together' && n.formatVersion === 3);
   const L = E.landmarks(E.buildPiece(E.parseProgression('=E6, Amaj9, Dmaj9, =E6').items, base()));
-  check('Every tone is accepted; an unknown one falls back to Soft', ['pure', 'soft', 'warm', 'glass', 'reed', 'triangle', 'square', 'pulse', 'saw', 'organ', 'bowed', 'cello'].every(t => E.normalizePiece(Object.assign(base(), { sound: { tone: t } })).sound.tone === t) && E.normalizePiece(Object.assign(base(), { sound: { tone: 'kazoo' } })).sound.tone === 'soft');
+  check('Every tone is accepted; an unknown one falls back to Soft', ['pure', 'soft', 'warm', 'glass', 'reed', 'triangle', 'square', 'pulse', 'saw', 'organ', 'bowed', 'cello', 'brass', 'harp', 'octaves', 'chime', 'air'].every(t => E.normalizePiece(Object.assign(base(), { sound: { tone: t } })).sound.tone === t) && E.normalizePiece(Object.assign(base(), { sound: { tone: 'kazoo' } })).sound.tone === 'soft');
   check('Auto-zoom landmarks are ordered', L.inStart <= L.inEnd && L.inEnd <= L.outStart && L.outStart <= L.outEnd, JSON.stringify(L));
   // saved notes as dense snapshots: tiny trailing moves (shimmer) don't count as arrivals, so auto zoom still zooms out at the end
   const snaps = [{ t: 0, g: 0, label: 'a', kind: 'chord', targets: [50, 60, 70] }, { t: 1, g: 4, label: 'b', kind: 'chord', targets: [40, 64, 80] }];
@@ -152,6 +152,15 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('Tones: Organ drawbars 8-6-5-4-3-2 step down 3 dB each, harmonics 5 and 7 absent', near(db(2), -6, 0.01) && near(db(3), -9, 0.01) && near(db(4), -12, 0.01) && near(db(6), -15, 0.01) && near(db(8), -18, 0.01) && T.organ[5] === 0 && T.organ[7] === 0);
   check('Tones: Bowed lifts harmonics 2–5 above a plain saw', [2, 3, 4, 5].every(n => T.bowed[n] > 1.05 / n));
   check('Tones: Cello has notches at every 9th harmonic and its peak among harmonics 1–5', [9, 18, 27, 36].every(n => Math.abs(T.cello[n]) < 1e-12) && T.cello.slice(1, 6).some(a => Math.abs(a) === Math.max(...T.cello.slice(1).map(Math.abs))));
+  const rel = (arr, n) => arr[n] / arr[1]; // ratios survive the peak normalization
+  const J = { 0: -0.2600519549, 1: 0.3390589585, 2: 0.4860912606, 3: 0.3090627223, 4: 0.1320341839, 5: 0.0430284348 }; // published Bessel values at x = 3
+  const brassWant = n => J[n - 1] + (n % 2 ? -1 : 1) * J[n + 1];
+  check('Tones: Brass follows the FM sidebands J(n−1, 3) ± J(n+1, 3) (known Bessel values)', [1, 2, 3, 4].every(n => near(rel(T.brass, n), brassWant(n) / brassWant(1), 1e-6)));
+  check('Tones: Harp is plucked at 1/7 (harmonics 7, 14, 21, 28 vanish) with a 1/n² slope', [7, 14, 21, 28].every(n => Math.abs(T.harp[n]) < 1e-12) && [2, 3, 5, 9].every(n => near(rel(T.harp, n), Math.sin(n * Math.PI / 7) / (n * n) / Math.sin(Math.PI / 7), 1e-9)));
+  check('Tones: Octaves has only harmonics 1, 2, 4, 8, 16, 32, loudest one octave up', T.octaves.slice(1).every((a, i) => { const n = i + 1; return ((n & (n - 1)) === 0) === (a !== 0); }) && T.octaves[2] === Math.max(...T.octaves));
+  const phi = (1 + Math.sqrt(5)) / 2, fib = [1, 2, 3, 5, 8, 13, 21];
+  check('Tones: Chime has only Fibonacci harmonics, each 1/φ of the one before', T.chime.slice(1).every((a, i) => fib.includes(i + 1) === (a !== 0)) && fib.slice(1).every((n, k) => near(T.chime[n] / T.chime[fib[k]], 1 / phi, 1e-9)));
+  check('Tones: Air is almost all fundamental (2nd −20 dB, 3rd −30 dB, a flat −40 dB shelf 5–20)', near(rel(T.air, 2), 0.1) && near(rel(T.air, 3), 0.03) && T.air[4] === 0 && T.air.slice(5).every(a => near(a / T.air[1], 0.01)) && T.air.length === 21);
   check('Tones: every tone gives cosine and sine arrays of equal length, and unknown names fall back to Soft', Object.keys(T).every(k => { const w = E.toneWave(k); return w.real.length === w.imag.length && w.real.length >= 2; }) && JSON.stringify(E.toneWave('kazoo').imag) === JSON.stringify(T.soft));
 }
 // ---- Saved notes: generous limits, a clear refusal beyond them, and a "custom" label that's kept ----

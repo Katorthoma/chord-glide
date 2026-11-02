@@ -111,12 +111,30 @@ const TONES = {
   saw: harmonics(32, n => 1 / n),                                                      // every harmonic at 1/n
   organ: harmonics(8, n => ({ 1: 8, 2: 6, 3: 5, 4: 4, 6: 3, 8: 2 })[n] ? Math.pow(10, -3 * (8 - { 1: 8, 2: 6, 3: 5, 4: 4, 6: 3, 8: 2 }[n]) / 20) : 0), // drawbars 8' 4' 2⅔' 2' 1⅓' 1' at 8-6-5-4-3-2, 3 dB a step
   bowed: harmonics(16, n => (1 / n) * (1 + 0.9 * Math.exp(-Math.pow(n - 3.5, 2) / 3))), // a saw with harmonics 2–5 lifted by a resonance
-  cello: harmonics(40, n => (Math.sin(n * Math.PI / 9) / n) * (1 + 0.6 * Math.exp(-Math.pow(n - 4, 2) / 3)) * Math.exp(-n / 28)) // bowed-string-inspired:
+  cello: harmonics(40, n => (Math.sin(n * Math.PI / 9) / n) * (1 + 0.6 * Math.exp(-Math.pow(n - 4, 2) / 3)) * Math.exp(-n / 28)), // bowed-string-inspired:
   // notches at multiples of the 9th harmonic (as from bowing at 1/9 of the length), a body resonance around harmonics 3–5, and a gentle roll-off
+  brass: harmonics(20, n => besselJ(n - 1, 3) + (n % 2 ? -1 : 1) * besselJ(n + 1, 3)), // Chowning FM, carrier = modulator, index 3: harmonic n
+  // gathers the sidebands J(n−1) and, folded back from below zero, J(n+1) (Chowning 1973, the classic FM brass)
+  harp: harmonics(32, n => Math.sin(n * Math.PI / 7) / (n * n)),                       // a string plucked at 1/7 of its length: sin(nπ/7)/n²,
+  // from the wave equation, so harmonics 7, 14, 21, 28 vanish (sustained here: the spectrum of a pluck, without its decay)
+  octaves: harmonics(32, n => (n & (n - 1)) === 0 ? Math.exp(-Math.pow(Math.log2(n) - 1, 2) / (2 * 1.2 * 1.2)) : 0), // only octaves (1, 2, 4, 8,
+  // 16, 32) under a bell curve in log-frequency centred one octave up, after Shepard and Risset
+  chime: harmonics(21, n => { const fib = [1, 2, 3, 5, 8, 13, 21], k = fib.indexOf(n); return k < 0 ? 0 : Math.pow((1 + Math.sqrt(5)) / 2, -k); }), // only
+  // Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each 1/φ the strength of the one before: a harmonic chime, not a real bell
+  air: harmonics(20, n => n === 1 ? 1 : n === 2 ? 0.1 : n === 3 ? 0.03 : n >= 5 ? 0.01 : 0) // a nearly pure fundamental with a faint, flat
+  // shelf of high harmonics (5–20), the nearest a fixed mix gets to a breathy flute
 };
+/* Bessel function of the first kind, J_k(x), by its power series (for the FM tone; small k and x converge quickly) */
+function besselJ(k, x) {
+  if (k < 0) return (k % 2 ? -1 : 1) * besselJ(-k, x);
+  let term = Math.pow(x / 2, k); for (let i = 2; i <= k; i++) term /= i; // (x/2)^k / k!
+  let sum = term;
+  for (let m = 1; m < 60; m++) { term *= -(x * x / 4) / (m * (m + k)); sum += term; if (Math.abs(term) < 1e-16) break; }
+  return sum;
+}
 /* Gains for the formula tones, measured so a reference piece at default settings reaches Soft's loudness (the original five stay
    at 1, unchanged). Brightness, register and voicing change each tone's level differently, so this keeps changes reasonable, not exact. */
-const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84 }; // measured: EBU R128 loudness of the same piece, matched to Soft
+const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft
 /* The tone as the two coefficient arrays the Web Audio API wants, of equal length */
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */

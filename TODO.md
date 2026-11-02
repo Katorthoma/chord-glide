@@ -20,16 +20,15 @@ From the earlier roadmap:
 
 ## Tone ideas (researched)
 
-- [ ] FM Brass: Chowning FM, carrier and modulator equal, index about 3 (Bessel-function harmonics)
 - [ ] FM Reed: Chowning odd-ratio FM (1:2, index about 2), odd harmonics with a hump near the 5th
-- [ ] Harp: plucked-string spectrum sin(nπp)/n², plucked at p = 1/7
-- [ ] Octaves: partials only at octaves (1, 2, 4, 8, 16) under a bell curve, after Shepard and Risset
 - [ ] Buzz (optional): every harmonic equal, for use with Brightness
 - [ ] Choir (4.1): a source with fixed formant filters, e.g. "ah" near 730, 1090 and 2440 Hz
+- [ ] Envelopes (4.1): an attack and decay per tone, so Harp and Chime can ring out like plucked and struck sounds
 - [ ] Bell (4.1): inharmonic partials, e.g. church-bell ratios 0.5, 1, 1.2, 1.5, 2 … or Risset's bell
 
 ## Done
 
+- [x] 4.0.3: five more tones (Brass, Harp, Octaves, Chime, Air), gain-matched and tested; tone menu in four groups
 - [x] 4.0.2: seven new tones (Triangle, Square, Pulse, Saw, Organ, Bowed, Cello), gain-matched to Soft and tested
 - [x] 4.0.2: limits on saved notes; `"engine": "custom"`; MIDI glides split into files of up to 15 voices; readable piece files; MP3 Info frame; `TAIL`/`FADE` constants throughout
 

@@ -1,3 +1,17 @@
+# Chord Glide 4.0.3 · 2 Nov 2026
+
+Engine 3.1 and file format 3 are unchanged. Pieces using a new tone open in older versions with the default tone (Soft).
+
+- **Five more tones**, each a formula for harmonic n (in `TONES`, with tests):
+  - **Brass:** Chowning FM with carrier = modulator and index 3; harmonic n is J(n−1, 3) + (−1)ⁿ·J(n+1, 3), the upper sideband plus the reflected lower one (20). `besselJ()` is a power series, checked against published values.
+  - **Harp:** a string plucked at 1/7 of its length, sin(nπ/7)/n², so harmonics 7, 14, 21 and 28 vanish (32). Held steady: tones have no envelope yet.
+  - **Octaves:** only harmonics 1, 2, 4, 8, 16 and 32, under a bell curve on log₂ n centred one octave up (σ = 1.2 octaves), after Shepard and Risset.
+  - **Chime:** only the Fibonacci harmonics 1, 2, 3, 5, 8, 13, 21, each 1/φ of the one before.
+  - **Air:** a near-pure fundamental, 2nd harmonic at −20 dB, 3rd at −30 dB, and a flat −40 dB shelf over harmonics 5–20.
+- **Grouped tone menu:** Gentle (Pure, Soft, Warm, Air), Classic waves (Triangle, Square, Pulse, Saw), Instruments (Reed, Organ, Brass, Harp, Bowed, Cello) and Spectral (Glass, Chime, Octaves). Stored tone names are unchanged.
+- **Level matching.** Gains for the new tones (Brass 0.79, Harp 1.16, Chime 1.11, Octaves and Air 1) bring the reference piece to Soft's EBU R128 loudness within 0.3 dB; every gain-matched tone is now within 0.4 dB.
+- **Tests** for each formula: the Brass sidebands against known Bessel values, the Harp notches and 1/n² slope, Octaves only at powers of 2, Chime only at Fibonacci numbers with 1/φ steps, and the Air levels.
+
 # Chord Glide 4.0.2 · 1 Nov 2026
 
 Engine 3.1 and file format 3 are unchanged. Pieces using a new tone open in older versions with the default tone (Soft).
