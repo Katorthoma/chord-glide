@@ -196,6 +196,9 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .vopts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 10px; }
 .vopts label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 .vopts select { width: 100%; }
+.vcheck { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin: -4px 0 2px; }
+.vcheck input { accent-color: var(--accent); margin: 0; }
+.vcheck.off { opacity: 0.6; }
 .no-render .vr, .no-render #vest { display: none; }
 #vest.warn { color: var(--warn); }
 .no-render .two { grid-template-columns: 1fr; }
@@ -342,7 +345,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.1 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -553,6 +556,7 @@ figure.vl circle { fill: var(--ink); }
             <label class="vr">Format<select id="vformat"><option value="mp4">MP4 (H.264)</option><option value="webm">WebM (VP9)</option></select></label>
             <label class="vr">Quality<select id="vquality"><option value="standard">Standard</option><option value="high">High</option></select></label>
           </div>
+          <label class="vcheck" id="vartist-row"><input type="checkbox" id="vartist" checked> <span id="vartist-text">Artist name under the title</span></label>
           <div class="two">
             <button type="button" id="vrender" class="primary vr">Render video</button>
             <button type="button" id="vrecord">Record live</button>
@@ -595,6 +599,10 @@ figure.vl circle { fill: var(--ink); }
         <label class="hint" style="display:flex;gap:6px;align-items:center">Custom <input type="color" id="accent-custom" aria-label="Custom accent color"></label>
       </div>
       <p class="hint">Used for buttons, sliders and highlights, on top of any theme.</p>
+      <h3>Name on exports</h3>
+      <label class="label" for="artist">Artist name</label>
+      <input type="text" id="artist" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Leave empty to add no name">
+      <p class="hint">Written into WAV, MP3, rendered video, MIDI and MusicXML files as the artist, with the piece name as the title, so music apps and players show both. Saved on this device only and never put in piece files. Record live videos can't carry it in the file. Videos can also show it under the title; there's a tick box for that beside Render video.</p>
     </div>
   </dialog>
 
@@ -654,7 +662,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">8</span>Export</h4>
-          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render.</p>
+          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name.</p>
 
           <h4><span class="step">9</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -780,6 +788,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.0.1</span>The fade at the end counts<span class="when">1 Nov 2026</span></h4>
+          <p>Every piece ends with a three-second fade as the last chord rings out, and now you can see it. The picture carries on through the fade: the final notes continue as lines that fade into the background as the sound does, and the dots and labels dim with them, on the stage and in rendered videos. The clock and the scrubber include the fade too, so a piece whose last change is at 0:28 plays to 0:31 / 0:31, instead of everything stopping at 0:28 while you can still hear it. You can scrub, pause and resume inside the fade, and it carries on at the volume it had reached; changing the volume during the fade no longer brings the chord back to full. With auto zoom, pieces saved as dense snapshots of every voice (such as ones that shimmer to the end) now zoom back out once their voices settle, and the next-chord label no longer repeats the current one. New in Settings: <b>Name on exports</b>. Type an artist name and it's written into WAV, MP3, rendered video, MIDI and MusicXML files, with the piece name as the title, so music apps and players show both. It stays on this device and is never put in piece files; leave it empty and no name is added. Videos can show it under the title too, a choice you make with a tick box for each render. Video titles fit the frame: in portrait and square, long names shrink a little or wrap onto two lines instead of running to the edge.</p>
 
           <h4><span class="step ver">4.0</span>Rendered video<span class="when">1 Nov 2026</span></h4>
           <p>Videos are now rendered frame by frame instead of recorded as the piece plays. Every frame is drawn at its exact time, so nothing stutters or freezes, and the file has a proper index, so it plays and seeks cleanly in VLC, QuickTime and on YouTube. Choose MP4 (H.264) or WebM (VP9), 1080p or 1440p, 60 or 30 fps, and Standard or High quality. Rendering works from a snapshot of the piece, shows its progress, time left and expected size, and can be cancelled at any point. Record live is still there for browsers that can't render. On dark looks the dots glow softly instead of sitting in a flat halo. Also: with no valid chords the old piece no longer lingers, undo stays within one piece, and MIDI handles extreme glides correctly.</p>
@@ -1336,7 +1347,13 @@ function landmarks(built) {
   const ev = built.events;
   const chordIdx = ev.map((e, i) => e.kind === 'chord' ? i : -1).filter(i => i >= 0);
   if (!chordIdx.length) return { inStart: 0, inEnd: Math.min(2, built.total), outStart: built.total, outEnd: built.total };
-  const f = ev[chordIdx[0]], l = ev[chordIdx[chordIdx.length - 1]];
+  const f = ev[chordIdx[0]];
+  // the last real arrival: skip trailing events that only shimmer (every voice moves, if at all, by less than a quarter of a
+  // semitone), as in pieces saved as dense snapshots. A repeated chord moves nothing at all and still counts.
+  const moved = i => i === 0 ? Infinity : Math.max(...ev[i].targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
+  let k = chordIdx.length - 1;
+  while (k > 0) { const m = moved(chordIdx[k]); if (m > 0 && m < 0.25) k--; else break; }
+  const l = ev[chordIdx[k]];
   const inStart = f.g > 0 ? f.t : 0;
   const inEnd = Math.min(built.total, (f.g > 0 ? f.t + f.g : 0) + 1.2);
   const outStart = Math.max(inEnd, l.t + l.g);
@@ -1403,18 +1420,42 @@ function zipStore(files) {
 }
 
 /* 24-bit PCM WAV */
-function encodeWav24(left, right, sampleRate) {
-  const n = left.length, bytes = n * 2 * 3, buf = new ArrayBuffer(44 + bytes), v = new DataView(buf);
+/* Title and artist for exported files: { title, artist }, either may be empty (then nothing is written for it) */
+const metaFields = meta => [['title', meta && meta.title], ['artist', meta && meta.artist]].map(([k, v]) => [k, String(v || '').trim().slice(0, 200)]).filter(([, v]) => v);
+/* RIFF LIST/INFO chunk: INAM (title), IART (artist), each null-terminated and padded to an even length */
+function wavInfo(meta) {
+  const ids = { title: 'INAM', artist: 'IART' }, subs = [];
+  for (const [k, v] of metaFields(meta)) { const b = [...utf8(v), 0], size = b.length; if (b.length % 2) b.push(0); subs.push(...fourcc(ids[k]), ...be32(size).reverse(), ...b); } // the size excludes the pad byte
+  if (!subs.length) return new Uint8Array(0);
+  return Uint8Array.from([...fourcc('LIST'), ...be32(subs.length + 4).reverse(), ...fourcc('INFO'), ...subs]);
+}
+function encodeWav24(left, right, sampleRate, meta = null) {
+  const info = wavInfo(meta);
+  const n = left.length, bytes = n * 2 * 3, head = 44 + info.length, buf = new ArrayBuffer(head + bytes), v = new DataView(buf);
   const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, 'RIFF'); v.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+  w(0, 'RIFF'); v.setUint32(4, head - 8 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
   v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 6, true);
-  v.setUint16(32, 6, true); v.setUint16(34, 24, true); w(36, 'data'); v.setUint32(40, bytes, true);
-  let o = 44;
+  v.setUint16(32, 6, true); v.setUint16(34, 24, true);
+  new Uint8Array(buf, 36, info.length).set(info); // LIST/INFO sits between fmt and data
+  w(36 + info.length, 'data'); v.setUint32(40 + info.length, bytes, true);
+  let o = head;
   for (let i = 0; i < n; i++) for (const ch of [left, right]) {
     let s = Math.max(-1, Math.min(1, ch[i])); let x = Math.round(s * 8388607); if (x < 0) x += 16777216;
     v.setUint8(o, x & 255); v.setUint8(o + 1, (x >> 8) & 255); v.setUint8(o + 2, (x >> 16) & 255); o += 3;
   }
   return new Uint8Array(buf);
+}
+
+/* ID3v2.3 tag for the front of an MP3: TIT2 (title), TPE1 (artist), in UTF-16 with a byte-order mark. Empty if there's nothing to say. */
+function id3v2(meta) {
+  const ids = { title: 'TIT2', artist: 'TPE1' }, frames = [];
+  for (const [k, v] of metaFields(meta)) {
+    const body = [1, 0xFF, 0xFE]; for (const ch of v) { const c = ch.codePointAt(0); if (c > 0xFFFF) { const u = c - 0x10000; body.push(...[0xD800 + (u >> 10), 0xDC00 + (u & 1023)].flatMap(x => [x & 255, x >> 8])); } else body.push(c & 255, c >> 8); }
+    frames.push(...fourcc(ids[k]), ...be32(body.length), 0, 0, ...body);
+  }
+  if (!frames.length) return new Uint8Array(0);
+  const n = frames.length, size = [(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]; // sync-safe
+  return Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size, ...frames]);
 }
 
 /* ---- MIDI ---- */
@@ -1432,11 +1473,12 @@ function smf(tracks) {
   return new Uint8Array([...head, ...tracks.flat()]);
 }
 const metaText = (type, s) => { const b = Array.from(utf8(s)); return [0xFF, type, ...vlq(b.length), ...b]; };
-function conductorTrack(built, tempo, title, extra = []) {
+function conductorTrack(built, tempo, title, extra = [], artist = '') {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const us = Math.round(60e6 / tempo);
   const ev = [
     { tick: 0, ord: 0, data: metaText(0x03, title) },
+    ...(String(artist || '').trim() ? [{ tick: 0, ord: 0.5, data: metaText(0x02, String(artist).trim().slice(0, 200)) }] : []), // copyright notice: the artist
     { tick: 0, ord: 1, data: [0xFF, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255] },
     { tick: 0, ord: 2, data: [0xFF, 0x58, 4, 4, 2, 24, 8] },
     ...extra
@@ -1448,14 +1490,14 @@ const clampMidi = m => Math.max(0, Math.min(127, Math.round(m)));
 
 /* Glides kept as per-voice pitch bend: MPE lower zone, one member channel per voice, ±48 semitones */
 /* Pitch bend is sent whenever the curve moves more than `tolerance` semitones from the last value sent (default 3 cents). */
-function midiWithGlides(built, { tempo = 60, title = 'Piece', bendRange = 48, tolerance = 0.03 } = {}) {
+function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.03 } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const N = Math.min(built.N, 15);
   const mpe = [ // MPE configuration on the master channel (1): 15 member channels
     { tick: 0, ord: 3, data: [0xB0, 101, 0] }, { tick: 0, ord: 4, data: [0xB0, 100, 6] }, { tick: 0, ord: 5, data: [0xB0, 6, 15] },
     { tick: 0, ord: 6, data: [0xB0, 101, 127] }, { tick: 0, ord: 7, data: [0xB0, 100, 127] }
   ];
-  const tracks = [conductorTrack(built, tempo, title, mpe)];
+  const tracks = [conductorTrack(built, tempo, title, mpe, artist)];
   const bendVal = s => Math.max(0, Math.min(16383, Math.round(8192 + (s / bendRange) * 8191)));
   for (let v = 0; v < N; v++) {
     const ch = v + 1, ev = []; let ord = 0;
@@ -1496,7 +1538,7 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', bendRange = 48, to
 }
 
 /* Settled chords only: one channel, notes start at each change */
-function midiChords(built, { tempo = 60, title = 'Piece' } = {}) {
+function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const ev = []; let ord = 0;
   built.events.forEach((e, i) => {
@@ -1506,12 +1548,12 @@ function midiChords(built, { tempo = 60, title = 'Piece' } = {}) {
       ev.push({ tick: Math.max(tick(e.t) + 1, tick(end)) - 1, ord: ord++, data: [0x80, m, 0] });
     }
   });
-  return smf([conductorTrack(built, tempo, title), trackChunk(ev)]);
+  return smf([conductorTrack(built, tempo, title, [], artist), trackChunk(ev)]);
 }
 
 /* ---- MusicXML: the settled chords on a grand staff (glides are not notated) ---- */
 const xmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function musicXml(built, { tempo = 60, title = 'Piece' } = {}) {
+function musicXml(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
   const evs = built.events;
   const flatCount = evs.filter(e => /^[A-G]b/.test(e.label)).length, sharpCount = evs.filter(e => /^[A-G]#/.test(e.label)).length;
   const pieceFlats = flatCount > sharpCount;
@@ -1572,7 +1614,7 @@ function musicXml(built, { tempo = 60, title = 'Piece' } = {}) {
   }
   return utf8(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
-<score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification><encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part></part-list><part id="P1">${measures.join('')}</part></score-partwise>`);
+<score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification>${String(artist || '').trim() ? `<creator type="composer">${xmlEsc(String(artist).trim().slice(0, 200))}</creator>` : ''}<encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part></part-list><part id="P1">${measures.join('')}</part></score-partwise>`);
 }
 
 /* ---- Video containers ----
@@ -1641,8 +1683,9 @@ function avcCParams(c) {
    video: { width, height, fps, samples }
    audio: { codec: 'aac' | 'opus' | 'pcm', sampleRate, channels, bitrate, description, samples, delay?, length? }
    delay: the encoder's start-up samples (AAC priming) for players to skip; length: the real sound in samples. Both go in an edit list.
-   PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them. */
-function mp4Mux({ video, audio, quicktime = false }) {
+   PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them.
+   meta: { title, artist } — iTunes-style tags (moov/udta/meta/ilst) in an MP4, classic QuickTime text atoms (moov/udta/©nam, ©ART) in a .mov. */
+function mp4Mux({ video, audio, quicktime = false, meta = null }) {
   // video: split each frame into NAL units, keep the parameter sets for the avcC box, store the rest length-prefixed
   let { sps, pps } = avcCParams(video.description);
   const vData = video.samples.map(s => {
@@ -1701,6 +1744,12 @@ function mp4Mux({ video, audio, quicktime = false }) {
     aEntry = mbox('Opus', audioHead(audio.channels), mbox('dOps', [0, audio.channels, ...be16(preSkip), ...be32(aSr), 0, 0, 0]));
   }
 
+  // title and artist
+  const tags = metaFields(meta), atom = { title: '\u00A9nam', artist: '\u00A9ART' };
+  const udta = !tags.length ? new Uint8Array(0) : quicktime
+    ? mbox('udta', ...tags.map(([k, v]) => { const b = utf8(v); return mbox(atom[k], be16(b.length), be16(0x55C4), b); })) // UTF-8, language 'und'
+    : mbox('udta', fullBox('meta', 0, 0, fullBox('hdlr', 0, 0, be32(0), fourcc('mdir'), fourcc('appl'), be32(0), be32(0), [0]),
+        mbox('ilst', ...tags.map(([k, v]) => mbox(atom[k], mbox('data', be32(1), be32(0), utf8(v)))))));
   const build = offsets => {
     const chunkOffsets = (tr, n) => { const a = offsets ? offsets[tr] : new Array(n).fill(0); return big ? fullBox('co64', 0, 0, be32(n), ...a.map(be64)) : fullBox('stco', 0, 0, be32(n), be32Table(a)); };
     const dinf = mbox('dinf', fullBox('dref', 0, 0, be32(1), fullBox('url ', 0, 1)));
@@ -1733,7 +1782,7 @@ function mp4Mux({ video, audio, quicktime = false }) {
             pcm ? fullBox('stsz', 0, 0, be32(2 * audio.channels), be32(aDuration)) : fullBox('stsz', 0, 0, be32(0), be32(aDurs.length), be32Table(audio.samples.map(s => s.data.length))),
             chunkOffsets(1, aDurs.length))))) : new Uint8Array(0);
     const mvhd = fullBox('mvhd', 0, 0, be32(0), be32(0), be32(1000), be32(movieMs), be32(0x00010000), 1, 0, new Array(10).fill(0), MATRIX, new Array(24).fill(0), be32(audio ? 3 : 2));
-    return mbox('moov', mvhd, vtrak, atrak);
+    return mbox('moov', mvhd, vtrak, atrak, udta);
   };
   const ftyp = quicktime ? mbox('ftyp', fourcc('qt  '), be32(0x200), fourcc('qt  ')) : mbox('ftyp', fourcc('isom'), be32(0x200), fourcc('isom'), fourcc('iso2'), fourcc('avc1'), fourcc('mp41'));
   const moovLen = build(null).length, mdatHead = big ? 16 : 8;
@@ -1755,7 +1804,7 @@ function ebmlFloat(id, x) { const b = new Uint8Array(8); new DataView(b.buffer).
 const ebmlStr = (id, s) => ebml(id, utf8(s));
 function opusHead(channels, preSkip, sampleRate) { return Uint8Array.from([...fourcc('OpusHead'), 1, channels, preSkip & 255, preSkip >> 8, ...be32(sampleRate).reverse(), 0, 0, 0]); }
 
-function webmMux({ video, audio }) {
+function webmMux({ video, audio, meta = null }) {
   const codecId = video.codec === 'vp8' ? 'V_VP8' : 'V_VP9';
   const head = audio && audio.description && audio.description.length >= 19 ? audio.description : opusHead(audio ? audio.channels : 2, 312, audio ? audio.sampleRate : 48000);
   const preSkip = head[10] | (head[11] << 8);
@@ -1781,7 +1830,11 @@ function webmMux({ video, audio }) {
     return [Uint8Array.from([...ebmlId(0x1F43B675), ...ebmlSize(len)]), ...inner];
   });
   const clusterBytes = clusterParts.map(parts => ({ length: parts.reduce((a, x) => a + x.length, 0), parts }));
-  const info = ebml(0x1549A966, ebmlUint(0x2AD7B1, 1000000), ebmlFloat(0x4489, durationMs), ebmlStr(0x4D80, 'Chord Glide'), ebmlStr(0x5741, 'Chord Glide'));
+  const tagList = metaFields(meta), titleTag = tagList.find(([k]) => k === 'title');
+  const info = ebml(0x1549A966, ebmlUint(0x2AD7B1, 1000000), ebmlFloat(0x4489, durationMs), ...(titleTag ? [ebmlStr(0x7BA9, titleTag[1])] : []), ebmlStr(0x4D80, 'Chord Glide'), ebmlStr(0x5741, 'Chord Glide'));
+  // Tags: TITLE and ARTIST for the whole file (target type 50, an album/movie-level item)
+  const tagsEl = tagList.length ? ebml(0x1254C367, ebml(0x7373, ebml(0x63C0, ebmlUint(0x68CA, 50)),
+    ...tagList.map(([k, v]) => ebml(0x67C8, ebmlStr(0x45A3, k.toUpperCase()), ebmlStr(0x4487, v))))) : null;
   const tracks = ebml(0x1654AE6B,
     ebml(0xAE, ebmlUint(0xD7, 1), ebmlUint(0x73C5, 1), ebmlUint(0x83, 1), ebmlUint(0x9C, 0), ebmlStr(0x86, codecId), ebmlUint(0x23E383, Math.round(1e9 / video.fps)),
       ebml(0xE0, ebmlUint(0xB0, video.width), ebmlUint(0xBA, video.height))),
@@ -1789,14 +1842,15 @@ function webmMux({ video, audio }) {
       ebmlUint(0x56AA, Math.round(preSkip / 48000 * 1e9)), ebmlUint(0x56BB, 80000000),
       ebml(0xE1, ebmlFloat(0xB5, audio.sampleRate), ebmlUint(0x9F, audio.channels)))] : []));
   // positions are relative to the start of the Segment's data; the seek head uses fixed-size numbers so its own size is known in advance
-  const seekHead = pos => ebml(0x114D9B74, ...[[0x1549A966, pos.info], [0x1654AE6B, pos.tracks], [0x1C53BB6B, pos.cues]].map(([id, p]) =>
+  const seekHead = pos => ebml(0x114D9B74, ...[[0x1549A966, pos.info], [0x1654AE6B, pos.tracks], [0x1C53BB6B, pos.cues], ...(tagsEl ? [[0x1254C367, pos.tags]] : [])].map(([id, p]) =>
     ebml(0x4DBB, ebml(0x53AB, ebmlId(id)), ebmlUint(0x53AC, p, 8))));
-  const seekLen = seekHead({ info: 0, tracks: 0, cues: 0 }).length;
+  const seekLen = seekHead({ info: 0, tracks: 0, cues: 0, tags: 0 }).length;
   const pos = { info: seekLen }; pos.tracks = pos.info + info.length;
   let p = pos.tracks + tracks.length; const clusterPos = clusterBytes.map(c => { const at = p; p += c.length; return at; });
   pos.cues = p;
   const cues = ebml(0x1C53BB6B, ...clusters.map((c, i) => c.cue ? ebml(0xBB, ebmlUint(0xB3, c.ms), ebml(0xB7, ebmlUint(0xF7, 1), ebmlUint(0xF1, clusterPos[i]))) : null).filter(Boolean));
-  const segBody = [seekHead(pos), info, tracks, ...clusterParts.flat(), cues];
+  pos.tags = pos.cues + cues.length;
+  const segBody = [seekHead(pos), info, tracks, ...clusterParts.flat(), cues, ...(tagsEl ? [tagsEl] : [])];
   const segLen = segBody.reduce((a, b) => a + b.length, 0);
   const header = ebml(0x1A45DFA3, ebmlUint(0x4286, 1), ebmlUint(0x42F7, 1), ebmlUint(0x42F2, 4), ebmlUint(0x42F3, 8), ebmlStr(0x4282, 'webm'), ebmlUint(0x4287, 4), ebmlUint(0x4285, 2));
   const segHead = Uint8Array.from([...ebmlId(0x18538067), 0x01, ...be64(segLen).slice(1)]); // 8-byte size
@@ -1804,7 +1858,7 @@ function webmMux({ video, audio }) {
 }
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0';
+const APP_VERSION = '4.0.1';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -1834,6 +1888,14 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return 
 const STORAGE_OK = (() => { try { const k = 'cge.probe.' + Math.random().toString(36).slice(2); localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; } catch (e) { return false; } })();
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
+/* The optional artist name for exports (Settings): this browser only, never part of a piece */
+/* The video option only makes sense once there's a name: otherwise it's dimmed and says where to add one */
+function showArtistOption() {
+  const has = !!artistName(); $('vartist').disabled = !has; $('vartist-row').classList.toggle('off', !has);
+  $('vartist-text').textContent = has ? 'Artist name under the title (' + artistName() + ')' : 'Artist name under the title (add your name in Settings)';
+}
+let artistTyped = null; // what was typed this session, in case this browser can't store it
+const artistName = () => String(artistTyped !== null ? artistTyped : (lsGet('cge.artist') || '')).trim().slice(0, 80);
 function defaultLook() { try { const v = JSON.parse(lsGet('cge.look') || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
 function examplePiece(ex) {
   const p = defaultPiece();
@@ -1849,6 +1911,8 @@ let piece = null, built = null, marks = null;
 let currentLibId = null, savedJSON = null;
 let undoStack = [], redoStack = [], committed = null;
 let offset = 0, playing = false, startAt = 0;
+const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, same as the audio render. The clock counts it.
+const FADE = 2.8; // the closing fade inside the tail (the audio's master fade); the picture fades with it
 let actx = null, live = null;
 let recording = null;
 const screenCam = { slo: 50, shi: 80, snap: true };
@@ -1903,7 +1967,7 @@ function rebuild(keepTime = true) {
   if (isFrozen()) msgs.unshift('Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were. Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
   if (built.warnings.length) msgs.push('The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.');
   showErr(msgs);
-  offset = keepTime ? Math.min(t, built.total) : 0;
+  offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
   screenCam.snap = true;
   if (playing && !recording) startAudio(offset);
   updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
@@ -2103,8 +2167,11 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const span = Math.max(0.05, T - from);
   const now = offline ? 0 : ctx.currentTime + lead;
   const master = ctx.createGain();
-  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(level, now + (from > 0 ? 0.15 : 0.4));
-  master.gain.setValueAtTime(level, now + span); master.gain.linearRampToValueAtTime(0, now + span + 2.8);
+  // fade in, hold, then the closing 2.8 s fade. Started inside that fade (from past the end), pick it up at the volume it has reached.
+  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, 2.8 - into), top = level * Math.max(0, 1 - into / 2.8);
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
+  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
+  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
   const bus = ctx.createGain();
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
@@ -2150,7 +2217,7 @@ function stopAudio(fade = 0.2) {
 }
 function startAudio(from, extraOut, lead) {
   ensureCtx(); stopAudio(0.06);
-  if (from >= built.total - 0.05) from = 0;
+  if (from >= built.total + TAIL - 0.05) from = 0; // at the very end, start over; inside the closing fade, play the rest of it
   live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false, lead);
   startAt = live.now - from;
 }
@@ -2158,12 +2225,11 @@ function currentT() { return playing && actx && live ? Math.max(0, actx.currentT
 function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; }
 function setPlaying(on) {
   if (on === playing || !built) return;
-  if (on) { if (offset >= built.total - 0.05) offset = 0; startAudio(offset); playing = true; }
-  else { offset = Math.min(currentT(), built.total); stopAudio(); playing = false; }
+  if (on) { if (offset >= built.total + TAIL - 0.05) offset = 0; startAudio(offset); playing = true; }
+  else { offset = Math.min(currentT(), built.total + TAIL); stopAudio(); playing = false; }
   setPlayIcon();
 }
 
-const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, same as the audio render
 /* ---------- Drawing ---------- */
 const cv = $('cv'), g2 = cv.getContext('2d');
 let colors = {}, colorTick = 0, dpr = 1;
@@ -2238,8 +2304,77 @@ function glowStroke(g, path, color, core, pal, d, fade) {
   }
 }
 const bgCache = new Map(); // backgrounds only change with the look and the canvas size, so draw each one once
+/* Where a video's title and artist go: the title fitted to the width (one line at 66, or two from 50), the artist below it at
+   about 58% of the title's size (15–20 units, shortened if it must be), and the top of the trace pushed down to make room */
+function videoTitleLayout(g, S, W, d) {
+  const family = (S.colors && S.colors.display) || 'sans-serif', maxW = W - 100 * d;
+  const tf = fitTitle(g, S.piece.name, maxW, d, family);
+  const baselines = tf.lines.length === 1 ? [66 * d] : tf.lines.map((_, i) => 50 * d + i * tf.size * 1.12);
+  let y0 = 110 * d, artist = '', artistSize = 0, artistBaseline = 0;
+  if (S.artist) {
+    artistSize = Math.max(15 * d, Math.min(20 * d, tf.size * 0.58));
+    g.font = `500 ${artistSize}px ${family}`;
+    if (g.measureText(S.artist).width > maxW * 0.9) artistSize = Math.max(13 * d, artistSize * maxW * 0.9 / g.measureText(S.artist).width);
+    g.font = `500 ${artistSize}px ${family}`; artist = S.artist;
+    while (artist.length > 1 && g.measureText(artist).width > maxW * 0.9) artist = artist.slice(0, -2).trimEnd() + '…';
+    artistBaseline = baselines[baselines.length - 1] + artistSize * 1.5;
+    y0 = Math.max(y0, artistBaseline + 24 * d);
+  }
+  return { size: tf.size, lines: tf.lines, baselines, artist, artistSize, artistBaseline, y0 };
+}
+/* The artist line for videos: the name from Settings, if there is one and "Artist name under the title" is ticked */
+const videoArtist = () => ($('vartist') && $('vartist').checked) ? artistName() : '';
+/* The next event worth naming: skips same-name snapshots less than 0.2 s apart (pieces saved as dense snapshots of every voice),
+   so they say what's actually coming. Real chords are never that close, so a repeated chord is still shown. */
+function nextEvent(b, idx) {
+  const ev = b.events, name = ev[idx].label;
+  for (let j = idx + 1; j < ev.length; j++) if (ev[j].label !== name || ev[j].t - ev[j - 1].t >= 0.2) return ev[j];
+  return null;
+}
+/* Lay out a video title in about 90% of maxW (leaving air on the right): 34 units if it fits, down to 26 on one line, else two
+   lines (26 down to 20) split where they balance, never starting a line with a dash or colon. One long word shrinks to 20,
+   and only then is shortened with an ellipsis. */
+function fitTitle(g, text, maxW, d, family) {
+  maxW *= 0.9;
+  const width = (str, size) => { g.font = `700 ${size}px ${family}`; return g.measureText(str).width; };
+  const w34 = width(text, 34 * d);
+  if (w34 <= maxW) return { size: 34 * d, lines: [text] };
+  if (w34 * 26 / 34 <= maxW) return { size: 34 * d * maxW / w34, lines: [text] };
+  const words = text.split(' ').filter(Boolean).reduce((a, w) => { if (a.length && /^[—–\-:|·/]+$/.test(w)) a[a.length - 1] += ' ' + w; else a.push(w); return a; }, []);
+  if (words.length > 1) {
+    let best = null;
+    for (let k = 1; k < words.length; k++) {
+      const a = words.slice(0, k).join(' '), b = words.slice(k).join(' '), w = Math.max(width(a, 26 * d), width(b, 26 * d));
+      if (!best || w < best.w) best = { w, lines: [a, b] };
+    }
+    const size = Math.max(20 * d, Math.min(26 * d, 26 * d * maxW / best.w));
+    if (best.w * size / (26 * d) <= maxW) return { size, lines: best.lines };
+    if (w34 * 20 / 34 > maxW) return { size: 20 * d, lines: best.lines.map(l => shorten(l)) }; // two lines, the too-long one shortened
+  }
+  if (w34 * 20 / 34 <= maxW) return { size: 34 * d * maxW / w34, lines: [text] };
+  return { size: 20 * d, lines: [shorten(text)] };
+  function shorten(str) { if (width(str, 20 * d) <= maxW) return str; let t = str; while (t.length > 1 && width(t + '…', 20 * d) > maxW) t = t.slice(0, -1); return t.trimEnd() + '…'; }
+}
+/* Paint the background over everything right of xa, see-through at xa and solid from xb: what's drawn there fades out to the
+   right. Done in thin strips of rising opacity, which needs no extra full-size layer (about 6 ms on a 70 ms software-rendered 1080p frame). */
+function fadeToBackground(g, W, H, pal, xa, xb) {
+  if (xa >= W) return;
+  const bg = backgroundCanvas(W, H, pal);
+  const strip = (x0, x1, a) => { x0 = Math.max(0, x0); x1 = Math.min(W, x1); if (x1 <= x0 || a <= 0) return; g.globalAlpha = a;
+    if (bg) g.drawImage(bg, x0, 0, x1 - x0, H, x0, 0, x1 - x0, H); else { g.fillStyle = pal.bg; g.fillRect(x0, 0, x1 - x0, H); } };
+  const n = Math.max(1, Math.min(48, Math.round((xb - xa) / 3)));
+  let prev = Math.round(xa);
+  for (let i = 0; i < n; i++) { const next = Math.round(xa + (xb - xa) * (i + 1) / n); strip(prev, next, (i + 0.5) / n); prev = next; }
+  strip(Math.max(prev, Math.round(xb)), W, 1);
+  g.globalAlpha = 1;
+}
 function paintBackground(g, W, H, pal) {
-  if (!(pal.vignette && pal.glow > 0)) { g.fillStyle = pal.bg; g.fillRect(0, 0, W, H); return; }
+  const c = backgroundCanvas(W, H, pal);
+  if (c) g.drawImage(c, 0, 0); else { g.fillStyle = pal.bg; g.fillRect(0, 0, W, H); }
+}
+/* The background with its faint vignette, drawn once per look and size (null for a flat background) */
+function backgroundCanvas(W, H, pal) {
+  if (!(pal.vignette && pal.glow > 0)) return null;
   const key = W + 'x' + H + pal.bg + pal.accent + pal.glow;
   let c = bgCache.get(key);
   if (!c) {
@@ -2252,7 +2387,7 @@ function paintBackground(g, W, H, pal) {
     if (bgCache.size > 6) bgCache.delete(bgCache.keys().next().value);
     bgCache.set(key, c);
   }
-  g.drawImage(c, 0, 0);
+  return c;
 }
 /* Colors tied to pitch (not screen position), so they stay put while the view zooms */
 function pitchGradient(g, pal, Y) {
@@ -2264,12 +2399,14 @@ function pitchGradient(g, pal, Y) {
 /* Shared by the screen and the video recorder. S: an optional snapshot { built, piece, marks, colors } to draw instead of the
    live piece, so a video render keeps drawing exactly what it started with whatever happens in the editor meanwhile. */
 function drawScene(g, W, H, d, t, cam, video, S = null) {
-  if (!S) S = { built, piece, marks, colors };
+  if (!S) S = { built, piece, marks, colors, artist: video ? videoArtist() : '' };
   const b = S.built, N = b.N, T = b.total, C = S.colors;
   const pal = tracePalette(S.piece.view.trace, C);
   const narrow = W / d < 520;
   const labelW = (video ? 150 : narrow ? 86 : 104) * d;
-  const zz = cameraZ(Math.min(t, T), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = (video ? 110 : 22) * d, y1 = H - (video ? 130 : 18) * d;
+  const E = T + TAIL, te = Math.min(t, E); // the picture runs through the closing fade; the notes hold from T on
+  const lay = video ? videoTitleLayout(g, S, W, d) : null; // title (and artist) at the top of a video; the trace starts below them
+  const zz = cameraZ(Math.min(t, T), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = video ? lay.y0 : 22 * d, y1 = H - (video ? 130 : 18) * d;
   paintBackground(g, W, H, pal);
   const tc = Math.min(t, T), idx = eventIndex(b, tc);
   const cur = []; for (let v = 0; v < N; v++) cur.push(pitchAt(b, v, tc, idx));
@@ -2279,16 +2416,17 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
   const win = (xEnd - x0) / pps;
   let lo = Infinity, hi = -Infinity;
-  for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.max(0, tc - win + win * k / 40)); if (p < lo) lo = p; if (p > hi) hi = p; }
+  for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.min(T, Math.max(0, te - win + win * k / 40))); if (p < lo) lo = p; if (p > hi) hi = p; }
   const ck = cam.k || 0.1; // how far the view eases toward its target each frame
   if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo += (lo - cam.slo) * ck; cam.shi += (hi - cam.shi) * ck; }
   let ylo = lerp(b.min, cam.slo, z), yhi = lerp(b.max, cam.shi, z);
   if (yhi - ylo < 12) { const c = (yhi + ylo) / 2; ylo = c - 6; yhi = c + 6; }
   const padY = (y1 - y0) * 0.07;
   const Y = p => y1 - padY - (p - ylo) / (yhi - ylo) * (y1 - y0 - 2 * padY);
-  const tA = lerp(0, tc - win, z), tB = Math.max(lerp(T, tc, z), tA + 0.01);
+  const tA = lerp(0, te - win, z), tB = Math.max(lerp(E, te, z), tA + 0.01);
   const X = tt => x0 + (xEnd - x0) * (tt - tA) / (tB - tA);
-  const px = X(tc);
+  const px = X(te);
+  const env = te <= T ? 1 : Math.max(0, 1 - (te - T) / FADE); // how loud the sound still is
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   const colorOf = v => grad || pal.line(v, N);
   const coreOf = v => pal.core;
@@ -2309,6 +2447,7 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
   }
+  fadeToBackground(g, W, H, pal, X(T), X(T + FADE)); // the held notes fade out as the sound does
   if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
   // dots and labels
   const groups = new Map();
@@ -2326,11 +2465,12 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     if (pal.dark && pal.glow > 0) { // a soft glow that fades out from the dot, like the lines' glow (not a flat disc)
       const rg = g.createRadialGradient(px, y, r0 * 0.5, px, y, r0 * 3.6);
       rg.addColorStop(0, dotColor(gp)); rg.addColorStop(0.35, dotColor(gp, 0.45)); rg.addColorStop(1, 'rgba(0,0,0,0)');
-      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow); g.fillStyle = rg;
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow) * env; g.fillStyle = rg;
       g.beginPath(); g.arc(px, y, r0 * 3.6, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     }
-    g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = env; g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
     if (pal.core) { g.fillStyle = pal.core; g.beginPath(); g.arc(px, y, r0 * 0.45, 0, Math.PI * 2); g.fill(); }
+    g.globalAlpha = 1;
   }
   g.font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${C.data || 'monospace'}`;
   g.textBaseline = 'middle';
@@ -2342,18 +2482,22 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     const txt = pitchLabel(gp.p, S) + (gp.n > 1 ? ' ×' + gp.n : '');
     const w = g.measureText(txt).width;
     const tx = lx + w > W - 4 * d ? px - 12 * d - w : lx; // near the right edge, put the label on the left of the dot
-    if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); g.globalAlpha = 1; }
-    g.fillStyle = pal.text; g.fillText(txt, tx, y);
+    if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85 * env; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); }
+    g.globalAlpha = env; g.fillStyle = pal.text; g.fillText(txt, tx, y); g.globalAlpha = 1;
   }
   if (video) {
-    const e = b.events[idx], nx = b.events[idx + 1];
+    const e = b.events[idx], nx = nextEvent(b, idx);
     g.fillStyle = pal.title; g.textBaseline = 'alphabetic';
-    g.font = `700 ${34 * d}px ${C.display || 'sans-serif'}`; g.fillText(S.piece.name, x0, 66 * d);
+    // the title fits the frame (see videoTitleLayout); the artist, if shown, sits under it in a smaller, quieter line
+    g.font = `700 ${lay.size}px ${C.display || 'sans-serif'}`;
+    lay.lines.forEach((ln, i) => g.fillText(ln, x0, lay.baselines[i]));
+    if (lay.artist) { g.fillStyle = pal.text; g.font = `500 ${lay.artistSize}px ${C.display || 'sans-serif'}`; g.fillText(lay.artist, x0, lay.artistBaseline); g.fillStyle = pal.title; }
     g.font = `500 ${30 * d}px ${C.display || 'sans-serif'}`;
     g.fillText((e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label, x0, H - 64 * d);
     g.fillStyle = pal.text; g.font = `${14 * d}px ${C.data || 'monospace'}`;
     if (nx) g.fillText('next ' + (nx.kind === 'note' ? '→ ' : '') + nx.label, x0, H - 36 * d);
-    const tt = fmtClock(tc) + ' / ' + fmtClock(T); const w = g.measureText(tt).width; g.fillText(tt, W - 50 * d - w, H - 36 * d);
+    const tt = fmtClock(Math.min(t, T + TAIL)) + ' / ' + fmtClock(T + TAIL); // includes the fade, like the player
+    const w = g.measureText(tt).width; g.fillText(tt, W - 50 * d - w, H - 36 * d);
   }
   return { cur, idx };
 }
@@ -2392,7 +2536,7 @@ function frame() {
   let t = currentT();
   if (playing && t >= built.total + TAIL) {
     if (recording) { finishRecording(); }
-    offset = built.total; stopAudio(0.05); playing = false; setPlayIcon(); t = built.total;
+    offset = built.total + TAIL; stopAudio(0.05); playing = false; setPlayIcon(); t = offset; // the clock ends on the full length
   }
   let cur, idx;
   if (recording) {
@@ -2408,14 +2552,16 @@ function frame() {
     g2.fillStyle = tracePalette(piece.view.trace).bg; g2.fillRect(0, 0, cv.width, cv.height); g2.drawImage(vc, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
     $('vprog').value = Math.min(1, t / (built.total + TAIL));
   } else ({ cur, idx } = drawScene(g2, cv.width, cv.height, dpr, t, screenCam, false));
-  const tc = Math.min(t, built.total), e = built.events[idx], nx = built.events[idx + 1];
+  const tc = Math.min(t, built.total), e = built.events[idx], nx = nextEvent(built, idx);
   setText($('r-chord'), (e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label);
   setText($('r-next'), nx ? (nx.kind === 'note' ? '→ ' : '') + nx.label : 'end');
   setText($('r-voices'), String(built.N));
   const lo = Math.min(...cur), hi = Math.max(...cur);
   setText($('r-range'), noteName(Math.round(lo)) + '–' + noteName(Math.round(hi)) + ' · ' + ((hi - lo) / 12).toFixed(1) + ' oct');
-  setText($('time'), fmtClock(tc) + ' / ' + fmtClock(built.total));
-  if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(1000 * tc / built.total);
+  // the clock and the scrubber both include the closing fade (the picture holds its last frame during it)
+  const full = built.total + TAIL;
+  setText($('time'), fmtClock(Math.min(t, full)) + ' / ' + fmtClock(full));
+  if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(1000 * Math.min(t, full) / full);
 }
 
 /* ---------- Files and exports ---------- */
@@ -2500,17 +2646,17 @@ let exporting = false;
 async function doExport(kind) {
   if (exporting || (!built && kind !== 'json')) return;
   exporting = true; document.querySelectorAll('[data-export]').forEach(b => b.disabled = true);
-  const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: name };
+  const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: String($('name').value || '').trim() || name, artist: artistName() };
   try {
     if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
     const files = [];
     let audio = null;
     if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built); }
     if (kind === 'all') files.push({ name: name + '.json', data: utf8(pieceFile()) });
-    if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr) });
+    if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr, opts) });
     let mp3Note = '';
     if (kind === 'mp3' || kind === 'all') {
-      try { files.push({ name: name + '.mp3', data: await encodeMp3(audio) }); }
+      try { files.push({ name: name + '.mp3', data: catBytes([id3v2(opts), await encodeMp3(audio)]) }); }
       catch (e) { if (kind === 'mp3') throw e; mp3Note = ' The MP3 was left out: ' + e.message; }
     }
     if (kind === 'midi' || kind === 'all') files.push({ name: name + ' (glides).mid', data: midiWithGlides(built, opts) });
@@ -2534,7 +2680,8 @@ function pickMime() {
 const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.tabs'];
 function lockUI(on) {
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
-  document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #tempo').forEach(el => el.disabled = on || !canSave());
+  document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo').forEach(el => el.disabled = on || !canSave());
+  if (!on && typeof showArtistOption === 'function' && canSave()) showArtistOption(); // dimmed again if there's no name
   if (!on) updateAvailability();
 }
 function startRecording() {
@@ -2664,7 +2811,7 @@ function showVideoEstimate() {
   $('vest').classList.toggle('warn', big);
 }
 let bigRenderOk = 0;
-function videoOpts() { return { aspect: $('vaspect').value, size: +$('vsize').value, fps: +$('vfps').value, format: $('vformat').value, quality: $('vquality').value }; }
+function videoOpts() { return { aspect: $('vaspect').value, size: +$('vsize').value, fps: +$('vfps').value, format: $('vformat').value, quality: $('vquality').value, artist: $('vartist').checked }; }
 function saveVideoOpts() { lsSet('cge.video', JSON.stringify(videoOpts())); }
 function setRenderUI(on) {
   $('vrender').textContent = on ? 'Cancel render' : 'Render video'; $('vprog').hidden = !on; if (on) $('vprog').value = 0;
@@ -2682,7 +2829,7 @@ async function renderVideo() {
   const aconf = await pickAudioConfig(o.format);
   if (!aconf) return xstatus('This browser can\'t encode audio for video. Use Record live instead.');
   // a frozen copy of everything the frames are drawn from: undo or edits during the render can't change the video
-  const snap = { built, piece: JSON.parse(JSON.stringify(piece)), marks: Object.assign({}, marks), colors: Object.assign({}, colors) };
+  const snap = { built, piece: JSON.parse(JSON.stringify(piece)), marks: Object.assign({}, marks), colors: Object.assign({}, colors), artist: videoArtist() };
   const fileName = safeName(snap.piece.name);
   const rec = rendering = { cancelled: false, error: null, onCancel: null };
   const cancelled = new Promise(r => { rec.onCancel = r; });
@@ -2773,7 +2920,8 @@ async function renderVideo() {
     if (o.format === 'mp4' && !vDesc) { if (!avc.sps || !avc.pps) throw new Error('The video encoder gave no H.264 parameter sets.'); vDesc = avcConfig(avc.sps, avc.pps); }
     const video = { codec: vconf.codec.startsWith('vp8') ? 'vp8' : 'vp9', width: w, height: h, fps, description: o.format === 'mp4' ? vDesc : null, samples: vSamples };
     const box = videoContainer(o.format, aconf.kind);
-    const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov' }) : webmMux({ video, audio });
+    const meta = { title: String(snap.piece.name || '').trim() || fileName, artist: artistName() };
+    const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov', meta }) : webmMux({ video, audio, meta });
     const blob = new Blob(parts, { type: box.type });
     const secs = ((performance.now() - started) / 1000).toFixed(0);
     if (await saveFile(fileName + '.' + box.ext, blob))
@@ -2803,6 +2951,9 @@ async function probeRendering() {
 { // remembered video choices (this browser only; not part of the piece)
   try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v) for (const [id, k] of [['vaspect', 'aspect'], ['vsize', 'size'], ['vfps', 'fps'], ['vformat', 'format'], ['vquality', 'quality']]) if (v[k] !== undefined && [...$(id).options].some(x => x.value == v[k])) $(id).value = String(v[k]); } catch (e) {}
   for (const id of ['vaspect', 'vsize', 'vfps', 'vformat', 'vquality']) $(id).addEventListener('change', () => { saveVideoOpts(); showVideoEstimate(); });
+  try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v && typeof v.artist === 'boolean') $('vartist').checked = v.artist; } catch (e) {}
+  $('vartist').addEventListener('change', saveVideoOpts);
+  showArtistOption();
   $('vrender').addEventListener('click', () => { if (rendering) { rendering.cancelled = true; rendering.onCancel(); } else renderVideo(); });
   probeRendering();
 }
@@ -2855,14 +3006,16 @@ function showVolume() {
 function setVolume(v) {
   volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
   if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.03);
-    const end = startAt + (built ? built.total : 0); if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); } }
+    const end = startAt + (built ? built.total : 0);
+    if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); }
+    else if (end + 2.8 > now) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(volume * Math.max(0, (end + 2.8 - now) / 2.8), now + 0.03); g.linearRampToValueAtTime(0, end + 2.8); } }
 }
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
 $('mute').addEventListener('click', toggleMute);
 $('play').addEventListener('click', () => setPlaying(!playing));
 $('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
-$('scrub').addEventListener('input', () => { if (!built) return; offset = built.total * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
+$('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
 $('save').addEventListener('click', () => savePiece(false));
 $('saveas').addEventListener('click', () => savePiece(true));
 $('libtoggle').addEventListener('click', () => { const lb = $('library'); lb.hidden = !lb.hidden; $('libtoggle').setAttribute('aria-expanded', String(!lb.hidden)); });
@@ -3179,6 +3332,7 @@ function applyAccent(hex) {
   }
   $('accent-default').addEventListener('click', () => applyAccent(''));
   $('accent-custom').addEventListener('input', () => applyAccent($('accent-custom').value.toLowerCase()));
+  { const a = $('artist'); a.value = artistName(); a.addEventListener('input', () => { artistTyped = a.value; lsSet('cge.artist', a.value.trim().slice(0, 80)); showArtistOption(); }); }
 })();
 
 /* ---------- Start ---------- */

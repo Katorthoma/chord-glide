@@ -90,6 +90,14 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('normalizePiece fills defaults', n.voicing.coverage === 80 && n.voicing.continuity === 50 && n.motion.order === 'together' && n.formatVersion === 3);
   const L = E.landmarks(E.buildPiece(E.parseProgression('=E6, Amaj9, Dmaj9, =E6').items, base()));
   check('Auto-zoom landmarks are ordered', L.inStart <= L.inEnd && L.inEnd <= L.outStart && L.outStart <= L.outEnd, JSON.stringify(L));
+  // saved notes as dense snapshots: tiny trailing moves (shimmer) don't count as arrivals, so auto zoom still zooms out at the end
+  const snaps = [{ t: 0, g: 0, label: 'a', kind: 'chord', targets: [50, 60, 70] }, { t: 1, g: 4, label: 'b', kind: 'chord', targets: [40, 64, 80] }];
+  for (let k = 0; k < 40; k++) snaps.push({ t: 5 + k * 0.25, g: 0.25, label: 'b', kind: 'chord', targets: [40 + Math.sin(k) * 0.05, 64 - Math.sin(k) * 0.04, 80 + Math.cos(k) * 0.05] });
+  const Ls = E.landmarks(E.builtFromRealization({ engine: '0', easing: 'linear', N: 3, total: 16, events: snaps }, base()));
+  check('Auto zoom ignores trailing shimmer when finding the last arrival', Ls.outStart === 5 && Ls.outEnd === 16, JSON.stringify(Ls));
+  const Lr = E.landmarks(E.buildPiece(E.parseProgression('C, F, G, G').items, base()));
+  const Lp = E.landmarks(E.buildPiece(E.parseProgression('C, F, G').items, base()));
+  check('A repeated last chord still counts as the last arrival', Lr.outStart > Lp.outStart, JSON.stringify([Lp.outStart, Lr.outStart]));
 }
 
 // v3.1 fixes

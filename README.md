@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.0
+# Chord Glide 4.0.1
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -17,6 +17,7 @@ Chord Glide is a single web page. Run it from a file on your computer or host it
 **Notes:**
 
 - **Saving pieces.** The Library keeps pieces in this browser's storage. Some browsers don't keep storage for a page opened straight from a file. When that happens, the Library turns itself off and says so, rather than appearing to save. Either way, **Export → Piece file** always works. Open the file again with **Library → Open a piece file**, which is also how you back up pieces or move them between computers.
+- **Title and artist.** Every exported file carries the piece name as its title. Add an artist name under **Name on exports** in Settings and it's written in too: INFO tags in WAV, ID3 in MP3, iTunes-style tags in MP4, QuickTime tags in MOV, Matroska tags in WebM, a copyright notice in MIDI and the composer in MusicXML. The name is kept in the browser on that device only, never in piece files; leave it empty and no name is written anywhere. Record live videos can't carry it in the file. Videos can also show the artist under the title on screen; the **Artist name under the title** tick box beside Render video controls that for each render (it doesn't change the file's tags).
 - **MP3** needs `lame.min.js` beside the HTML file. If it's missing, MP3 export says so; Chord Glide never fetches it from the internet.
 - **Video.** **Render video** draws every frame at its exact time and encodes it with the browser's built-in encoder, so nothing stutters or freezes. It saves MP4 (H.264 with AAC audio) or WebM (VP9 with Opus) at 1080p or 1440p, 60 or 30 fps. Where the browser can't encode AAC, the H.264 choice is labelled MOV and saves a QuickTime .mov with H.264 and uncompressed 16-bit audio instead, because QuickTime won't play MP3 or Opus inside an MP4; the .mov plays in QuickTime, VLC and editors, uploads to YouTube, and is about 11 MB a minute larger. Standard quality uses YouTube's recommended bitrates; High doubles them. It needs Chrome, Edge or Safari, and it's fastest with the tab in front. The whole video is held in memory until it's saved, so the Export tab shows the expected size, and anything over 1 GB asks for a second click: a few minutes at 1440p High can need several gigabytes of RAM. **Record live** plays the piece once in real time instead (MP4 or WebM, whichever the browser records), for browsers that can't render.
 - **Fonts.** This copy uses your system fonts, so it makes no font requests to Google.
@@ -46,6 +47,7 @@ This needs Node 18 or later. It has no dependencies and makes no network calls.
 node cli/chord-glide-export.js "My piece.json"            # writes all three formats beside the piece file
 node cli/chord-glide-export.js "My piece.json" --midi --out exports
 node cli/chord-glide-export.js "My piece.json" --musicxml --tempo 72
+node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the artist to the MIDI and MusicXML files
 ```
 
 **What it writes:** `(glides).mid` (one MPE channel per voice, with pitch bend), `(chords).mid` (settled chords only) and `.musicxml` (a harmonic score).

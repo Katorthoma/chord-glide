@@ -401,7 +401,13 @@ function landmarks(built) {
   const ev = built.events;
   const chordIdx = ev.map((e, i) => e.kind === 'chord' ? i : -1).filter(i => i >= 0);
   if (!chordIdx.length) return { inStart: 0, inEnd: Math.min(2, built.total), outStart: built.total, outEnd: built.total };
-  const f = ev[chordIdx[0]], l = ev[chordIdx[chordIdx.length - 1]];
+  const f = ev[chordIdx[0]];
+  // the last real arrival: skip trailing events that only shimmer (every voice moves, if at all, by less than a quarter of a
+  // semitone), as in pieces saved as dense snapshots. A repeated chord moves nothing at all and still counts.
+  const moved = i => i === 0 ? Infinity : Math.max(...ev[i].targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
+  let k = chordIdx.length - 1;
+  while (k > 0) { const m = moved(chordIdx[k]); if (m > 0 && m < 0.25) k--; else break; }
+  const l = ev[chordIdx[k]];
   const inStart = f.g > 0 ? f.t : 0;
   const inEnd = Math.min(built.total, (f.g > 0 ? f.t + f.g : 0) + 1.2);
   const outStart = Math.max(inEnd, l.t + l.g);

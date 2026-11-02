@@ -36,18 +36,42 @@ function zipStore(files) {
 }
 
 /* 24-bit PCM WAV */
-function encodeWav24(left, right, sampleRate) {
-  const n = left.length, bytes = n * 2 * 3, buf = new ArrayBuffer(44 + bytes), v = new DataView(buf);
+/* Title and artist for exported files: { title, artist }, either may be empty (then nothing is written for it) */
+const metaFields = meta => [['title', meta && meta.title], ['artist', meta && meta.artist]].map(([k, v]) => [k, String(v || '').trim().slice(0, 200)]).filter(([, v]) => v);
+/* RIFF LIST/INFO chunk: INAM (title), IART (artist), each null-terminated and padded to an even length */
+function wavInfo(meta) {
+  const ids = { title: 'INAM', artist: 'IART' }, subs = [];
+  for (const [k, v] of metaFields(meta)) { const b = [...utf8(v), 0], size = b.length; if (b.length % 2) b.push(0); subs.push(...fourcc(ids[k]), ...be32(size).reverse(), ...b); } // the size excludes the pad byte
+  if (!subs.length) return new Uint8Array(0);
+  return Uint8Array.from([...fourcc('LIST'), ...be32(subs.length + 4).reverse(), ...fourcc('INFO'), ...subs]);
+}
+function encodeWav24(left, right, sampleRate, meta = null) {
+  const info = wavInfo(meta);
+  const n = left.length, bytes = n * 2 * 3, head = 44 + info.length, buf = new ArrayBuffer(head + bytes), v = new DataView(buf);
   const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, 'RIFF'); v.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+  w(0, 'RIFF'); v.setUint32(4, head - 8 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
   v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 6, true);
-  v.setUint16(32, 6, true); v.setUint16(34, 24, true); w(36, 'data'); v.setUint32(40, bytes, true);
-  let o = 44;
+  v.setUint16(32, 6, true); v.setUint16(34, 24, true);
+  new Uint8Array(buf, 36, info.length).set(info); // LIST/INFO sits between fmt and data
+  w(36 + info.length, 'data'); v.setUint32(40 + info.length, bytes, true);
+  let o = head;
   for (let i = 0; i < n; i++) for (const ch of [left, right]) {
     let s = Math.max(-1, Math.min(1, ch[i])); let x = Math.round(s * 8388607); if (x < 0) x += 16777216;
     v.setUint8(o, x & 255); v.setUint8(o + 1, (x >> 8) & 255); v.setUint8(o + 2, (x >> 16) & 255); o += 3;
   }
   return new Uint8Array(buf);
+}
+
+/* ID3v2.3 tag for the front of an MP3: TIT2 (title), TPE1 (artist), in UTF-16 with a byte-order mark. Empty if there's nothing to say. */
+function id3v2(meta) {
+  const ids = { title: 'TIT2', artist: 'TPE1' }, frames = [];
+  for (const [k, v] of metaFields(meta)) {
+    const body = [1, 0xFF, 0xFE]; for (const ch of v) { const c = ch.codePointAt(0); if (c > 0xFFFF) { const u = c - 0x10000; body.push(...[0xD800 + (u >> 10), 0xDC00 + (u & 1023)].flatMap(x => [x & 255, x >> 8])); } else body.push(c & 255, c >> 8); }
+    frames.push(...fourcc(ids[k]), ...be32(body.length), 0, 0, ...body);
+  }
+  if (!frames.length) return new Uint8Array(0);
+  const n = frames.length, size = [(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]; // sync-safe
+  return Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size, ...frames]);
 }
 
 /* ---- MIDI ---- */
@@ -65,11 +89,12 @@ function smf(tracks) {
   return new Uint8Array([...head, ...tracks.flat()]);
 }
 const metaText = (type, s) => { const b = Array.from(utf8(s)); return [0xFF, type, ...vlq(b.length), ...b]; };
-function conductorTrack(built, tempo, title, extra = []) {
+function conductorTrack(built, tempo, title, extra = [], artist = '') {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const us = Math.round(60e6 / tempo);
   const ev = [
     { tick: 0, ord: 0, data: metaText(0x03, title) },
+    ...(String(artist || '').trim() ? [{ tick: 0, ord: 0.5, data: metaText(0x02, String(artist).trim().slice(0, 200)) }] : []), // copyright notice: the artist
     { tick: 0, ord: 1, data: [0xFF, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255] },
     { tick: 0, ord: 2, data: [0xFF, 0x58, 4, 4, 2, 24, 8] },
     ...extra
@@ -81,14 +106,14 @@ const clampMidi = m => Math.max(0, Math.min(127, Math.round(m)));
 
 /* Glides kept as per-voice pitch bend: MPE lower zone, one member channel per voice, ±48 semitones */
 /* Pitch bend is sent whenever the curve moves more than `tolerance` semitones from the last value sent (default 3 cents). */
-function midiWithGlides(built, { tempo = 60, title = 'Piece', bendRange = 48, tolerance = 0.03 } = {}) {
+function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.03 } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const N = Math.min(built.N, 15);
   const mpe = [ // MPE configuration on the master channel (1): 15 member channels
     { tick: 0, ord: 3, data: [0xB0, 101, 0] }, { tick: 0, ord: 4, data: [0xB0, 100, 6] }, { tick: 0, ord: 5, data: [0xB0, 6, 15] },
     { tick: 0, ord: 6, data: [0xB0, 101, 127] }, { tick: 0, ord: 7, data: [0xB0, 100, 127] }
   ];
-  const tracks = [conductorTrack(built, tempo, title, mpe)];
+  const tracks = [conductorTrack(built, tempo, title, mpe, artist)];
   const bendVal = s => Math.max(0, Math.min(16383, Math.round(8192 + (s / bendRange) * 8191)));
   for (let v = 0; v < N; v++) {
     const ch = v + 1, ev = []; let ord = 0;
@@ -129,7 +154,7 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', bendRange = 48, to
 }
 
 /* Settled chords only: one channel, notes start at each change */
-function midiChords(built, { tempo = 60, title = 'Piece' } = {}) {
+function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const ev = []; let ord = 0;
   built.events.forEach((e, i) => {
@@ -139,12 +164,12 @@ function midiChords(built, { tempo = 60, title = 'Piece' } = {}) {
       ev.push({ tick: Math.max(tick(e.t) + 1, tick(end)) - 1, ord: ord++, data: [0x80, m, 0] });
     }
   });
-  return smf([conductorTrack(built, tempo, title), trackChunk(ev)]);
+  return smf([conductorTrack(built, tempo, title, [], artist), trackChunk(ev)]);
 }
 
 /* ---- MusicXML: the settled chords on a grand staff (glides are not notated) ---- */
 const xmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function musicXml(built, { tempo = 60, title = 'Piece' } = {}) {
+function musicXml(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
   const evs = built.events;
   const flatCount = evs.filter(e => /^[A-G]b/.test(e.label)).length, sharpCount = evs.filter(e => /^[A-G]#/.test(e.label)).length;
   const pieceFlats = flatCount > sharpCount;
@@ -205,7 +230,7 @@ function musicXml(built, { tempo = 60, title = 'Piece' } = {}) {
   }
   return utf8(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
-<score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification><encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part></part-list><part id="P1">${measures.join('')}</part></score-partwise>`);
+<score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification>${String(artist || '').trim() ? `<creator type="composer">${xmlEsc(String(artist).trim().slice(0, 200))}</creator>` : ''}<encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part></part-list><part id="P1">${measures.join('')}</part></score-partwise>`);
 }
 
 /* ---- Video containers ----
@@ -274,8 +299,9 @@ function avcCParams(c) {
    video: { width, height, fps, samples }
    audio: { codec: 'aac' | 'opus' | 'pcm', sampleRate, channels, bitrate, description, samples, delay?, length? }
    delay: the encoder's start-up samples (AAC priming) for players to skip; length: the real sound in samples. Both go in an edit list.
-   PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them. */
-function mp4Mux({ video, audio, quicktime = false }) {
+   PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them.
+   meta: { title, artist } — iTunes-style tags (moov/udta/meta/ilst) in an MP4, classic QuickTime text atoms (moov/udta/©nam, ©ART) in a .mov. */
+function mp4Mux({ video, audio, quicktime = false, meta = null }) {
   // video: split each frame into NAL units, keep the parameter sets for the avcC box, store the rest length-prefixed
   let { sps, pps } = avcCParams(video.description);
   const vData = video.samples.map(s => {
@@ -334,6 +360,12 @@ function mp4Mux({ video, audio, quicktime = false }) {
     aEntry = mbox('Opus', audioHead(audio.channels), mbox('dOps', [0, audio.channels, ...be16(preSkip), ...be32(aSr), 0, 0, 0]));
   }
 
+  // title and artist
+  const tags = metaFields(meta), atom = { title: '\u00A9nam', artist: '\u00A9ART' };
+  const udta = !tags.length ? new Uint8Array(0) : quicktime
+    ? mbox('udta', ...tags.map(([k, v]) => { const b = utf8(v); return mbox(atom[k], be16(b.length), be16(0x55C4), b); })) // UTF-8, language 'und'
+    : mbox('udta', fullBox('meta', 0, 0, fullBox('hdlr', 0, 0, be32(0), fourcc('mdir'), fourcc('appl'), be32(0), be32(0), [0]),
+        mbox('ilst', ...tags.map(([k, v]) => mbox(atom[k], mbox('data', be32(1), be32(0), utf8(v)))))));
   const build = offsets => {
     const chunkOffsets = (tr, n) => { const a = offsets ? offsets[tr] : new Array(n).fill(0); return big ? fullBox('co64', 0, 0, be32(n), ...a.map(be64)) : fullBox('stco', 0, 0, be32(n), be32Table(a)); };
     const dinf = mbox('dinf', fullBox('dref', 0, 0, be32(1), fullBox('url ', 0, 1)));
@@ -366,7 +398,7 @@ function mp4Mux({ video, audio, quicktime = false }) {
             pcm ? fullBox('stsz', 0, 0, be32(2 * audio.channels), be32(aDuration)) : fullBox('stsz', 0, 0, be32(0), be32(aDurs.length), be32Table(audio.samples.map(s => s.data.length))),
             chunkOffsets(1, aDurs.length))))) : new Uint8Array(0);
     const mvhd = fullBox('mvhd', 0, 0, be32(0), be32(0), be32(1000), be32(movieMs), be32(0x00010000), 1, 0, new Array(10).fill(0), MATRIX, new Array(24).fill(0), be32(audio ? 3 : 2));
-    return mbox('moov', mvhd, vtrak, atrak);
+    return mbox('moov', mvhd, vtrak, atrak, udta);
   };
   const ftyp = quicktime ? mbox('ftyp', fourcc('qt  '), be32(0x200), fourcc('qt  ')) : mbox('ftyp', fourcc('isom'), be32(0x200), fourcc('isom'), fourcc('iso2'), fourcc('avc1'), fourcc('mp41'));
   const moovLen = build(null).length, mdatHead = big ? 16 : 8;
@@ -388,7 +420,7 @@ function ebmlFloat(id, x) { const b = new Uint8Array(8); new DataView(b.buffer).
 const ebmlStr = (id, s) => ebml(id, utf8(s));
 function opusHead(channels, preSkip, sampleRate) { return Uint8Array.from([...fourcc('OpusHead'), 1, channels, preSkip & 255, preSkip >> 8, ...be32(sampleRate).reverse(), 0, 0, 0]); }
 
-function webmMux({ video, audio }) {
+function webmMux({ video, audio, meta = null }) {
   const codecId = video.codec === 'vp8' ? 'V_VP8' : 'V_VP9';
   const head = audio && audio.description && audio.description.length >= 19 ? audio.description : opusHead(audio ? audio.channels : 2, 312, audio ? audio.sampleRate : 48000);
   const preSkip = head[10] | (head[11] << 8);
@@ -414,7 +446,11 @@ function webmMux({ video, audio }) {
     return [Uint8Array.from([...ebmlId(0x1F43B675), ...ebmlSize(len)]), ...inner];
   });
   const clusterBytes = clusterParts.map(parts => ({ length: parts.reduce((a, x) => a + x.length, 0), parts }));
-  const info = ebml(0x1549A966, ebmlUint(0x2AD7B1, 1000000), ebmlFloat(0x4489, durationMs), ebmlStr(0x4D80, 'Chord Glide'), ebmlStr(0x5741, 'Chord Glide'));
+  const tagList = metaFields(meta), titleTag = tagList.find(([k]) => k === 'title');
+  const info = ebml(0x1549A966, ebmlUint(0x2AD7B1, 1000000), ebmlFloat(0x4489, durationMs), ...(titleTag ? [ebmlStr(0x7BA9, titleTag[1])] : []), ebmlStr(0x4D80, 'Chord Glide'), ebmlStr(0x5741, 'Chord Glide'));
+  // Tags: TITLE and ARTIST for the whole file (target type 50, an album/movie-level item)
+  const tagsEl = tagList.length ? ebml(0x1254C367, ebml(0x7373, ebml(0x63C0, ebmlUint(0x68CA, 50)),
+    ...tagList.map(([k, v]) => ebml(0x67C8, ebmlStr(0x45A3, k.toUpperCase()), ebmlStr(0x4487, v))))) : null;
   const tracks = ebml(0x1654AE6B,
     ebml(0xAE, ebmlUint(0xD7, 1), ebmlUint(0x73C5, 1), ebmlUint(0x83, 1), ebmlUint(0x9C, 0), ebmlStr(0x86, codecId), ebmlUint(0x23E383, Math.round(1e9 / video.fps)),
       ebml(0xE0, ebmlUint(0xB0, video.width), ebmlUint(0xBA, video.height))),
@@ -422,14 +458,15 @@ function webmMux({ video, audio }) {
       ebmlUint(0x56AA, Math.round(preSkip / 48000 * 1e9)), ebmlUint(0x56BB, 80000000),
       ebml(0xE1, ebmlFloat(0xB5, audio.sampleRate), ebmlUint(0x9F, audio.channels)))] : []));
   // positions are relative to the start of the Segment's data; the seek head uses fixed-size numbers so its own size is known in advance
-  const seekHead = pos => ebml(0x114D9B74, ...[[0x1549A966, pos.info], [0x1654AE6B, pos.tracks], [0x1C53BB6B, pos.cues]].map(([id, p]) =>
+  const seekHead = pos => ebml(0x114D9B74, ...[[0x1549A966, pos.info], [0x1654AE6B, pos.tracks], [0x1C53BB6B, pos.cues], ...(tagsEl ? [[0x1254C367, pos.tags]] : [])].map(([id, p]) =>
     ebml(0x4DBB, ebml(0x53AB, ebmlId(id)), ebmlUint(0x53AC, p, 8))));
-  const seekLen = seekHead({ info: 0, tracks: 0, cues: 0 }).length;
+  const seekLen = seekHead({ info: 0, tracks: 0, cues: 0, tags: 0 }).length;
   const pos = { info: seekLen }; pos.tracks = pos.info + info.length;
   let p = pos.tracks + tracks.length; const clusterPos = clusterBytes.map(c => { const at = p; p += c.length; return at; });
   pos.cues = p;
   const cues = ebml(0x1C53BB6B, ...clusters.map((c, i) => c.cue ? ebml(0xBB, ebmlUint(0xB3, c.ms), ebml(0xB7, ebmlUint(0xF7, 1), ebmlUint(0xF1, clusterPos[i]))) : null).filter(Boolean));
-  const segBody = [seekHead(pos), info, tracks, ...clusterParts.flat(), cues];
+  pos.tags = pos.cues + cues.length;
+  const segBody = [seekHead(pos), info, tracks, ...clusterParts.flat(), cues, ...(tagsEl ? [tagsEl] : [])];
   const segLen = segBody.reduce((a, b) => a + b.length, 0);
   const header = ebml(0x1A45DFA3, ebmlUint(0x4286, 1), ebmlUint(0x42F7, 1), ebmlUint(0x42F2, 4), ebmlUint(0x42F3, 8), ebmlStr(0x4282, 'webm'), ebmlUint(0x4287, 4), ebmlUint(0x4285, 2));
   const segHead = Uint8Array.from([...ebmlId(0x18538067), 0x01, ...be64(segLen).slice(1)]); // 8-byte size

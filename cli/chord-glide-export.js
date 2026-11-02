@@ -11,6 +11,7 @@
  *   --out <dir>   where to write (default: beside the piece file)
  *   --tempo <bpm> override the piece's export tempo
  *   --revoice     ignore saved notes from an older engine and voice the piece again
+ *   --artist <n>  write this artist name into the files (the title is the piece name)
  *
  * Audio (WAV, MP3) and video need a browser's audio engine: export those from
  * "Chord Glide.html". Requires Node 18 or later. No network, no dependencies.
@@ -22,7 +23,7 @@ const E = new Function(SRC + '; return {ENGINE_VERSION, normalizePiece, parsePro
 const args = process.argv.slice(2);
 const flag = f => args.includes(f);
 const opt = f => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
-const file = args.find((a, i) => !a.startsWith('--') && !['--out', '--tempo'].includes(args[i - 1]));
+const file = args.find((a, i) => !a.startsWith('--') && !['--out', '--tempo', '--artist'].includes(args[i - 1]));
 if (!file || flag('--help') || flag('-h')) {
   console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^#!.*\n\/\*\n?/, '').replace(/^ \* ?/gm, ''));
   process.exit(file ? 0 : 1);
@@ -51,7 +52,7 @@ const all = flag('--all') || !(flag('--midi') || flag('--chords') || flag('--mus
 const outDir = opt('--out') || path.dirname(path.resolve(file));
 fs.mkdirSync(outDir, { recursive: true });
 const base = (String(piece.name || 'Untitled piece').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Untitled piece').slice(0, 80);
-const o = { tempo, title: piece.name };
+const o = { tempo, title: piece.name, artist: opt('--artist') || '' };
 const write = (name, data) => { const p = path.join(outDir, name); fs.writeFileSync(p, data); console.log('wrote ' + p + ' (' + data.length + ' bytes)'); };
 if (all || flag('--midi')) write(base + ' (glides).mid', E.midiWithGlides(built, o));
 if (all || flag('--chords')) write(base + ' (chords).mid', E.midiChords(built, o));

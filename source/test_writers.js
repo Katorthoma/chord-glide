@@ -1,6 +1,6 @@
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8') + fs.readFileSync(path.join(__dirname, 'writers.js'), 'utf8');
-const W = new Function(SRC + '; return {parseProgression, buildPiece, defaultPiece, normalizePiece, pitchAt, zipStore, encodeWav24, midiWithGlides, midiChords, musicXml, mp4Mux, webmMux};')();
+const W = new Function(SRC + '; return {parseProgression, buildPiece, defaultPiece, normalizePiece, pitchAt, zipStore, encodeWav24, midiWithGlides, midiChords, musicXml, mp4Mux, webmMux, id3v2};')();
 const p = W.normalizePiece(Object.assign(W.defaultPiece(), { name: 'Test piece', motion: { order: 'low-high', stagger: 50 } }));
 const b = W.buildPiece(W.parseProgression('=Bb6:1, Ebmaj9, Cm11:3.2, Abmaj9#11, Bb13sus4, Gm7, Ebmaj9:2, =Bb6').items, p);
 const out = process.argv[2] || fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'chord-glide-test-'));
@@ -57,6 +57,30 @@ check('MP4: every sample lies inside mdat', vOffsets.every((o, k) => o >= boxes[
   const el = m.indexOf(Buffer.from('elst', 'latin1')) - 4, tk = m.lastIndexOf(Buffer.from('tkhd', 'latin1')) - 4, wantMs = Math.round((94 * 1024 - 3000) / 48) ;
   check('MP4: AAC priming goes in an edit list (skip 2112 samples, play the real length)', el > 0 && m.readUInt32BE(el + 12) === 1 && m.readUInt32BE(el + 16) === wantMs && m.readUInt32BE(el + 20) === 2112 && m.readUInt32BE(el + 24) === 0x10000 && m.readUInt32BE(tk + 28) === wantMs);
   check('MP4: no edit list without priming', mp4.indexOf(Buffer.from('elst', 'latin1')) < 0);
+}
+// Title and artist in every format (and nothing at all when they're empty)
+{
+  const meta = { title: 'Lantern — Hours', artist: 'Noizgenie' }, has = (buf, str) => Buffer.from(buf).indexOf(Buffer.from(str, 'utf8')) >= 0;
+  const L = new Float32Array(100), wav = Buffer.from(W.encodeWav24(L, L, 48000, meta));
+  const li = wav.indexOf(Buffer.from('LIST')), dataAt = wav.indexOf(Buffer.from('data'));
+  check('WAV: LIST/INFO with INAM and IART between fmt and data, RIFF size right', li === 36 && li < dataAt && has(wav, 'INAM') && has(wav, 'IART') && has(wav, 'Noizgenie') && wav.readUInt32LE(4) === wav.length - 8 && wav.readUInt32LE(dataAt + 4) === 600);
+  check('WAV: no LIST chunk without a title or artist', Buffer.from(W.encodeWav24(L, L, 48000, {})).length === 44 + 600 && Buffer.from(W.encodeWav24(L, L, 48000)).indexOf(Buffer.from('LIST')) < 0);
+  const id3 = Buffer.from(W.id3v2(meta)), sz = (id3[6] << 21) | (id3[7] << 14) | (id3[8] << 7) | id3[9];
+  check('MP3: ID3v2.3 tag with TIT2 and TPE1 in UTF-16, sync-safe size', id3.toString('latin1', 0, 3) === 'ID3' && id3[3] === 3 && sz === id3.length - 10 && has(id3, 'TIT2') && has(id3, 'TPE1') && id3.indexOf(Buffer.from('Noizgenie', 'utf16le')) > 0 && W.id3v2({}).length === 0);
+  const m4 = Buffer.concat(W.mp4Mux({ video: { width: 640, height: 360, fps, samples: vSamples }, audio: { codec: 'aac', sampleRate: 48000, channels: 2, samples: aSamples }, meta }).map(x => Buffer.from(x)));
+  check('MP4: iTunes-style ilst with ©nam and ©ART inside moov/udta/meta', has(m4, 'ilst') && m4.indexOf(Buffer.from([0xA9, 0x41, 0x52, 0x54])) > 0 && has(m4, 'mdir') && has(m4, 'Lantern — Hours') && m4.indexOf(Buffer.from('udta')) < m4.indexOf(Buffer.from('mdat')));
+  const blocks = [{ data: new Uint8Array(4096), frames: 1024 }];
+  const mv = Buffer.concat(W.mp4Mux({ quicktime: true, video: { width: 640, height: 360, fps, samples: vSamples }, audio: { codec: 'pcm', sampleRate: 48000, channels: 2, samples: blocks }, meta }).map(x => Buffer.from(x)));
+  check('MOV: QuickTime text atoms ©nam and ©ART in moov/udta', !has(mv, 'ilst') && mv.indexOf(Buffer.from([0xA9, 0x6E, 0x61, 0x6D])) > 0 && has(mv, 'Noizgenie'));
+  const wm = Buffer.concat(W.webmMux({ video: { codec: 'vp9', width: 640, height: 360, fps, samples: vSamples.map(s => ({ data: s.data.subarray(4), key: s.key })) }, meta }).map(x => Buffer.from(x)));
+  check('WebM: Tags with TITLE and ARTIST, listed in the seek head, and a title in Info', wm.indexOf(Buffer.from([0x12, 0x54, 0xC3, 0x67])) > 0 && has(wm, 'ARTIST') && has(wm, 'TITLE') && wm.indexOf(Buffer.from([0x7B, 0xA9])) > 0
+    && wm.indexOf(Buffer.from([0x53, 0xAB, 0x84, 0x12, 0x54, 0xC3, 0x67])) > 0);
+  const plain = Buffer.concat(W.webmMux({ video: { codec: 'vp9', width: 640, height: 360, fps, samples: vSamples.map(s => ({ data: s.data.subarray(4), key: s.key })) } }).map(x => Buffer.from(x)));
+  const mid = Buffer.from(W.midiChords(b, { tempo: 72, title: 'T', artist: 'Noizgenie' })), mid0 = Buffer.from(W.midiChords(b, { tempo: 72, title: 'T' }));
+  check('MIDI: the artist as a copyright notice (FF 02), none without one', mid.indexOf(Buffer.from([0xFF, 0x02, 9, ...Buffer.from('Noizgenie')])) > 0 && mid0.indexOf(Buffer.from([0xFF, 0x02])) < 0 && Buffer.from(W.midiWithGlides(b, { artist: 'Noizgenie' })).indexOf(Buffer.from([0xFF, 0x02])) > 0);
+  const xml = Buffer.from(W.musicXml(b, { title: 'T', artist: 'Noi<z>genie' })).toString('utf8');
+  check('MusicXML: the artist as the composer (escaped), none without one', xml.includes('<creator type="composer">Noi&lt;z&gt;genie</creator>') && !Buffer.from(W.musicXml(b, { title: 'T' })).toString('utf8').includes('<creator'));
+  check('Video: no tags without a title or artist', plain.indexOf(Buffer.from([0x12, 0x54, 0xC3, 0x67])) < 0 && Buffer.concat(W.mp4Mux({ video: { width: 640, height: 360, fps, samples: vSamples } }).map(x => Buffer.from(x))).indexOf(Buffer.from('udta')) < 0);
 }
 // QuickTime .mov with uncompressed audio (for browsers that can't encode AAC): QuickTime won't play MP3 or Opus inside an MP4
 {

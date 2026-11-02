@@ -186,6 +186,9 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .vopts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 10px; }
 .vopts label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 .vopts select { width: 100%; }
+.vcheck { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin: -4px 0 2px; }
+.vcheck input { accent-color: var(--accent); margin: 0; }
+.vcheck.off { opacity: 0.6; }
 .no-render .vr, .no-render #vest { display: none; }
 #vest.warn { color: var(--warn); }
 .no-render .two { grid-template-columns: 1fr; }
@@ -332,7 +335,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.0.1 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -543,6 +546,7 @@ figure.vl circle { fill: var(--ink); }
             <label class="vr">Format<select id="vformat"><option value="mp4">MP4 (H.264)</option><option value="webm">WebM (VP9)</option></select></label>
             <label class="vr">Quality<select id="vquality"><option value="standard">Standard</option><option value="high">High</option></select></label>
           </div>
+          <label class="vcheck" id="vartist-row"><input type="checkbox" id="vartist" checked> <span id="vartist-text">Artist name under the title</span></label>
           <div class="two">
             <button type="button" id="vrender" class="primary vr">Render video</button>
             <button type="button" id="vrecord">Record live</button>
@@ -585,6 +589,10 @@ figure.vl circle { fill: var(--ink); }
         <label class="hint" style="display:flex;gap:6px;align-items:center">Custom <input type="color" id="accent-custom" aria-label="Custom accent color"></label>
       </div>
       <p class="hint">Used for buttons, sliders and highlights, on top of any theme.</p>
+      <h3>Name on exports</h3>
+      <label class="label" for="artist">Artist name</label>
+      <input type="text" id="artist" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Leave empty to add no name">
+      <p class="hint">Written into WAV, MP3, rendered video, MIDI and MusicXML files as the artist, with the piece name as the title, so music apps and players show both. Saved on this device only and never put in piece files. Record live videos can't carry it in the file. Videos can also show it under the title; there's a tick box for that beside Render video.</p>
     </div>
   </dialog>
 
@@ -644,7 +652,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">8</span>Export</h4>
-          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render.</p>
+          <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name.</p>
 
           <h4><span class="step">9</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -770,6 +778,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.0.1</span>The fade at the end counts<span class="when">1 Nov 2026</span></h4>
+          <p>Every piece ends with a three-second fade as the last chord rings out, and now you can see it. The picture carries on through the fade: the final notes continue as lines that fade into the background as the sound does, and the dots and labels dim with them, on the stage and in rendered videos. The clock and the scrubber include the fade too, so a piece whose last change is at 0:28 plays to 0:31 / 0:31, instead of everything stopping at 0:28 while you can still hear it. You can scrub, pause and resume inside the fade, and it carries on at the volume it had reached; changing the volume during the fade no longer brings the chord back to full. With auto zoom, pieces saved as dense snapshots of every voice (such as ones that shimmer to the end) now zoom back out once their voices settle, and the next-chord label no longer repeats the current one. New in Settings: <b>Name on exports</b>. Type an artist name and it's written into WAV, MP3, rendered video, MIDI and MusicXML files, with the piece name as the title, so music apps and players show both. It stays on this device and is never put in piece files; leave it empty and no name is added. Videos can show it under the title too, a choice you make with a tick box for each render. Video titles fit the frame: in portrait and square, long names shrink a little or wrap onto two lines instead of running to the edge.</p>
 
           <h4><span class="step ver">4.0</span>Rendered video<span class="when">1 Nov 2026</span></h4>
           <p>Videos are now rendered frame by frame instead of recorded as the piece plays. Every frame is drawn at its exact time, so nothing stutters or freezes, and the file has a proper index, so it plays and seeks cleanly in VLC, QuickTime and on YouTube. Choose MP4 (H.264) or WebM (VP9), 1080p or 1440p, 60 or 30 fps, and Standard or High quality. Rendering works from a snapshot of the piece, shows its progress, time left and expected size, and can be cancelled at any point. Record live is still there for browsers that can't render. On dark looks the dots glow softly instead of sitting in a flat halo. Also: with no valid chords the old piece no longer lingers, undo stays within one piece, and MIDI handles extreme glides correctly.</p>

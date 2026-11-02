@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0';
+const APP_VERSION = '4.0.1';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -30,6 +30,14 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return 
 const STORAGE_OK = (() => { try { const k = 'cge.probe.' + Math.random().toString(36).slice(2); localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; } catch (e) { return false; } })();
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
+/* The optional artist name for exports (Settings): this browser only, never part of a piece */
+/* The video option only makes sense once there's a name: otherwise it's dimmed and says where to add one */
+function showArtistOption() {
+  const has = !!artistName(); $('vartist').disabled = !has; $('vartist-row').classList.toggle('off', !has);
+  $('vartist-text').textContent = has ? 'Artist name under the title (' + artistName() + ')' : 'Artist name under the title (add your name in Settings)';
+}
+let artistTyped = null; // what was typed this session, in case this browser can't store it
+const artistName = () => String(artistTyped !== null ? artistTyped : (lsGet('cge.artist') || '')).trim().slice(0, 80);
 function defaultLook() { try { const v = JSON.parse(lsGet('cge.look') || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
 function examplePiece(ex) {
   const p = defaultPiece();
@@ -45,6 +53,8 @@ let piece = null, built = null, marks = null;
 let currentLibId = null, savedJSON = null;
 let undoStack = [], redoStack = [], committed = null;
 let offset = 0, playing = false, startAt = 0;
+const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, same as the audio render. The clock counts it.
+const FADE = 2.8; // the closing fade inside the tail (the audio's master fade); the picture fades with it
 let actx = null, live = null;
 let recording = null;
 const screenCam = { slo: 50, shi: 80, snap: true };
@@ -99,7 +109,7 @@ function rebuild(keepTime = true) {
   if (isFrozen()) msgs.unshift('Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were. Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
   if (built.warnings.length) msgs.push('The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.');
   showErr(msgs);
-  offset = keepTime ? Math.min(t, built.total) : 0;
+  offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
   screenCam.snap = true;
   if (playing && !recording) startAudio(offset);
   updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
@@ -299,8 +309,11 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const span = Math.max(0.05, T - from);
   const now = offline ? 0 : ctx.currentTime + lead;
   const master = ctx.createGain();
-  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(level, now + (from > 0 ? 0.15 : 0.4));
-  master.gain.setValueAtTime(level, now + span); master.gain.linearRampToValueAtTime(0, now + span + 2.8);
+  // fade in, hold, then the closing 2.8 s fade. Started inside that fade (from past the end), pick it up at the volume it has reached.
+  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, 2.8 - into), top = level * Math.max(0, 1 - into / 2.8);
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
+  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
+  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
   const bus = ctx.createGain();
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
@@ -346,7 +359,7 @@ function stopAudio(fade = 0.2) {
 }
 function startAudio(from, extraOut, lead) {
   ensureCtx(); stopAudio(0.06);
-  if (from >= built.total - 0.05) from = 0;
+  if (from >= built.total + TAIL - 0.05) from = 0; // at the very end, start over; inside the closing fade, play the rest of it
   live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false, lead);
   startAt = live.now - from;
 }
@@ -354,12 +367,11 @@ function currentT() { return playing && actx && live ? Math.max(0, actx.currentT
 function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; }
 function setPlaying(on) {
   if (on === playing || !built) return;
-  if (on) { if (offset >= built.total - 0.05) offset = 0; startAudio(offset); playing = true; }
-  else { offset = Math.min(currentT(), built.total); stopAudio(); playing = false; }
+  if (on) { if (offset >= built.total + TAIL - 0.05) offset = 0; startAudio(offset); playing = true; }
+  else { offset = Math.min(currentT(), built.total + TAIL); stopAudio(); playing = false; }
   setPlayIcon();
 }
 
-const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, same as the audio render
 /* ---------- Drawing ---------- */
 const cv = $('cv'), g2 = cv.getContext('2d');
 let colors = {}, colorTick = 0, dpr = 1;
@@ -434,8 +446,77 @@ function glowStroke(g, path, color, core, pal, d, fade) {
   }
 }
 const bgCache = new Map(); // backgrounds only change with the look and the canvas size, so draw each one once
+/* Where a video's title and artist go: the title fitted to the width (one line at 66, or two from 50), the artist below it at
+   about 58% of the title's size (15–20 units, shortened if it must be), and the top of the trace pushed down to make room */
+function videoTitleLayout(g, S, W, d) {
+  const family = (S.colors && S.colors.display) || 'sans-serif', maxW = W - 100 * d;
+  const tf = fitTitle(g, S.piece.name, maxW, d, family);
+  const baselines = tf.lines.length === 1 ? [66 * d] : tf.lines.map((_, i) => 50 * d + i * tf.size * 1.12);
+  let y0 = 110 * d, artist = '', artistSize = 0, artistBaseline = 0;
+  if (S.artist) {
+    artistSize = Math.max(15 * d, Math.min(20 * d, tf.size * 0.58));
+    g.font = `500 ${artistSize}px ${family}`;
+    if (g.measureText(S.artist).width > maxW * 0.9) artistSize = Math.max(13 * d, artistSize * maxW * 0.9 / g.measureText(S.artist).width);
+    g.font = `500 ${artistSize}px ${family}`; artist = S.artist;
+    while (artist.length > 1 && g.measureText(artist).width > maxW * 0.9) artist = artist.slice(0, -2).trimEnd() + '…';
+    artistBaseline = baselines[baselines.length - 1] + artistSize * 1.5;
+    y0 = Math.max(y0, artistBaseline + 24 * d);
+  }
+  return { size: tf.size, lines: tf.lines, baselines, artist, artistSize, artistBaseline, y0 };
+}
+/* The artist line for videos: the name from Settings, if there is one and "Artist name under the title" is ticked */
+const videoArtist = () => ($('vartist') && $('vartist').checked) ? artistName() : '';
+/* The next event worth naming: skips same-name snapshots less than 0.2 s apart (pieces saved as dense snapshots of every voice),
+   so they say what's actually coming. Real chords are never that close, so a repeated chord is still shown. */
+function nextEvent(b, idx) {
+  const ev = b.events, name = ev[idx].label;
+  for (let j = idx + 1; j < ev.length; j++) if (ev[j].label !== name || ev[j].t - ev[j - 1].t >= 0.2) return ev[j];
+  return null;
+}
+/* Lay out a video title in about 90% of maxW (leaving air on the right): 34 units if it fits, down to 26 on one line, else two
+   lines (26 down to 20) split where they balance, never starting a line with a dash or colon. One long word shrinks to 20,
+   and only then is shortened with an ellipsis. */
+function fitTitle(g, text, maxW, d, family) {
+  maxW *= 0.9;
+  const width = (str, size) => { g.font = `700 ${size}px ${family}`; return g.measureText(str).width; };
+  const w34 = width(text, 34 * d);
+  if (w34 <= maxW) return { size: 34 * d, lines: [text] };
+  if (w34 * 26 / 34 <= maxW) return { size: 34 * d * maxW / w34, lines: [text] };
+  const words = text.split(' ').filter(Boolean).reduce((a, w) => { if (a.length && /^[—–\-:|·/]+$/.test(w)) a[a.length - 1] += ' ' + w; else a.push(w); return a; }, []);
+  if (words.length > 1) {
+    let best = null;
+    for (let k = 1; k < words.length; k++) {
+      const a = words.slice(0, k).join(' '), b = words.slice(k).join(' '), w = Math.max(width(a, 26 * d), width(b, 26 * d));
+      if (!best || w < best.w) best = { w, lines: [a, b] };
+    }
+    const size = Math.max(20 * d, Math.min(26 * d, 26 * d * maxW / best.w));
+    if (best.w * size / (26 * d) <= maxW) return { size, lines: best.lines };
+    if (w34 * 20 / 34 > maxW) return { size: 20 * d, lines: best.lines.map(l => shorten(l)) }; // two lines, the too-long one shortened
+  }
+  if (w34 * 20 / 34 <= maxW) return { size: 34 * d * maxW / w34, lines: [text] };
+  return { size: 20 * d, lines: [shorten(text)] };
+  function shorten(str) { if (width(str, 20 * d) <= maxW) return str; let t = str; while (t.length > 1 && width(t + '…', 20 * d) > maxW) t = t.slice(0, -1); return t.trimEnd() + '…'; }
+}
+/* Paint the background over everything right of xa, see-through at xa and solid from xb: what's drawn there fades out to the
+   right. Done in thin strips of rising opacity, which needs no extra full-size layer (about 6 ms on a 70 ms software-rendered 1080p frame). */
+function fadeToBackground(g, W, H, pal, xa, xb) {
+  if (xa >= W) return;
+  const bg = backgroundCanvas(W, H, pal);
+  const strip = (x0, x1, a) => { x0 = Math.max(0, x0); x1 = Math.min(W, x1); if (x1 <= x0 || a <= 0) return; g.globalAlpha = a;
+    if (bg) g.drawImage(bg, x0, 0, x1 - x0, H, x0, 0, x1 - x0, H); else { g.fillStyle = pal.bg; g.fillRect(x0, 0, x1 - x0, H); } };
+  const n = Math.max(1, Math.min(48, Math.round((xb - xa) / 3)));
+  let prev = Math.round(xa);
+  for (let i = 0; i < n; i++) { const next = Math.round(xa + (xb - xa) * (i + 1) / n); strip(prev, next, (i + 0.5) / n); prev = next; }
+  strip(Math.max(prev, Math.round(xb)), W, 1);
+  g.globalAlpha = 1;
+}
 function paintBackground(g, W, H, pal) {
-  if (!(pal.vignette && pal.glow > 0)) { g.fillStyle = pal.bg; g.fillRect(0, 0, W, H); return; }
+  const c = backgroundCanvas(W, H, pal);
+  if (c) g.drawImage(c, 0, 0); else { g.fillStyle = pal.bg; g.fillRect(0, 0, W, H); }
+}
+/* The background with its faint vignette, drawn once per look and size (null for a flat background) */
+function backgroundCanvas(W, H, pal) {
+  if (!(pal.vignette && pal.glow > 0)) return null;
   const key = W + 'x' + H + pal.bg + pal.accent + pal.glow;
   let c = bgCache.get(key);
   if (!c) {
@@ -448,7 +529,7 @@ function paintBackground(g, W, H, pal) {
     if (bgCache.size > 6) bgCache.delete(bgCache.keys().next().value);
     bgCache.set(key, c);
   }
-  g.drawImage(c, 0, 0);
+  return c;
 }
 /* Colors tied to pitch (not screen position), so they stay put while the view zooms */
 function pitchGradient(g, pal, Y) {
@@ -460,12 +541,14 @@ function pitchGradient(g, pal, Y) {
 /* Shared by the screen and the video recorder. S: an optional snapshot { built, piece, marks, colors } to draw instead of the
    live piece, so a video render keeps drawing exactly what it started with whatever happens in the editor meanwhile. */
 function drawScene(g, W, H, d, t, cam, video, S = null) {
-  if (!S) S = { built, piece, marks, colors };
+  if (!S) S = { built, piece, marks, colors, artist: video ? videoArtist() : '' };
   const b = S.built, N = b.N, T = b.total, C = S.colors;
   const pal = tracePalette(S.piece.view.trace, C);
   const narrow = W / d < 520;
   const labelW = (video ? 150 : narrow ? 86 : 104) * d;
-  const zz = cameraZ(Math.min(t, T), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = (video ? 110 : 22) * d, y1 = H - (video ? 130 : 18) * d;
+  const E = T + TAIL, te = Math.min(t, E); // the picture runs through the closing fade; the notes hold from T on
+  const lay = video ? videoTitleLayout(g, S, W, d) : null; // title (and artist) at the top of a video; the trace starts below them
+  const zz = cameraZ(Math.min(t, T), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = video ? lay.y0 : 22 * d, y1 = H - (video ? 130 : 18) * d;
   paintBackground(g, W, H, pal);
   const tc = Math.min(t, T), idx = eventIndex(b, tc);
   const cur = []; for (let v = 0; v < N; v++) cur.push(pitchAt(b, v, tc, idx));
@@ -475,16 +558,17 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
   const win = (xEnd - x0) / pps;
   let lo = Infinity, hi = -Infinity;
-  for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.max(0, tc - win + win * k / 40)); if (p < lo) lo = p; if (p > hi) hi = p; }
+  for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.min(T, Math.max(0, te - win + win * k / 40))); if (p < lo) lo = p; if (p > hi) hi = p; }
   const ck = cam.k || 0.1; // how far the view eases toward its target each frame
   if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo += (lo - cam.slo) * ck; cam.shi += (hi - cam.shi) * ck; }
   let ylo = lerp(b.min, cam.slo, z), yhi = lerp(b.max, cam.shi, z);
   if (yhi - ylo < 12) { const c = (yhi + ylo) / 2; ylo = c - 6; yhi = c + 6; }
   const padY = (y1 - y0) * 0.07;
   const Y = p => y1 - padY - (p - ylo) / (yhi - ylo) * (y1 - y0 - 2 * padY);
-  const tA = lerp(0, tc - win, z), tB = Math.max(lerp(T, tc, z), tA + 0.01);
+  const tA = lerp(0, te - win, z), tB = Math.max(lerp(E, te, z), tA + 0.01);
   const X = tt => x0 + (xEnd - x0) * (tt - tA) / (tB - tA);
-  const px = X(tc);
+  const px = X(te);
+  const env = te <= T ? 1 : Math.max(0, 1 - (te - T) / FADE); // how loud the sound still is
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   const colorOf = v => grad || pal.line(v, N);
   const coreOf = v => pal.core;
@@ -505,6 +589,7 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
   }
+  fadeToBackground(g, W, H, pal, X(T), X(T + FADE)); // the held notes fade out as the sound does
   if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
   // dots and labels
   const groups = new Map();
@@ -522,11 +607,12 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     if (pal.dark && pal.glow > 0) { // a soft glow that fades out from the dot, like the lines' glow (not a flat disc)
       const rg = g.createRadialGradient(px, y, r0 * 0.5, px, y, r0 * 3.6);
       rg.addColorStop(0, dotColor(gp)); rg.addColorStop(0.35, dotColor(gp, 0.45)); rg.addColorStop(1, 'rgba(0,0,0,0)');
-      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow); g.fillStyle = rg;
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow) * env; g.fillStyle = rg;
       g.beginPath(); g.arc(px, y, r0 * 3.6, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     }
-    g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = env; g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
     if (pal.core) { g.fillStyle = pal.core; g.beginPath(); g.arc(px, y, r0 * 0.45, 0, Math.PI * 2); g.fill(); }
+    g.globalAlpha = 1;
   }
   g.font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${C.data || 'monospace'}`;
   g.textBaseline = 'middle';
@@ -538,18 +624,22 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     const txt = pitchLabel(gp.p, S) + (gp.n > 1 ? ' ×' + gp.n : '');
     const w = g.measureText(txt).width;
     const tx = lx + w > W - 4 * d ? px - 12 * d - w : lx; // near the right edge, put the label on the left of the dot
-    if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); g.globalAlpha = 1; }
-    g.fillStyle = pal.text; g.fillText(txt, tx, y);
+    if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85 * env; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); }
+    g.globalAlpha = env; g.fillStyle = pal.text; g.fillText(txt, tx, y); g.globalAlpha = 1;
   }
   if (video) {
-    const e = b.events[idx], nx = b.events[idx + 1];
+    const e = b.events[idx], nx = nextEvent(b, idx);
     g.fillStyle = pal.title; g.textBaseline = 'alphabetic';
-    g.font = `700 ${34 * d}px ${C.display || 'sans-serif'}`; g.fillText(S.piece.name, x0, 66 * d);
+    // the title fits the frame (see videoTitleLayout); the artist, if shown, sits under it in a smaller, quieter line
+    g.font = `700 ${lay.size}px ${C.display || 'sans-serif'}`;
+    lay.lines.forEach((ln, i) => g.fillText(ln, x0, lay.baselines[i]));
+    if (lay.artist) { g.fillStyle = pal.text; g.font = `500 ${lay.artistSize}px ${C.display || 'sans-serif'}`; g.fillText(lay.artist, x0, lay.artistBaseline); g.fillStyle = pal.title; }
     g.font = `500 ${30 * d}px ${C.display || 'sans-serif'}`;
     g.fillText((e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label, x0, H - 64 * d);
     g.fillStyle = pal.text; g.font = `${14 * d}px ${C.data || 'monospace'}`;
     if (nx) g.fillText('next ' + (nx.kind === 'note' ? '→ ' : '') + nx.label, x0, H - 36 * d);
-    const tt = fmtClock(tc) + ' / ' + fmtClock(T); const w = g.measureText(tt).width; g.fillText(tt, W - 50 * d - w, H - 36 * d);
+    const tt = fmtClock(Math.min(t, T + TAIL)) + ' / ' + fmtClock(T + TAIL); // includes the fade, like the player
+    const w = g.measureText(tt).width; g.fillText(tt, W - 50 * d - w, H - 36 * d);
   }
   return { cur, idx };
 }
@@ -588,7 +678,7 @@ function frame() {
   let t = currentT();
   if (playing && t >= built.total + TAIL) {
     if (recording) { finishRecording(); }
-    offset = built.total; stopAudio(0.05); playing = false; setPlayIcon(); t = built.total;
+    offset = built.total + TAIL; stopAudio(0.05); playing = false; setPlayIcon(); t = offset; // the clock ends on the full length
   }
   let cur, idx;
   if (recording) {
@@ -604,14 +694,16 @@ function frame() {
     g2.fillStyle = tracePalette(piece.view.trace).bg; g2.fillRect(0, 0, cv.width, cv.height); g2.drawImage(vc, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
     $('vprog').value = Math.min(1, t / (built.total + TAIL));
   } else ({ cur, idx } = drawScene(g2, cv.width, cv.height, dpr, t, screenCam, false));
-  const tc = Math.min(t, built.total), e = built.events[idx], nx = built.events[idx + 1];
+  const tc = Math.min(t, built.total), e = built.events[idx], nx = nextEvent(built, idx);
   setText($('r-chord'), (e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label);
   setText($('r-next'), nx ? (nx.kind === 'note' ? '→ ' : '') + nx.label : 'end');
   setText($('r-voices'), String(built.N));
   const lo = Math.min(...cur), hi = Math.max(...cur);
   setText($('r-range'), noteName(Math.round(lo)) + '–' + noteName(Math.round(hi)) + ' · ' + ((hi - lo) / 12).toFixed(1) + ' oct');
-  setText($('time'), fmtClock(tc) + ' / ' + fmtClock(built.total));
-  if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(1000 * tc / built.total);
+  // the clock and the scrubber both include the closing fade (the picture holds its last frame during it)
+  const full = built.total + TAIL;
+  setText($('time'), fmtClock(Math.min(t, full)) + ' / ' + fmtClock(full));
+  if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(1000 * Math.min(t, full) / full);
 }
 
 /* ---------- Files and exports ---------- */
@@ -696,17 +788,17 @@ let exporting = false;
 async function doExport(kind) {
   if (exporting || (!built && kind !== 'json')) return;
   exporting = true; document.querySelectorAll('[data-export]').forEach(b => b.disabled = true);
-  const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: name };
+  const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: String($('name').value || '').trim() || name, artist: artistName() };
   try {
     if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
     const files = [];
     let audio = null;
     if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built); }
     if (kind === 'all') files.push({ name: name + '.json', data: utf8(pieceFile()) });
-    if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr) });
+    if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr, opts) });
     let mp3Note = '';
     if (kind === 'mp3' || kind === 'all') {
-      try { files.push({ name: name + '.mp3', data: await encodeMp3(audio) }); }
+      try { files.push({ name: name + '.mp3', data: catBytes([id3v2(opts), await encodeMp3(audio)]) }); }
       catch (e) { if (kind === 'mp3') throw e; mp3Note = ' The MP3 was left out: ' + e.message; }
     }
     if (kind === 'midi' || kind === 'all') files.push({ name: name + ' (glides).mid', data: midiWithGlides(built, opts) });
@@ -730,7 +822,8 @@ function pickMime() {
 const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.tabs'];
 function lockUI(on) {
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
-  document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #tempo').forEach(el => el.disabled = on || !canSave());
+  document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo').forEach(el => el.disabled = on || !canSave());
+  if (!on && typeof showArtistOption === 'function' && canSave()) showArtistOption(); // dimmed again if there's no name
   if (!on) updateAvailability();
 }
 function startRecording() {
@@ -860,7 +953,7 @@ function showVideoEstimate() {
   $('vest').classList.toggle('warn', big);
 }
 let bigRenderOk = 0;
-function videoOpts() { return { aspect: $('vaspect').value, size: +$('vsize').value, fps: +$('vfps').value, format: $('vformat').value, quality: $('vquality').value }; }
+function videoOpts() { return { aspect: $('vaspect').value, size: +$('vsize').value, fps: +$('vfps').value, format: $('vformat').value, quality: $('vquality').value, artist: $('vartist').checked }; }
 function saveVideoOpts() { lsSet('cge.video', JSON.stringify(videoOpts())); }
 function setRenderUI(on) {
   $('vrender').textContent = on ? 'Cancel render' : 'Render video'; $('vprog').hidden = !on; if (on) $('vprog').value = 0;
@@ -878,7 +971,7 @@ async function renderVideo() {
   const aconf = await pickAudioConfig(o.format);
   if (!aconf) return xstatus('This browser can\'t encode audio for video. Use Record live instead.');
   // a frozen copy of everything the frames are drawn from: undo or edits during the render can't change the video
-  const snap = { built, piece: JSON.parse(JSON.stringify(piece)), marks: Object.assign({}, marks), colors: Object.assign({}, colors) };
+  const snap = { built, piece: JSON.parse(JSON.stringify(piece)), marks: Object.assign({}, marks), colors: Object.assign({}, colors), artist: videoArtist() };
   const fileName = safeName(snap.piece.name);
   const rec = rendering = { cancelled: false, error: null, onCancel: null };
   const cancelled = new Promise(r => { rec.onCancel = r; });
@@ -969,7 +1062,8 @@ async function renderVideo() {
     if (o.format === 'mp4' && !vDesc) { if (!avc.sps || !avc.pps) throw new Error('The video encoder gave no H.264 parameter sets.'); vDesc = avcConfig(avc.sps, avc.pps); }
     const video = { codec: vconf.codec.startsWith('vp8') ? 'vp8' : 'vp9', width: w, height: h, fps, description: o.format === 'mp4' ? vDesc : null, samples: vSamples };
     const box = videoContainer(o.format, aconf.kind);
-    const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov' }) : webmMux({ video, audio });
+    const meta = { title: String(snap.piece.name || '').trim() || fileName, artist: artistName() };
+    const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov', meta }) : webmMux({ video, audio, meta });
     const blob = new Blob(parts, { type: box.type });
     const secs = ((performance.now() - started) / 1000).toFixed(0);
     if (await saveFile(fileName + '.' + box.ext, blob))
@@ -999,6 +1093,9 @@ async function probeRendering() {
 { // remembered video choices (this browser only; not part of the piece)
   try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v) for (const [id, k] of [['vaspect', 'aspect'], ['vsize', 'size'], ['vfps', 'fps'], ['vformat', 'format'], ['vquality', 'quality']]) if (v[k] !== undefined && [...$(id).options].some(x => x.value == v[k])) $(id).value = String(v[k]); } catch (e) {}
   for (const id of ['vaspect', 'vsize', 'vfps', 'vformat', 'vquality']) $(id).addEventListener('change', () => { saveVideoOpts(); showVideoEstimate(); });
+  try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v && typeof v.artist === 'boolean') $('vartist').checked = v.artist; } catch (e) {}
+  $('vartist').addEventListener('change', saveVideoOpts);
+  showArtistOption();
   $('vrender').addEventListener('click', () => { if (rendering) { rendering.cancelled = true; rendering.onCancel(); } else renderVideo(); });
   probeRendering();
 }
@@ -1051,14 +1148,16 @@ function showVolume() {
 function setVolume(v) {
   volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
   if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.03);
-    const end = startAt + (built ? built.total : 0); if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); } }
+    const end = startAt + (built ? built.total : 0);
+    if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + 2.8); }
+    else if (end + 2.8 > now) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(volume * Math.max(0, (end + 2.8 - now) / 2.8), now + 0.03); g.linearRampToValueAtTime(0, end + 2.8); } }
 }
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
 $('mute').addEventListener('click', toggleMute);
 $('play').addEventListener('click', () => setPlaying(!playing));
 $('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
-$('scrub').addEventListener('input', () => { if (!built) return; offset = built.total * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
+$('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
 $('save').addEventListener('click', () => savePiece(false));
 $('saveas').addEventListener('click', () => savePiece(true));
 $('libtoggle').addEventListener('click', () => { const lb = $('library'); lb.hidden = !lb.hidden; $('libtoggle').setAttribute('aria-expanded', String(!lb.hidden)); });
@@ -1375,6 +1474,7 @@ function applyAccent(hex) {
   }
   $('accent-default').addEventListener('click', () => applyAccent(''));
   $('accent-custom').addEventListener('input', () => applyAccent($('accent-custom').value.toLowerCase()));
+  { const a = $('artist'); a.value = artistName(); a.addEventListener('input', () => { artistTyped = a.value; lsSet('cge.artist', a.value.trim().slice(0, 80)); showArtistOption(); }); }
 })();
 
 /* ---------- Start ---------- */
