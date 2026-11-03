@@ -314,6 +314,10 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const L = E.landmarks(dense);
   check('Auto zoom on dense snapshots: a few seconds of the whole piece first (4 s for 100 s), and a zoom out of at least 3 s that runs on into the closing fade',
     Math.abs(L.inStart - 4) < 1e-9 && L.inEnd >= L.inStart + 2 && L.outEnd > total && Math.abs(L.outEnd - (total + E.FADE * 0.9)) < 1e-9 && L.outEnd - L.outStart >= 3 - 1e-9, JSON.stringify(L));
+  // snapshots without chord names (as other programs write them) aren't merged into one chord that lasts the whole piece
+  const unnamed = E.landmarks(E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total, events: ev.map(e => { const o = Object.assign({}, e); delete o.label; return o; }) }, base()));
+  check('Saved notes without labels have no chord name (not "undefined")', E.builtFromRealization({ engine: 'custom', easing: 'linear', N: 3, total: 2, events: [{ t: 0, g: 0, targets: [60, 64, 67] }] }, base()).events[0].label === '');
+  check('Auto zoom on unnamed snapshots: zooms in after the opening view, not across the whole piece', unnamed.inStart === 4 && unnamed.inEnd <= 6 + 1e-9 && unnamed.outEnd > total, JSON.stringify(unnamed));
   // when the last chord's final move is 8 s before the end and it then holds still, the zoom out starts there and ends with the music
   const still = Array.from({ length: 2000 }, (_, i) => { const t = i * 0.05, c = chordAt(t);
     return { t, g: 0.05, label: names[c], kind: 'chord', targets: Array.from({ length: N }, (_, v) => 48 + v * 5 + c * 2 + (t >= 92 ? 1 : 0)) }; });

@@ -88,6 +88,11 @@ parts: [
   - [ ] Shaping a held note: a gain curve within a note (a pad breathing at a chord change, an armonica re-bowed between notes)
   - [ ] Curved decays: exponential envelope segments, so plucks and rings die away naturally rather than in straight lines
   - [ ] Glass Tide rewritten as a short piece file (needs the three above)
+  - [ ] Sections: named runs of chords with repeat and transpose (a key change), each saying which parts play and how (on, off or a level; which bass or arpeggio pattern), so a piece has an arrangement (intro, groove, theme, breakdown, drop) without hand-placed clips. Start at a section and loop it while editing. This is most of what Bounce's structure needs
+  - [ ] Slide into one note: `~G5:2` in a line glides from the note before without a new attack, so legato can be per note as well as per part
+  - [ ] Ducking: a part's level dips under another part's hits and recovers (pads pumping under the kick), as gain automation driven by the other part's notes
+  - [ ] Echo as a sound setting as well as a copied part: a tempo-synced delay (eighth, dotted eighth, quarter; alternating left and right) per part, for echoes that needn't be drawn
+  - [ ] MIDI with glides: section and chord names as markers, and a General MIDI program per part chosen from its tone
 - **4.3, generative motion:**
   - [ ] Swarm: stochastic wander, convergence and divergence
   - [ ] Per-voice modulation; pan and filter automation
@@ -98,7 +103,10 @@ parts: [
 From the earlier roadmap:
 - [ ] Voice pinning
 - [ ] Density automation
-- [ ] Chord Lab
+- [ ] Chord Lab: a library of progressions by style and key (spelled for the key, so Bb in C becomes Db in Eb), searchable ("jazz in C", "A minor", "starting on Am"), with each chord ranked so a progression can be shortened or lengthened and keep its main chords
+- [ ] Filter sweeps over a section (rising or falling brightness), with pan and filter automation in 4.3
+- [ ] Paste a piece as text, ignoring anything around the JSON (as an AI's reply has), and a guide section on the piece format for people who have an AI write pieces
+- [ ] A wheel view: the sounding notes on one spoke, low at the centre and high at the rim, their trails sweeping round and fading before they come back
 - [ ] Render video in the background (a worker), so long videos use less memory
 
 ## Tone ideas (researched)

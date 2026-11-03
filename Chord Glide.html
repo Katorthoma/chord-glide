@@ -365,7 +365,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.1.1 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.1.2 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -846,6 +846,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.1.2</span>Pieces from other programs<span class="when">2 Nov 2026</span></h4>
+          <p>Pieces of saved notes written by other programs often leave out chord names. They no longer show "undefined" as the chord, and auto zoom now zooms in and out of them as it does for other pieces, instead of taking the whole piece to zoom in.</p>
 
           <h4><span class="step ver">4.1.1</span>Steady lines at any zoom<span class="when">2 Nov 2026</span></h4>
           <p>The lines are now drawn from each voice's own notes and glides rather than from samples spaced to suit the current zoom. Before, a note shorter than the spacing could be caught in one frame and missed in the next, so while auto zoom zoomed in or out, short notes flickered in and out and sharp edges jittered, and zoomed out, quick shapes were drawn as zigzags. Now every note shows where it starts and stops however short it is, edges keep their shape, and zoomed out the picture is thinned in steps fixed in the piece, so it changes only at a few moments during a zoom instead of every frame. While the view scrolls, the next moments of the piece now show faintly past the playhead, under the note labels, and the playhead stands where this piece's labels fit, so the right side of the picture isn't left empty. How the piece sounds is unchanged.</p>
@@ -1419,7 +1422,7 @@ function realizationOf(built) {
 }
 function builtFromRealization(r, piece, normalized = false) {
   const P = normalized ? piece : normalizePiece(piece);
-  const events = r.events.map(e => ({ t: e.t, g: e.g, label: String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
+  const events = r.events.map(e => ({ t: e.t, g: e.g, label: e.label == null ? '' : String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
     off: e.off ? e.off.slice() : new Array(r.N).fill(0), dur: e.dur ? e.dur.slice() : new Array(r.N).fill(e.g), fallback: false }));
   // rests (null, allowed in parts): the voice holds its last pitch silently, then jumps to its next note as it sounds again
   let gates = null;
@@ -1768,11 +1771,11 @@ function landmarks(built) {
   /* Chords, not events: snapshots of the same chord less than 0.2 s apart are one chord, as in pieces saved as dense snapshots
      of every voice. A chord settles when its last real movement (a quarter of a semitone or more) has ended. With one event
      per chord, as the engine writes them, this gives exactly the same landmarks as before. */
-  const groups = [];
+  const groups = []; // (snapshots without a chord name aren't merged: one name shared by a whole piece isn't one chord)
   ev.forEach((e, i) => {
     const mv = i === 0 ? Infinity : Math.max(...e.targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
     const g = groups[groups.length - 1];
-    if (g && g.label === e.label && g.kind === e.kind && e.t - g.lastT < 0.2) { g.lastT = e.t; if (mv >= 0.25) g.settle = e.t + e.g; }
+    if (g && e.label && g.label === e.label && g.kind === e.kind && e.t - g.lastT < 0.2) { g.lastT = e.t; if (mv >= 0.25) g.settle = e.t + e.g; }
     else groups.push({ label: e.label, kind: e.kind, t: e.t, g: e.g, lastT: e.t, moved: mv, settle: e.g > 0 ? e.t + e.g : 0 });
   });
   const chords = groups.filter(g => g.kind === 'chord');
@@ -2353,7 +2356,7 @@ function webmMux({ video, audio, meta = null }) {
 }
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.1.2';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',

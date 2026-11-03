@@ -395,7 +395,7 @@ function realizationOf(built) {
 }
 function builtFromRealization(r, piece, normalized = false) {
   const P = normalized ? piece : normalizePiece(piece);
-  const events = r.events.map(e => ({ t: e.t, g: e.g, label: String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
+  const events = r.events.map(e => ({ t: e.t, g: e.g, label: e.label == null ? '' : String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
     off: e.off ? e.off.slice() : new Array(r.N).fill(0), dur: e.dur ? e.dur.slice() : new Array(r.N).fill(e.g), fallback: false }));
   // rests (null, allowed in parts): the voice holds its last pitch silently, then jumps to its next note as it sounds again
   let gates = null;
@@ -744,11 +744,11 @@ function landmarks(built) {
   /* Chords, not events: snapshots of the same chord less than 0.2 s apart are one chord, as in pieces saved as dense snapshots
      of every voice. A chord settles when its last real movement (a quarter of a semitone or more) has ended. With one event
      per chord, as the engine writes them, this gives exactly the same landmarks as before. */
-  const groups = [];
+  const groups = []; // (snapshots without a chord name aren't merged: one name shared by a whole piece isn't one chord)
   ev.forEach((e, i) => {
     const mv = i === 0 ? Infinity : Math.max(...e.targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
     const g = groups[groups.length - 1];
-    if (g && g.label === e.label && g.kind === e.kind && e.t - g.lastT < 0.2) { g.lastT = e.t; if (mv >= 0.25) g.settle = e.t + e.g; }
+    if (g && e.label && g.label === e.label && g.kind === e.kind && e.t - g.lastT < 0.2) { g.lastT = e.t; if (mv >= 0.25) g.settle = e.t + e.g; }
     else groups.push({ label: e.label, kind: e.kind, t: e.t, g: e.g, lastT: e.t, moved: mv, settle: e.g > 0 ? e.t + e.g : 0 });
   });
   const chords = groups.filter(g => g.kind === 'chord');

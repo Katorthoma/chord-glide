@@ -1,3 +1,10 @@
+# Chord Glide 4.1.2 · 2 Nov 2026
+
+Engine 3.1 and the file formats are unchanged; how pieces sound and are voiced is unchanged.
+
+- **Saved notes without chord names.** A piece of saved notes written by another program may leave out each event's `label`; `builtFromRealization()` turned that into the text "undefined", which showed as the chord name in the picture and in videos. A missing label is now no name.
+- **Auto zoom on unnamed snapshots.** Auto zoom treats snapshots that share a chord name and follow each other closely as one chord (4.1). Snapshots with no name at all were treated as sharing one, so a whole piece of them counted as a single chord, and the zoom in ran from the start to almost the end (on a 108-second piece, from 4 s to 106 s). Only named snapshots are grouped now; that piece shows the whole for 4.3 s, zooms in over 2 s and zooms out over the last 3 s. Every other piece zooms exactly as in 4.1.1 (checked on the opening piece, the examples, Glass Tide and Bounce of the Spheres). Found by opening a piece saved by another program that writes Chord Glide files.
+
 # Chord Glide 4.1.1 · 2 Nov 2026
 
 Engine 3.1 and file formats 3 and 4 are unchanged; only the drawing changes.
