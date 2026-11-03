@@ -173,8 +173,8 @@ canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display:
 
 /* rack */
 .rack { background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; min-width: 0; }
-.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--rule); }
-.tabs button { min-width: 0; overflow: hidden; text-overflow: ellipsis; border: 0; border-radius: 0; padding: 10px 2px; font-size: clamp(12px, 3.6vw, 13px); color: var(--muted); border-bottom: 2px solid transparent; }
+.tabs { display: grid; grid-template-columns: repeat(5, auto); border-bottom: 1px solid var(--rule); }
+.tabs button { min-width: 0; overflow: hidden; text-overflow: ellipsis; border: 0; border-radius: 0; padding: 10px 3px; font-size: clamp(12px, 3.6vw, 13px); color: var(--muted); border-bottom: 2px solid transparent; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .tabpanel { padding: 14px; display: grid; gap: 14px; }
 .group { display: grid; gap: 6px; }
@@ -207,6 +207,26 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .exports button small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
 .exports .wide { grid-column: 1 / -1; }
 .video-box { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--rule); border-radius: 5px; }
+/* parts: the bar above the tabs chooses which part they edit */
+.partbar { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 6px 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+.partbar #partsel-hint { grid-column: 1 / -1; font-size: 12px; }
+.partbar .pop.below { bottom: auto; top: calc(100% - 4px); left: auto; right: 10px; transform: none; display: grid; grid-template-columns: 1fr; gap: 6px; min-width: 240px; }
+.partbar .pop button { text-align: left; white-space: normal; line-height: 1.3; padding: 7px 9px; }
+.partbar .pop button small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.partbar .pop .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.partbar .pop .acts button { text-align: center; }
+.rack.on-part .partbar { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.tabs button.dim { opacity: 0.55; }
+.partblock { display: grid; gap: 14px; order: -1; }
+.partblock textarea { min-height: 96px; }
+.partblock .checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.partblock .checks label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.partblock .checks input { accent-color: var(--accent); margin: 0; }
+.partblock .two { align-items: end; }
+.sect { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 2px 0 -4px; }
+.sect.whole { order: 1; border-top: 1px solid var(--rule); padding-top: 12px; margin-top: 4px; }
+.sect.whole span { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
+.rack.on-part .tabpanel > [data-whole] { order: 2; } /* with an added part chosen, what's shared sits under "Whole piece" */
 .video-box canvas { width: 100%; max-height: 260px; object-fit: contain; background: var(--paper); border-radius: 3px; }
 progress { width: 100%; accent-color: var(--accent); }
 
@@ -345,7 +365,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.0.5 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.1 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -439,6 +459,29 @@ figure.vl circle { fill: var(--ink); }
     </section>
 
     <aside class="rack" aria-label="Controls">
+      <div class="partbar">
+        <label for="partsel" class="label">Part</label>
+        <select id="partsel" aria-describedby="partsel-hint"></select>
+        <button type="button" class="small" id="partadd" aria-haspopup="true" aria-expanded="false">+ Add</button>
+        <button type="button" class="small" id="partmore" aria-haspopup="true" aria-expanded="false" aria-label="Part actions" title="Part actions">⋯</button>
+        <span class="hint" id="partsel-hint">The tabs below edit this part.</span>
+        <div class="pop below" id="addpop" role="menu" hidden>
+          <button type="button" class="small" role="menuitem" data-addpart="melody">Melody<small>a written line, started from the chords</small></button>
+          <button type="button" class="small" role="menuitem" data-addpart="bass">Bass<small>a written line, low, on each chord's bass note</small></button>
+          <button type="button" class="small" role="menuitem" data-addpart="pad">Pad<small>another group of voices following the chords</small></button>
+          <p class="hint" id="parts-room" hidden></p>
+        </div>
+        <div class="pop below" id="morepop" hidden>
+          <label class="label" for="partname">Name</label>
+          <input type="text" id="partname" maxlength="40" autocomplete="off" spellcheck="false">
+          <div class="acts">
+            <button type="button" class="small" id="partup">Move earlier</button>
+            <button type="button" class="small" id="partdown">Move later</button>
+            <button type="button" class="small" id="partdup">Duplicate</button>
+            <button type="button" class="small danger" id="partdel">Remove</button>
+          </div>
+        </div>
+      </div>
       <div class="tabs" role="tablist">
         <button role="tab" id="t-harmony" aria-controls="p-harmony" aria-selected="true" type="button">Harmony</button>
         <button role="tab" id="t-voicing" aria-controls="p-voicing" aria-selected="false" type="button">Voicing</button>
@@ -448,6 +491,8 @@ figure.vl circle { fill: var(--ink); }
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-harmony" aria-labelledby="t-harmony">
+        <div class="partblock" id="pp-harmony" hidden></div>
+        <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
         <div class="group">
           <label for="chords">Chords</label>
           <textarea id="chords" spellcheck="false"></textarea>
@@ -465,6 +510,8 @@ figure.vl circle { fill: var(--ink); }
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-voicing" aria-labelledby="t-voicing" hidden>
+        <div class="partblock" id="pp-voicing" hidden></div>
+        <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
         <div class="seed" data-layer="voicing">
           <span class="label">Voicing seed</span>
           <input type="text" id="seed-voicing" aria-label="Voicing seed">
@@ -494,6 +541,8 @@ figure.vl circle { fill: var(--ink); }
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-motion" aria-labelledby="t-motion" hidden>
+        <div class="partblock" id="pp-motion" hidden></div>
+        <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
         <div class="seed" data-layer="motion">
           <span class="label">Motion seed</span>
           <input type="text" id="seed-motion" aria-label="Motion seed">
@@ -519,6 +568,8 @@ figure.vl circle { fill: var(--ink); }
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-sound" aria-labelledby="t-sound" hidden>
+        <div class="partblock" id="pp-sound" hidden></div>
+        <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
         <div class="seed" data-layer="sound">
           <span class="label">Sound seed</span>
           <input type="text" id="seed-sound" aria-label="Sound seed">
@@ -533,6 +584,10 @@ figure.vl circle { fill: var(--ink); }
         <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
         <div class="slider"><label for="reverb">Reverb</label><output id="o-reverb"></output><input id="reverb" type="range" min="0" max="100" step="1"></div>
         <div class="slider"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
+        <div class="group"><label for="vshape">Volume shape</label>
+          <select id="vshape"><option value="none">None (steady)</option><option value="fadein">Fade in</option><option value="crescendo">Crescendo</option><option value="swell">Swell</option><option value="fadeout">Fade out</option><option value="custom" hidden>Custom</option></select>
+          <p class="hint" id="vshape-hint">A shape over the whole piece, on top of the volume control. Set for the piece's current length.</p>
+        </div>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-export" aria-labelledby="t-export" hidden>
@@ -653,18 +708,21 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Motion</b> tab controls how voices travel: the <b>glide time</b>, the shape of the <b>curve</b>, and the <b>departure order</b>. Add <b>stagger</b> and the voices leave one after another, low to high, high to low, largest leap first, or at random.</p>
 
           <h4><span class="step">5</span>Choose the sound and the look</h4>
-          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone and Air nearly so, with a faint shimmer above; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Brass follows FM synthesis; Harp has the gaps of a plucked string; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates; Octaves keeps only the octaves of the note, and Chime only its Fibonacci harmonics. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
+          <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness, and a <b>volume shape</b> can fade the whole piece in, build it, swell it or fade it out. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone and Air nearly so, with a faint shimmer above; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Brass follows FM synthesis; Harp has the gaps of a plucked string; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates; Octaves keeps only the octaves of the note, and Chime only its Fibonacci harmonics. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
 
-          <h4><span class="step">6</span>Lock what you love, reroll the rest</h4>
+          <h4><span class="step">6</span>Add parts</h4>
+          <p>A piece can have more than one part. The <b>Part</b> menu above the tabs chooses which part the tabs edit; <b>Main</b> is the chords as you've voiced them. <b>+ Add</b> adds a <b>melody</b> or <b>bass</b> line, which starts from your chords so it plays in key straight away, or another <b>pad</b>: a group of voices that follows the chords in its own register, with its own random choices. Choose a part and the tabs follow it. For a line, Harmony becomes <b>Line</b>: write it like the chord box, a note and its length in steps (<code>G4:2</code>), <code>-</code> for a rest and <code>|</code> just for reading, and pick the step (eighth notes, quarter notes and so on). Voicing becomes <b>Voices</b>, where <code>0,&nbsp;-12</code> doubles the line an octave below. Motion holds portamento and vibrato, and Sound its tone, level, pan and <b>envelope</b>: how fast each note starts, how it settles and how long it fades. A pad part gets the full Voicing and Motion controls. What every part shares (the chords, chord length, glide, reverb, brightness, volume shape and the seeds) sits under <b>Whole piece</b> at the bottom of each tab. The <b>⋯</b> menu renames, moves, duplicates or removes the chosen part. Voices in a line rest between notes, shown as gaps in their lines. MIDI with glides carries every part; MIDI chords and MusicXML carry the main part's chords. Try the <b>Three Parts</b> example.</p>
+
+          <h4><span class="step">7</span>Lock what you love, reroll the rest</h4>
           <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
 
-          <h4><span class="step">7</span>Save, and reopen exactly</h4>
+          <h4><span class="step">8</span>Save, and reopen exactly</h4>
           <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
-          <h4><span class="step">8</span>Export</h4>
+          <h4><span class="step">9</span>Export</h4>
           <p>The <b>Export</b> tab saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name.</p>
 
-          <h4><span class="step">9</span>Works offline</h4>
+          <h4><span class="step">10</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
           <p class="guide-next"><button type="button" class="small" data-goto="math">Next: The math →</button></p>
         </section>
@@ -788,6 +846,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.1</span>Parts<span class="when">2 Nov 2026</span></h4>
+          <p>A piece can now have more than one part. The new <b>Part</b> menu above the tabs adds a melody, a bass line or another pad alongside the chords, each with its own voices, tone, level, pan and stereo width, and the tabs then edit whichever part you choose. Melodies and bass lines are written like the chord box, a note and its length in steps (<code>G4:2</code>) with <code>-</code> for a rest, and they start from your chords so they play in key. For the first time voices can rest: each note has an envelope (how it starts, settles and fades), and the picture shows rests as gaps in the lines. Lines can repeat to the end, be doubled at other intervals, slide into their notes and bloom into vibrato. A <b>volume shape</b> on the Sound tab can fade the piece in, build it, swell it or fade it out. Each part is balanced by its own voices, so how many voices a part has doesn't change the balance, and a piece with several parts shares out headroom by the parts' levels so they don't clip together. At the end, a line's last notes ring out by their own release while the held chords fade. MIDI with glides carries every part, with real note-offs where voices rest; MIDI chords and MusicXML carry the chords. Try the <b>Three Parts</b> example. A piece with parts is saved as file format 4, which older versions refuse rather than open without its parts; every other piece is saved as before, and keeps the same voicing and motion.</p>
 
           <h4><span class="step ver">4.0.5</span>Longer, wider, finer<span class="when">2 Nov 2026</span></h4>
           <p>Pieces of any length now play with full pitch accuracy. Before, past two minutes the app tracked pitch half as finely, which blurred fast moves in long pieces; now each glide is scheduled as a curve of its own, so a ten-minute piece is as exact as a ten-second one. The Voices slider goes up to 32 (MIDI with glides comes in files of 15), and glides can last up to 12 seconds. Unison notes and pinned voicings can carry cents: <code>=C4-14</code> or <code>Emaj9[E2 B3-14 G#4+41]</code>.</p>
@@ -924,7 +985,7 @@ figure.vl circle { fill: var(--ink); }
           </ul>
 
           <h4>File format</h4>
-          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code> with <code>"formatVersion": 3</code> since app 3. Fields added since are optional, so older versions simply ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). Top-level fields this version doesn't know are kept when a piece is saved again.</p>
+          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. Top-level fields this version doesn't know are kept when a piece is saved again.</p>
           <p class="guide-next"><button type="button" class="small" data-goto="about">Next: About →</button></p>
         </section>
         <section class="guide-page" id="g-about" role="tabpanel" aria-labelledby="gt-about" hidden>
@@ -978,6 +1039,7 @@ function mulberry32(a) {
 
 // A note with its octave, and optional cents after the octave: C4, F#2, C-1 (octave -1), D3+33, B3-14, A4+12.5¢
 const NOTE_OCT = '[A-G][#b]?-?\\d(?:[+-]\\d{1,2}(?:\\.\\d+)?¢?)?';
+const PLAYABLE = p => p >= 0 && p <= 127; // MIDI's range, which saved notes must keep to
 function parseNoteOct(s) {
   const m = s.match(/^([A-G][#b]?)(-?\d)(?:([+-]\d{1,2}(?:\.\d+)?)¢?)?$/);
   return m ? pcOf(m[1]) + 12 * (parseInt(m[2], 10) + 1) + (m[3] ? parseFloat(m[3]) / 100 : 0) : null;
@@ -994,11 +1056,11 @@ function parseItem(raw) {
   const pm = t.match(/\[([^\]]*)\]$/);
   if (pm) {
     pin = pm[1].split(/[_\s,]+/).filter(Boolean).map(parseNoteOct);
-    if (pin.some(x => x === null)) return { kind: 'error', label: raw.trim() };
+    if (pin.some(x => x === null || !PLAYABLE(x))) return { kind: 'error', label: raw.trim() }; // unreadable, or outside MIDI 0–127
     t = t.slice(0, pm.index);
   }
   const um = t.match(new RegExp('^(?:=|->|→)(' + NOTE_OCT + ')$'));
-  if (um) return { kind: 'note', midi: parseNoteOct(um[1]), label: um[1], dur };
+  if (um) { const m = parseNoteOct(um[1]); return PLAYABLE(m) ? { kind: 'note', midi: m, label: um[1], dur } : { kind: 'error', label: raw.trim() }; }
   const m = t.match(/^([A-G][#b]?)(.*)$/);
   if (!m) return { kind: 'error', label: raw.trim() };
   const root = pcOf(m[1]);
@@ -1102,7 +1164,7 @@ const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ:
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
-const PIECE_FORMAT_VERSION = 3;
+const PIECE_FORMAT_VERSION = 4; // 4 adds parts and a volume shape; pieces without them are still written as 3
 function defaultPiece() {
   return {
     format: PIECE_FORMAT, formatVersion: PIECE_FORMAT_VERSION, engine: ENGINE_VERSION,
@@ -1159,6 +1221,23 @@ function normalizePiece(p) {
   }
   { const big = realizationTooLarge(p.realization); if (big) throw new Error('This piece can\'t be opened safely: ' + big + '.'); }
   if (validRealization(p.realization)) out.realization = JSON.parse(JSON.stringify(p.realization));
+  { // parts beyond the main one, within the overall voice limit
+    // the main part's voices: its saved notes' count when it has some (they can have more voices than the setting)
+    const used = new Set(['main']); let room = REALIZATION_LIMITS.voices - Math.max(out.voices, out.realization ? out.realization.N : 0);
+    out.parts = [];
+    (Array.isArray(p.parts) ? p.parts : []).slice(0, MAX_PARTS).forEach((q, i) => {
+      const part = normalizePart(q, out, i, used); if (!part) return;
+      const n = partVoices(part); if (n > room) return;
+      room -= n; out.parts.push(part);
+    });
+    if (!out.parts.length) delete out.parts;
+  }
+  { // the volume shape: points in seconds and dB, joined by straight lines in dB
+    const pts = (Array.isArray(p.volume) ? p.volume : []).filter(x => x && Number.isFinite(+x.t) && Number.isFinite(+x.db)).slice(0, 64)
+      .map(x => ({ t: num(x.t, 0, 3600, 0), db: num(x.db, -60, 12, 0) })).sort((a, b) => a.t - b.t);
+    if (pts.length) out.volume = pts; else delete out.volume;
+  }
+  out.formatVersion = out.parts || out.volume ? 4 : 3; // other pieces still open in older versions
   return out;
 }
 
@@ -1310,32 +1389,262 @@ function realizationTooLarge(r) {
   if (r.events.some(e => e && Array.isArray(e.targets) && e.targets.some(p => typeof p === 'number' && (p < 0 || p > 127)))) return 'some of its notes are outside the playable range (MIDI 0–127)';
   return '';
 }
-function validRealization(r) {
+function validRealization(r, rests = false) {
   // N and total must be real numbers: a total written as text ("28") would later be joined as text, not added
   if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !Number.isInteger(r.N) || r.N < 1) return false;
   if (typeof r.total !== 'number' || !Number.isFinite(r.total) || r.total <= 0 || realizationTooLarge(r)) return false;
   const okNum = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
   let lastT = -Infinity;
   return r.events.every(e => {
-    if (!e || !Array.isArray(e.targets) || e.targets.length !== r.N || !e.targets.every(x => typeof x === 'number' && Number.isFinite(x))) return false;
+    if (!e || !Array.isArray(e.targets) || e.targets.length !== r.N || !e.targets.every(x => (typeof x === 'number' && Number.isFinite(x)) || (rests && x === null))) return false;
     if (!okNum(e.t) || !okNum(e.g) || e.t < lastT || e.t > r.total) return false; // times present, nonnegative, in order
     lastT = e.t;
     if (e.off === undefined && e.dur === undefined) return true;
     return Array.isArray(e.off) && Array.isArray(e.dur) && e.off.length === r.N && e.dur.length === r.N && e.off.every(okNum) && e.dur.every(okNum);
   });
 }
+/* Resolved notes for the pad parts of a score (lines regenerate exactly from what's written; saved notes are already notes) */
+function partRealizations(built) {
+  const out = {};
+  for (const pt of built.parts || []) if (!pt.main && pt.preset === 'pad') out[pt.id] = pt.sub.frozen ? pt.realization : realizationOf(pt.sub);
+  return out;
+}
 function realizationOf(built) {
+  if (built.main) built = built.main; // the main part's; other pad parts' come from partRealizations()
   return { engine: ENGINE_VERSION, easing: built.piece.timing.easing, N: built.N, total: built.total,
     events: built.events.map(e => ({ t: e.t, g: e.g, label: e.label, kind: e.kind, targets: e.targets.slice(), off: e.off.slice(), dur: e.dur.slice() })) };
 }
-function builtFromRealization(r, piece) {
-  const P = normalizePiece(piece);
+function builtFromRealization(r, piece, normalized = false) {
+  const P = normalized ? piece : normalizePiece(piece);
   const events = r.events.map(e => ({ t: e.t, g: e.g, label: String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
     off: e.off ? e.off.slice() : new Array(r.N).fill(0), dur: e.dur ? e.dur.slice() : new Array(r.N).fill(e.g), fallback: false }));
+  // rests (null, allowed in parts): the voice holds its last pitch silently, then jumps to its next note as it sounds again
+  let gates = null;
+  if (events.some(e => e.targets.some(x => x === null))) {
+    gates = [];
+    for (let v = 0; v < r.N; v++) {
+      const firstP = events.map(e => e.targets[v]).find(x => x !== null);
+      let held = firstP === undefined ? 60 : firstP, on = null; const gs = [];
+      events.forEach((e, i) => {
+        const x = e.targets[v];
+        if (x === null) { e.targets[v] = held; e.dur[v] = 0; if (on !== null) { gs.push({ on, off: e.t }); on = null; } }
+        else { if (on === null) { on = e.t; if (i > 0) e.dur[v] = 0; } held = x; }
+      });
+      if (on !== null) gs.push({ on, off: r.total });
+      gates.push(gs.length === 1 && gs[0].on === 0 && gs[0].off === r.total ? null : gs);
+    }
+    if (gates.every(x => x === null)) gates = null;
+  }
   let min = Infinity, max = -Infinity;
   for (const e of events) for (const p of e.targets) { if (p < min) min = p; if (p > max) max = p; }
-  return { events, total: r.total, N: r.N, min, max, warnings: [], piece: P, ease: EASE[r.easing] || EASE.smooth, frozen: r.engine };
+  return { events, total: r.total, N: r.N, min, max, warnings: [], piece: P, ease: EASE[r.easing] || EASE.smooth, frozen: r.engine, gates };
 }
+
+/* ======== Parts (file format 4) ========
+   The main part is the piece itself: its voices and its Voicing, Motion and Sound settings, voiced by the chord-following
+   engine exactly as in format 3. A piece can add more parts in `parts`. Each has its own voices, sound (tone, level in dB,
+   pan, width, detune) and envelope, and one of these pitch sources (presets):
+     pad   – chord-following: the same engine, with its own voices, voicing and motion, and seeds derived from its id
+     line  – a written line of notes and rests at the piece's tempo, doubled at fixed intervals (transpose), with portamento
+             and vibrato
+     notes – saved notes written by another program (`realization`, engine "custom"); a target of null is a rest
+   Voices can rest: gates (when a voice sounds) and the part's envelope shape its gain over time. */
+/* After the music's end: the tail (the closing fade and the reverb, which the clock and every render include), and the
+   closing fade of the parts that sound throughout (the main part and pads) inside it */
+const TAIL = 3.0, FADE = 2.8;
+const PRESETS = ['pad', 'line', 'notes'];
+const MAX_PARTS = 12;
+const STEPS = { '1/1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125, '1/4t': 2 / 3, '1/8t': 1 / 3, '1/16t': 1 / 6 }; // in beats
+const ENVELOPES = { // attack, decay and release in seconds; sustain as a fraction of full level
+  pad: { attack: 0.4, decay: 0, sustain: 1, release: 1 },
+  line: { attack: 0.01, decay: 0.15, sustain: 0.75, release: 0.12 },
+  notes: { attack: 0.005, decay: 0, sustain: 1, release: 0.03 }
+};
+/* A stable seed for one part and one purpose: adding, removing or reordering parts never changes another part's seeds */
+function partSeed(seed, id, salt) {
+  let h = (0x811C9DC5 ^ (seed >>> 0)) >>> 0;
+  for (const ch of String(id) + '/' + salt) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193); }
+  h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; h = Math.imul(h, 0x297A2D39); h ^= h >>> 15;
+  return h >>> 0;
+}
+function normalizePart(q, P, i, used) {
+  if (!q || typeof q !== 'object') return null;
+  const num = (v, lo, hi, dflt) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt; };
+  const obj = x => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {};
+  const preset = PRESETS.includes(q.preset) ? q.preset : 'line';
+  let id = String(q.id || q.name || preset).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'part';
+  for (let k = 2, base = id; used.has(id); k++) id = base + '-' + k;
+  used.add(id);
+  const s = obj(q.sound), e = obj(q.envelope), E0 = ENVELOPES[preset];
+  const part = { id, name: String(q.name || id).slice(0, 40), preset,
+    sound: { tone: TONES[s.tone] ? s.tone : P.sound.tone, level: num(s.level, -60, 12, 0), pan: num(s.pan, -1, 1, 0),
+      width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune) },
+    envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release) } };
+  if (preset === 'pad') {
+    part.voices = Math.round(num(q.voices, 3, MAX_VOICES, 5)); // like the main part: a bass and at least two above it
+    part.voicing = Object.assign({}, P.voicing, obj(q.voicing)); part.motion = Object.assign({}, P.motion, obj(q.motion)); // limited when it's voiced
+    // its resolved notes, saved with the piece like the main part's, so a later engine plays it exactly as it was
+    const big = realizationTooLarge(q.realization); if (big) throw new Error('This piece can\'t be opened safely: part ' + (i + 1) + ' ' + big + '.');
+    if (validRealization(q.realization) && q.realization.N === part.voices) part.realization = JSON.parse(JSON.stringify(q.realization));
+  } else if (preset === 'line') {
+    part.line = typeof q.line === 'string' ? q.line.slice(0, 20000) : '';
+    part.step = STEPS[q.step] ? q.step : '1/8';
+    part.start = num(q.start, 0, 100000, 0); // in beats
+    part.repeat = !!q.repeat; part.legato = !!q.legato;
+    part.transpose = (Array.isArray(q.transpose) && q.transpose.length ? q.transpose : [0]).slice(0, 8).map(x => num(x, -48, 48, 0));
+    part.portamento = num(q.portamento, 0, 2, 0.03);
+    const vb = obj(q.vibrato);
+    part.vibrato = { cents: num(vb.cents, 0, 100, 0), rate: num(vb.rate, 0.5, 12, 5.5), delay: num(vb.delay, 0, 5, 0.3) };
+  } else {
+    const big = realizationTooLarge(q.realization); if (big) throw new Error('This piece can\'t be opened safely: part ' + (i + 1) + ' ' + big + '.');
+    if (!validRealization(q.realization, true)) return null;
+    part.realization = JSON.parse(JSON.stringify(q.realization));
+  }
+  return part;
+}
+const partVoices = part => part.preset === 'pad' ? part.voices : part.preset === 'line' ? part.transpose.length : part.realization.N;
+/* A written line: notes like the chord box's (C4, F#3, D3+33) with a length in steps (`G4:2`), and rests (`-` or `r`).
+   Bar lines `|` and commas are ignored. */
+/* A line can be written out of range only by its notes (with `transpose`, the intervals it's doubled at): a note that would
+   go outside MIDI 0–127 is reported and kept as a rest of the same length, so the timing holds. Lengths must be finite, from
+   1/64 to 1024 steps. */
+function parseLine(text, transpose = [0]) {
+  const notes = [], errors = [], re = new RegExp('^(-|r|' + NOTE_OCT + ')(?::(\\d+(?:\\.\\d+)?))?$');
+  for (const tok of String(text || '').split(/[\s|,]+/).filter(Boolean)) {
+    const m = tok.match(re), steps = m ? (m[2] === undefined ? 1 : parseFloat(m[2])) : 0;
+    if (!m || !Number.isFinite(steps) || steps < 1 / 64 || steps > 1024) { errors.push(tok); continue; }
+    const p = m[1] === '-' || m[1] === 'r' ? null : parseNoteOct(m[1].replace(/¢$/, ''));
+    if (p !== null && !transpose.every(d => PLAYABLE(p + d))) { errors.push(tok + ' (out of range)'); notes.push({ p: null, steps }); continue; }
+    notes.push({ p, steps });
+  }
+  return { notes, errors };
+}
+const LINE_LIMITS = { notes: 20000, total: 100000, shortest: 0.005 }; // notes per part and in the whole piece; shortest note (s)
+/* A line part's timeline: one event per note, a glide of `portamento` seconds from a note straight before it (a jump after
+   a rest), and a gate per note. Notes that follow each other end a moment early so the next one is heard as a new note,
+   unless the part is legato, which joins them into one gate. A repeating line fills `until`. */
+function buildLine(part, P, until, budget = LINE_LIMITS.notes) {
+  const tr = part.transpose, { notes } = parseLine(part.line, tr), N = tr.length;
+  const beat = 60 / P.timing.tempo, stepSec = STEPS[part.step] * beat;
+  if (notes.some(n => n.steps * stepSec < LINE_LIMITS.shortest)) return null; // too short to hear, and the way to millions of notes
+  // stops at the note budget or the longest a piece can be, whichever comes first
+  const maxNotes = Math.min(budget, LINE_LIMITS.notes), end = Math.min(part.repeat ? until : Infinity, REALIZATION_LIMITS.seconds);
+  const seq = []; let t = part.start * beat, cut = false;
+  while (notes.length && t < end - 1e-9) {
+    for (const n of notes) {
+      if (t >= end - 1e-9) break;
+      if (seq.length >= maxNotes) { cut = true; break; }
+      const t1 = t + n.steps * stepSec; seq.push({ t0: t, t1: Math.min(t1, end), p: n.p }); t = t1;
+    }
+    if (cut || !part.repeat) break;
+  }
+  const sounding = seq.filter(x => x.p !== null);
+  if (!sounding.length) return null;
+  const first = sounding[0].p, zeros = () => new Array(N).fill(0);
+  const events = [{ t: 0, g: 0, label: noteName(first), kind: 'note', targets: tr.map(x => first + x), off: zeros(), dur: zeros() }];
+  const raw = [];
+  seq.forEach((x, k) => {
+    if (x.p === null) return;
+    const prev = seq[k - 1], joined = prev && prev.p !== null && Math.abs(prev.t1 - x.t0) < 1e-9;
+    const g = joined ? Math.min(part.portamento, (x.t1 - x.t0) * 0.5) : 0;
+    if (!(events.length === 1 && x.t0 === 0)) events.push({ t: x.t0, g, label: noteName(x.p), kind: 'note', targets: tr.map(d => x.p + d), off: zeros(), dur: new Array(N).fill(g) });
+    if (part.legato && joined && raw.length) raw[raw.length - 1].off = x.t1; else raw.push({ on: x.t0, off: x.t1 });
+  });
+  const gates = raw.map((gt, k) => { const next = raw[k + 1], cut = next && Math.abs(next.on - gt.off) < 1e-9 ? Math.min(0.03, (gt.off - gt.on) * 0.25) : 0; return { on: gt.on, off: gt.off - cut }; });
+  let min = Infinity, max = -Infinity;
+  for (const e of events) for (const p of e.targets) { if (p < min) min = p; if (p > max) max = p; }
+  return { events, total: seq[seq.length - 1].t1, N, min, max, warnings: [], piece: P, ease: EASE.smooth, gates: tr.map(() => gates),
+    vibrato: part.vibrato.cents > 0 ? part.vibrato : null, notes: seq.length, cut };
+}
+function buildPart(part, P, items, until, budget) {
+  let sub = null;
+  if (part.preset === 'line') sub = buildLine(part, P, until, budget);
+  else if (part.preset === 'pad' && part.realization && part.realization.engine !== ENGINE_VERSION && validRealization(part.realization))
+    sub = builtFromRealization(part.realization, P, true); // saved by another engine: play it exactly as it was
+  else if (part.preset === 'notes') sub = builtFromRealization(part.realization, P, true);
+  else if (items && items.length) { // pad: the chord-following engine with this part's voices and settings, and its own seeds
+    const S = P.seeds;
+    sub = buildPiece(items, { name: P.name, chords: P.chords, voices: part.voices, timing: P.timing, voicing: part.voicing, motion: part.motion, sound: P.sound,
+      seeds: { harmony: S.harmony, voicing: partSeed(S.voicing, part.id, 'voicing'), motion: partSeed(S.motion, part.id, 'motion'), sound: partSeed(S.sound, part.id, 'sound') } });
+  }
+  if (sub) sub.env = part.envelope;
+  return sub;
+}
+/* The whole score: the main part (as built by buildPiece or builtFromRealization) and the piece's other parts.
+   Voices are numbered across parts, main first; `voices[v]` says which part and which of its voices. The chord
+   timeline (`events`) stays the main part's, for labels, auto zoom, MIDI chords and MusicXML. */
+function buildScore(main, items) {
+  const P = main.piece;
+  const list = [{ id: 'main', name: 'Main', preset: 'pad', main: true, sub: main, envelope: null,
+    sound: { tone: P.sound.tone, level: 0, pan: 0, width: P.sound.width, detune: P.sound.detune } }];
+  const others = P.parts || [];
+  // non-repeating lines and saved notes can run past the chords; repeating lines then fill the whole length
+  let budget = LINE_LIMITS.total; // notes all lines may make together
+  const take = sub => { if (sub && sub.notes) budget -= sub.notes; return sub; };
+  const subs = others.map(part => part.preset === 'line' && part.repeat ? null : take(buildPart(part, P, items, main.total, budget)));
+  let total = main.total; for (const s of subs) if (s) total = Math.max(total, s.total);
+  others.forEach((part, k) => { const sub = subs[k] || (part.preset === 'line' && part.repeat ? take(buildPart(part, P, items, total, budget)) : null); if (sub) list.push(Object.assign({}, part, { sub })); });
+  /* Three ends: the music's (`total`, where the parts that sound throughout begin their closing fade); each line's last release,
+     which rings on at its own level into the tail while they fade; and the end of the tail. A release only extends the music
+     by what wouldn't fit in the tail (with 0.2 s to spare), so the usual releases end within it and change nothing. */
+  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env) for (const gs of pt.sub.gates) if (gs && gs.length) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release);
+  const musicEnd = total; // where the held parts' closing fade begins, whatever the releases do
+  total = Math.max(total, ring - (TAIL - 0.2));
+  total = Math.min(total, REALIZATION_LIMITS.seconds);
+  const voices = [];
+  list.forEach((pt, k) => { pt.first = voices.length; for (let v = 0; v < pt.sub.N; v++) voices.push({ p: k, b: pt.sub, v }); });
+  let min = Infinity, max = -Infinity; for (const pt of list) { min = Math.min(min, pt.sub.min); max = Math.max(max, pt.sub.max); }
+  return { events: main.events, total, musicEnd, N: voices.length, min, max, warnings: main.warnings, piece: P, ease: main.ease, frozen: main.frozen, main, parts: list, voices,
+    cut: list.filter(pt => pt.sub.cut).map(pt => pt.name) };
+}
+/* ---- Gain over time ----
+   A voice's envelope as a polyline of { t, g } (g from 0 to 1): for each gate, attack to 1, decay to sustain, hold until
+   the gate closes, then release to 0. The next gate starts from wherever the last one had got to. */
+function polyAt(pts, t) {
+  if (t <= pts[0].t) return pts[0].g;
+  let lo = 0, hi = pts.length - 1;
+  if (t >= pts[hi].t) return pts[hi].g;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m].t <= t) lo = m; else hi = m; }
+  const a = pts[lo], b = pts[hi];
+  return b.t > a.t ? a.g + (b.g - a.g) * (t - a.t) / (b.t - a.t) : b.g;
+}
+function cutPoly(pts, T) { const out = pts.filter(p => p.t < T); if (out.length < pts.length) out.push({ t: T, g: polyAt(pts, T) }); return out; }
+function envelopePoints(gates, env) {
+  const { attack: A, decay: D, sustain: S, release: R } = env, pts = [{ t: 0, g: 0 }];
+  gates.forEach((gt, k) => {
+    const nextOn = k + 1 < gates.length ? gates[k + 1].on : Infinity;
+    let loc = cutPoly([{ t: gt.on, g: polyAt(pts, gt.on) }, { t: gt.on + A, g: 1 }, { t: gt.on + A + D, g: S }], Math.max(gt.on, gt.off));
+    if (gt.off > loc[loc.length - 1].t) loc.push({ t: gt.off, g: loc[loc.length - 1].g });
+    loc.push({ t: Math.max(gt.on, gt.off) + R, g: 0 });
+    pts.push(...cutPoly(loc, nextOn));
+  });
+  return pts;
+}
+function voiceEnvelope(sub, v) {
+  if (!sub.gates || !sub.gates[v]) return null; // always sounding
+  if (!sub.envCache) sub.envCache = [];
+  return sub.envCache[v] || (sub.envCache[v] = envelopePoints(sub.gates[v], sub.env || ENVELOPES.notes));
+}
+function gainAt(built, v, t) {
+  if (built.voices) { const r = built.voices[v]; return gainAt(r.b, r.v, t); }
+  const pts = voiceEnvelope(built, v); return pts ? polyAt(pts, t) : 1;
+}
+/* Moves for a gain AudioParam from `from` on (straight lines), or null for a voice that always sounds */
+function gainMoves(built, v, from = 0) {
+  if (built.voices) { const r = built.voices[v]; return gainMoves(r.b, r.v, from); }
+  const pts = voiceEnvelope(built, v); if (!pts) return null;
+  return [{ t: from, g: polyAt(pts, from) }, ...pts.filter(p => p.t > from)];
+}
+/* Vibrato depth (in cents) over time for a line part: it blooms after `delay` into each note long enough to hold it */
+function vibratoMoves(built, v, from = 0) {
+  if (built.voices) { const r = built.voices[v]; return vibratoMoves(r.b, r.v, from); }
+  const vb = built.vibrato; if (!vb || !built.gates || !built.gates[v]) return null;
+  const pts = [{ t: 0, g: 0 }];
+  for (const gt of built.gates[v]) { const s = gt.on + vb.delay; if (gt.off - s < 0.12) continue; pts.push({ t: s, g: 0 }, { t: Math.min(s + 0.25, gt.off), g: vb.cents }, { t: gt.off, g: vb.cents }, { t: gt.off + 0.05, g: 0 }); }
+  return { rate: vb.rate, moves: [{ t: from, g: polyAt(pts, from) }, ...pts.filter(p => p.t > from)] };
+}
+/* The volume shape at time t, in dB (0 with no shape) */
+function volumeAt(P, t) { const pts = P.volume; return pts && pts.length ? polyAt(pts.map(x => ({ t: x.t, g: x.db })), t) : 0; }
 
 const EASE = {
   smooth: x => x * x * (3 - 2 * x),
@@ -1403,6 +1712,7 @@ function eventIndex(built, t) {
   return lo;
 }
 function pitchAt(built, v, t, idx) {
+  if (built.voices) { const r = built.voices[v]; return pitchAt(r.b, r.v, t); } // a whole score: ask the voice's own part
   const ev = built.events;
   const i = idx ?? eventIndex(built, t);
   const e = ev[i];
@@ -1420,20 +1730,22 @@ function pitchAt(built, v, t, idx) {
    sampled `perSec` times a second, during the glide only ('curve'). Holds need no moves at all.
    Moves: { kind: 'set', t, p } | { kind: 'ramp', t, p } (ramp to p, arriving at t) | { kind: 'curve', t, d, ps } */
 function pitchMoves(built, v, from = 0, perSec = 240) {
+  if (built.voices) { const r = built.voices[v]; return pitchMoves(r.b, r.v, from, perSec); }
   const ev = built.events, ease = built.ease;
   const linear = [0.1, 0.3, 0.5, 0.7, 0.9].every(x => Math.abs(ease(x) - x) < 1e-12);
-  const moves = [{ kind: 'set', t: from, p: pitchAt(built, v, from) }];
+  const moves = [{ kind: 'set', t: from, p: pitchAt(built, v, from) }], end = Math.max(from, built.total);
   let lastP = moves[0].p, lastT = from; // where the previous move left the voice
   for (let i = 1; i < ev.length; i++) {
     const e = ev[i], next = i + 1 < ev.length ? ev[i + 1].t : Infinity;
     if (next <= from) continue;
+    if (e.t >= end) break; // nothing after the end is heard
     const a = ev[i - 1].targets[v], b = e.targets[v];
     // at the event itself the voice holds `a` (a previous glide cut short by this event jumps here, as pitchAt does)
     if (e.t > from && a !== lastP) { moves.push({ kind: 'set', t: e.t, p: a }); lastP = a; lastT = e.t; }
     if (a === b) continue;
     const s = e.t + (e.g > 0 ? e.off[v] : 0), d = e.g > 0 ? e.dur[v] : 0;
     if (d <= 0) { const t = Math.max(s, from); if (t > from || lastP !== b) { moves.push({ kind: 'set', t, p: b }); lastP = b; lastT = t; } continue; }
-    const t0 = Math.max(s, from), t1 = Math.min(s + d, next);
+    const t0 = Math.max(s, from), t1 = Math.min(s + d, next, end); // never past the end: a file can claim a glide far longer than the piece
     if (t1 <= t0) continue;
     const p0 = pitchAt(built, v, t0, i), p1 = t1 >= s + d ? b : pitchAt(built, v, t1, i);
     if (!(t0 === lastT && p0 === lastP)) moves.push({ kind: 'set', t: t0, p: p0 }); // a glide straight on from the last needs no anchor
@@ -1449,20 +1761,33 @@ function pitchMoves(built, v, from = 0, perSec = 240) {
 }
 /* Times when the first chord is established and when the last chord arrives (for auto zoom) */
 function landmarks(built) {
-  const ev = built.events;
-  const chordIdx = ev.map((e, i) => e.kind === 'chord' ? i : -1).filter(i => i >= 0);
-  if (!chordIdx.length) return { inStart: 0, inEnd: Math.min(2, built.total), outStart: built.total, outEnd: built.total };
-  const f = ev[chordIdx[0]];
-  // the last real arrival: skip trailing events that only shimmer (every voice moves, if at all, by less than a quarter of a
-  // semitone), as in pieces saved as dense snapshots. A repeated chord moves nothing at all and still counts.
-  const moved = i => i === 0 ? Infinity : Math.max(...ev[i].targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
-  let k = chordIdx.length - 1;
-  while (k > 0) { const m = moved(chordIdx[k]); if (m > 0 && m < 0.25) k--; else break; }
-  const l = ev[chordIdx[k]];
-  const inStart = f.g > 0 ? f.t : 0;
-  const inEnd = Math.min(built.total, (f.g > 0 ? f.t + f.g : 0) + 1.2);
-  const outStart = Math.max(inEnd, l.t + l.g);
-  return { inStart, inEnd, outStart, outEnd: built.total };
+  const ev = built.events, T = built.musicEnd !== undefined ? built.musicEnd : built.total;
+  /* Chords, not events: snapshots of the same chord less than 0.2 s apart are one chord, as in pieces saved as dense snapshots
+     of every voice. A chord settles when its last real movement (a quarter of a semitone or more) has ended. With one event
+     per chord, as the engine writes them, this gives exactly the same landmarks as before. */
+  const groups = [];
+  ev.forEach((e, i) => {
+    const mv = i === 0 ? Infinity : Math.max(...e.targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
+    const g = groups[groups.length - 1];
+    if (g && g.label === e.label && g.kind === e.kind && e.t - g.lastT < 0.2) { g.lastT = e.t; if (mv >= 0.25) g.settle = e.t + e.g; }
+    else groups.push({ label: e.label, kind: e.kind, t: e.t, g: e.g, lastT: e.t, moved: mv, settle: e.g > 0 ? e.t + e.g : 0 });
+  });
+  const chords = groups.filter(g => g.kind === 'chord');
+  if (!chords.length) return { inStart: 0, inEnd: Math.min(2, T), outStart: T, outEnd: T };
+  const f = chords[0];
+  // the last real arrival: skip trailing chords that only shimmer (every voice moves, if at all, by less than a quarter of a
+  // semitone). A repeated chord moves nothing at all and still counts.
+  let k = chords.length - 1;
+  while (k > 0 && chords[k].moved > 0 && chords[k].moved < 0.25) k--;
+  const l = chords[k];
+  let inStart = f.g > 0 ? f.t : 0, inEnd = Math.min(T, f.settle + 1.2);
+  // a long piece shows its whole shape for a few seconds first (4% of its length, up to 6 s)
+  const overview = T > 60 ? Math.min(6, T * 0.04) : 0;
+  if (inStart < overview) { inStart = overview; inEnd = Math.min(T, Math.max(inEnd, inStart + 2)); }
+  let outStart = Math.max(inEnd, Math.max(l.t + l.g, l.settle)), outEnd = T;
+  // the zoom out takes at least 3 s: when the music moves to the very end, it runs on into the closing fade
+  if (outEnd - outStart < 3) { outEnd = T + FADE * 0.9; outStart = Math.max(inEnd, Math.min(outStart, outEnd - 3)); }
+  return { inStart, inEnd, outStart, outEnd };
 }
 
 /* Harmony seed: a diatonic progression with extended chords, opening and closing on one high note */
@@ -1624,12 +1949,14 @@ const clampMidi = m => Math.max(0, Math.min(127, Math.round(m)));
 
 /* MIDI with glides holds 15 voices (one MPE member channel each). A larger piece goes into several files of up to 15 voices:
    returns [{ voices: [first, last] (1-based), data }], one entry when it all fits. */
+/* Every voice as { b: its part's timeline, v: its number there }, across all parts of a score */
+const voiceRefs = built => built.voices || Array.from({ length: built.N }, (_, v) => ({ b: built, v }));
 function midiGlideFiles(built, opts = {}) {
   if (built.N <= 15) return [{ voices: [1, built.N], data: midiWithGlides(built, opts) }];
-  const out = [];
+  const out = [], refs = voiceRefs(built);
   for (let a = 0; a < built.N; a += 15) {
-    const b = Math.min(built.N, a + 15), cut = arr => arr.slice(a, b);
-    const part = Object.assign({}, built, { N: b - a, events: built.events.map(e => Object.assign({}, e, { targets: cut(e.targets), off: cut(e.off), dur: cut(e.dur) })) });
+    const b = Math.min(built.N, a + 15);
+    const part = Object.assign({}, built, { N: b - a, voices: refs.slice(a, b) });
     out.push({ voices: [a + 1, b], data: midiWithGlides(part, Object.assign({}, opts, { title: (opts.title || 'Piece') + ' (voices ' + (a + 1) + '–' + b + ')' })) });
   }
   return out;
@@ -1640,7 +1967,7 @@ function midiGlideFiles(built, opts = {}) {
    last value sent; it carries the pitch at the middle of the tick, so inside any tick the error is at most half a tick's movement. */
 function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.02 } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
-  const N = Math.min(built.N, 15);
+  const refs = voiceRefs(built), N = Math.min(refs.length, 15);
   const mpe = [ // MPE configuration on the master channel (1): 15 member channels
     { tick: 0, ord: 3, data: [0xB0, 101, 0] }, { tick: 0, ord: 4, data: [0xB0, 100, 6] }, { tick: 0, ord: 5, data: [0xB0, 6, 15] },
     { tick: 0, ord: 6, data: [0xB0, 101, 127] }, { tick: 0, ord: 7, data: [0xB0, 100, 127] }
@@ -1649,17 +1976,23 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
   const bendVal = s => Math.max(0, Math.min(16383, Math.round(8192 + (s / bendRange) * 8191)));
   for (let v = 0; v < N; v++) {
     const ch = v + 1, ev = []; let ord = 0;
-    const add = (t, data) => ev.push({ tick: tick(t), ord: ord++, data });
+    const sb = refs[v].b, lv = refs[v].v, evs = sb.events, gates = sb.gates && sb.gates[lv]; // this voice's own part
+    const add = (t, data) => ev.push({ tick: tick(Math.max(0, Math.min(t, built.total))), ord: ord++, data }); // nothing after the end
     add(0, [0xB0 | ch, 101, 0]); add(0, [0xB0 | ch, 100, 0]); add(0, [0xB0 | ch, 6, bendRange]); add(0, [0xB0 | ch, 38, 0]);
     add(0, [0xB0 | ch, 101, 127]); add(0, [0xB0 | ch, 100, 127]);
     add(0, metaText(0x03, 'Voice ' + (v + 1)));
-    let note = clampMidi(built.events[0].targets[v]), lastBend = 8192;
+    let note = clampMidi(evs[0].targets[lv]), lastBend = 8192;
     const bend = (t, semis) => { const b = bendVal(semis); if (b !== lastBend) { add(t, [0xE0 | ch, b & 0x7F, (b >> 7) & 0x7F]); lastBend = b; } };
-    add(0, [0xE0 | ch, 0, 64]); add(0, [0x90 | ch, note, 88]);
-    for (let i = 1; i < built.events.length; i++) {
-      const e = built.events[i], a = built.events[i - 1].targets[v], b = e.targets[v];
-      if (a === b) continue;
-      const t0 = e.t + (e.off ? e.off[v] : 0), d = e.dur ? e.dur[v] : e.g;
+    // one change of pitch (event i), written up to `stop` (the end of a note, for a voice that rests)
+    const change = (i, stop = Infinity) => {
+      const e = evs[i], a = evs[i - 1].targets[lv], b = e.targets[lv];
+      if (a === b) return;
+      // a glide is written only until the next change, the note's end or the part's end, whichever comes first: a file can claim
+      // a glide far longer than the piece, and walking it tick by tick would never finish
+      const next = i + 1 < evs.length ? evs[i + 1].t : Infinity, limit = Math.min(stop, next, sb.total, built.total);
+      const t0 = e.t + (e.off ? e.off[lv] : 0);
+      if (t0 >= limit) return;
+      const d = Math.min(e.dur ? e.dur[lv] : e.g, Math.max(0, limit - t0));
       const reach = (t, p) => { // past the bend range mid-glide: hand over to a new note near where the pitch is now
         if (Math.abs(p - note) <= bendRange) return;
         add(t, [0x80 | ch, note, 0]);
@@ -1668,16 +2001,27 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
         bend(t, Math.max(-bendRange, Math.min(bendRange, p - note)));
         add(t, [0x90 | ch, note, 88]);
       };
-      if (d <= 0) { reach(t0, b); bend(t0, b - note); continue; }
-      const spt = 60 / (tempo * PPQ), at = t => pitchAt(built, v, Math.min(Math.max(t, t0), e.t + e.g), i);
+      const full = e.dur ? e.dur[lv] : e.g;
+      if (full <= 0) { reach(t0, b); bend(t0, b - note); return; }
+      const spt = 60 / (tempo * PPQ), at = t => pitchAt(sb, lv, Math.min(Math.max(t, t0), e.t + e.g), i);
       let sent = a;
       for (let k = Math.ceil(t0 / spt - 1e-9), kEnd = Math.round((t0 + d) / spt); k < kEnd; k++) {
         const t = k * spt;
         if (Math.abs(at(t + spt) - sent) > tolerance) { const p = at(t + spt / 2); reach(t, p); bend(t, p - note); sent = p; }
       }
-      bend(t0 + d, b - note);
+      if (d >= full) bend(t0 + d, b - note);
+      else if (limit === next) { reach(next, b); bend(next, b - note); } // cut short by the next change, which starts from the target
+    };
+    if (!gates) { // always sounding: one note from start to end, bent along every glide
+      add(0, [0xE0 | ch, 0, 64]); add(0, [0x90 | ch, note, 88]);
+      for (let i = 1; i < evs.length; i++) change(i);
+      add(built.total, [0x80 | ch, note, 0]);
+    } else for (const gt of gates) { // a voice that rests: a note-off when it stops, and a fresh note-on when it sounds again
+      const p0 = pitchAt(sb, lv, gt.on); note = clampMidi(p0); lastBend = -1;
+      bend(gt.on, p0 - note); add(gt.on, [0x90 | ch, note, 88]);
+      for (let i = 1; i < evs.length; i++) if (evs[i].t >= gt.on - 1e-9 && evs[i].t < gt.off) change(i, gt.off);
+      add(gt.off, [0x80 | ch, note, 0]);
     }
-    add(built.total, [0x80 | ch, note, 0]);
     tracks.push(trackChunk(ev));
   }
   return smf(tracks);
@@ -1685,6 +2029,7 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
 
 /* Settled chords only: one channel, notes start at each change */
 function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
+  if (built.main) built = built.main; // the chords are the main part's
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const ev = []; let ord = 0;
   built.events.forEach((e, i) => {
@@ -1700,6 +2045,7 @@ function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
 /* ---- MusicXML: the settled chords on a grand staff (glides are not notated) ---- */
 const xmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function musicXml(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
+  if (built.main) built = built.main; // the harmonic score is the main part's
   const evs = built.events;
   const flatCount = evs.filter(e => /^[A-G]b/.test(e.label)).length, sharpCount = evs.filter(e => /^[A-G]#/.test(e.label)).length;
   const pieceFlats = flatCount > sharpCount;
@@ -2004,7 +2350,7 @@ function webmMux({ video, audio, meta = null }) {
 }
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.0.5';
+const APP_VERSION = '4.1';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -2014,7 +2360,20 @@ const EXAMPLES = [
     timing: { chordSec: 6, glide: 2.6, easing: 'smoother', tempo: 60 }, voicing: { variation: 35, spread: 30, stacking: 40 }, motion: { order: 'high-low', stagger: 55 }, sound: { tone: 'warm', reverb: 50 } },
   { name: 'Glasshouse', voices: 14, seeds: { harmony: 0x77E01234, voicing: 0x0BADF00D, motion: 0x1EAF5A2B, sound: 0x5C3E9D11 },
     chords: '=F#6:0.6\nBmaj9\nG#m11\nEmaj9\nGmaj7#11\nC#m9\nF#13sus4\nD#m7\nGmaj9\nF#9sus4\nBmaj9:3\n=D#6',
-    timing: { chordSec: 4, glide: 1.3, easing: 'smooth', tempo: 60 }, voicing: { variation: 20, spread: 85, coverage: 65 }, motion: { order: 'low-high', stagger: 70 }, sound: { tone: 'glass', detune: 6, brightness: 6000 } }
+    timing: { chordSec: 4, glide: 1.3, easing: 'smooth', tempo: 60 }, voicing: { variation: 20, spread: 85, coverage: 65 }, motion: { order: 'low-high', stagger: 70 }, sound: { tone: 'glass', detune: 6, brightness: 6000 } },
+  // Parts: the main part is the pad; a bass line and a melody (with rests and vibrato) are written out, one bar per chord at 120 BPM
+  { name: 'Three Parts', voices: 6, seeds: { harmony: 0x3A1E5C07, voicing: 0x6D2B8F14, motion: 0x19C4E7A2, sound: 0x4F08B3D6 },
+    chords: 'C\nG/B\nAm\nEm/G\nF\nC/E\nDm7\nG7sus4\nG7\nC:4',
+    timing: { chordSec: 2, glide: 0.5, easing: 'smooth', tempo: 120 }, voicing: { variation: 15, spread: 60, top: 79, bassMode: 'none' }, motion: { order: 'together', stagger: 0 },
+    sound: { tone: 'warm', detune: 5, width: 80, reverb: 34, brightness: 5200 },
+    parts: [
+      { name: 'Bass', preset: 'line', step: '1/4', sound: { tone: 'saw', level: -5, pan: 0, width: 0, detune: 3 },
+        envelope: { attack: 0.005, decay: 0.25, sustain: 0.55, release: 0.08 },
+        line: 'C2 C3 C2 C3 | B1 B2 B1 B2 | A1 A2 A1 A2 | G1 G2 G1 G2 | F1 F2 F1 F2 | E1 E2 E1 E2 | D2 D3 D2 D3 | G1 G2 G1 G2 | G1 G2 G1 G2 | C2:4 -:4' },
+      { name: 'Melody', preset: 'line', step: '1/8', transpose: [0, -12], portamento: 0.04, sound: { tone: 'triangle', level: -1, pan: 0.15, width: 30, detune: 4 },
+        envelope: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.2 }, vibrato: { cents: 18, rate: 5.5, delay: 0.35 },
+        line: 'E5:2 G5:2 C6:3 B5:1 | D6:2 B5:2 G5:4 | C6:2 A5:2 E5:2 A5:2 | B5:3 A5:1 G5:4 | A5:2 C6:2 F6:3 E6:1 | E6:2 C6:2 G5:4 | F5:2 A5:2 D6:2 C6:2 | C6:3 B5:1 -:2 G5:2 | D6:2 B5:2 F5:2 D5:2 | E5:8 -:8' }
+    ] }
 ];
 const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
 
@@ -2032,6 +2391,32 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return 
 /* Some browsers refuse or forget storage for pages opened straight from disk: test it for real before promising a library */
 const STORAGE_OK = (() => { try { const k = 'cge.probe.' + Math.random().toString(36).slice(2); localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; } catch (e) { return false; } })();
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+/* Pieces (the library and the working draft) are kept in IndexedDB, where browsers allow hundreds of megabytes; localStorage
+   (about 5 MB for the whole site) keeps only small preferences, and holds pieces only where IndexedDB isn't available.
+   A piece of saved notes can be several megabytes, so the old way, the whole library as one localStorage string, filled up fast. */
+const IDB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    let r; try { r = indexedDB.open('chord-glide', 1); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains('pieces')) db.createObjectStore('pieces', { keyPath: 'id' }); if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked'));
+  }));
+  // one request in its own transaction; resolves when the transaction is done, so a write has really been kept
+  const run = (store, mode, fn) => open().then(db => new Promise((res, rej) => {
+    const t = db.transaction(store, mode), req = fn(t.objectStore(store)); let out;
+    req.onsuccess = () => { out = req.result; };
+    t.oncomplete = () => res(out);
+    const fail = () => { const e = t.error || req.error; rej(Object.assign(new Error('storage'), { code: e && e.name === 'QuotaExceededError' ? 'quota_exceeded' : 'storage_unavailable' })); };
+    t.onerror = fail; t.onabort = fail;
+  }));
+  const api = {
+    all: () => run('pieces', 'readonly', st => st.getAll()), put: item => run('pieces', 'readwrite', st => st.put(item)), remove: id => run('pieces', 'readwrite', st => st.delete(id)),
+    get: k => run('kv', 'readonly', st => st.get(k)), set: (k, v) => run('kv', 'readwrite', st => st.put(v, k))
+  };
+  // usable only if a write and a read-back both work (some browsers refuse storage for pages opened from a file)
+  api.ready = (async () => { try { if (typeof indexedDB === 'undefined') return false; const k = 'probe'; await api.set(k, 1); return (await api.get(k)) === 1; } catch (e) { return false; } })();
+  return api;
+})();
 
 /* The optional artist name for exports (Settings): this browser only, never part of a piece */
 /* The video option only makes sense once there's a name: otherwise it's dimmed and says where to add one */
@@ -2047,6 +2432,7 @@ function examplePiece(ex) {
   const dl = defaultLook(); if (dl) p.view.trace = dl;
   p.name = ex.name; p.voices = ex.voices; p.chords = ex.chords; p.seeds = Object.assign({}, ex.seeds);
   Object.assign(p.timing, ex.timing); Object.assign(p.voicing, ex.voicing); Object.assign(p.motion, ex.motion); Object.assign(p.sound, ex.sound);
+  if (ex.parts) p.parts = JSON.parse(JSON.stringify(ex.parts)); if (ex.volume) p.volume = JSON.parse(JSON.stringify(ex.volume));
   p.created = new Date().toISOString();
   return normalizePiece(p);
 }
@@ -2056,8 +2442,7 @@ let piece = null, built = null, marks = null;
 let currentLibId = null, savedJSON = null;
 let undoStack = [], redoStack = [], committed = null;
 let offset = 0, playing = false, startAt = 0;
-const TAIL = 3.0; // seconds after the last change: the fade and reverb tail, same as the audio render. The clock counts it.
-const FADE = 2.8; // the closing fade inside the tail (the audio's master fade); the picture fades with it
+// TAIL (the fade and reverb after the last change, which the clock counts) and FADE (the closing fade inside it) are in engine.js
 let actx = null, live = null;
 let recording = null;
 const screenCam = { slo: 50, shi: 80, snap: true };
@@ -2079,8 +2464,10 @@ const SELECTS = [['top', 'voicing.top', Number], ['bassoct', 'voicing.bassOctave
 function syncUI() {
   $('name').value = piece.name;
   if (document.activeElement !== $('chords')) $('chords').value = piece.chords;
-  for (const [id, path, fmt] of SLIDERS) { $(id).value = getPath(piece, path); $('o-' + id).textContent = fmt(getPath(piece, path)); }
-  for (const [id, path] of SELECTS) $(id).value = String(getPath(piece, path));
+  if (typeof applyPartView === 'function') applyPartView(); // which part the tabs edit
+  const pn = typeof selNorm === 'function' ? selNorm() : null, src = id => pn && PART_CTRL[id] && applies(id, pn) ? pn : piece;
+  for (const [id, path, fmt] of SLIDERS) { const v = getPath(src(id), path); $(id).value = v; $('o-' + id).textContent = fmt(v); }
+  for (const [id, path] of SELECTS) $(id).value = String(getPath(src(id), path));
   for (const L of LAYERS) {
     if (document.activeElement !== $('seed-' + L)) $('seed-' + L).value = fmtSeed(piece.seeds[L]);
     const lk = piece.locks[L]; $('lock-' + L).setAttribute('aria-pressed', String(lk)); $('lock-' + L).textContent = lk ? 'Locked' : 'Unlocked';
@@ -2093,23 +2480,26 @@ function syncUI() {
   $('v-' + piece.view.mode).checked = true; $('l-' + piece.view.labels).checked = true;
   showVolume();
   updateStatus(); updateUndo(); if (typeof syncLook === 'function') syncLook();
+  if (typeof syncVolumeShape === 'function') syncVolumeShape();
 }
 
 /* ---------- Build ---------- */
 function rebuild(keepTime = true, restartAudio = true) {
   const { items, errors } = parseProgression(piece.chords);
   const msgs = [];
-  if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6.');
+  if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6' + (errors.some(x => /^(=|->|→)|\[/.test(x)) ? '; notes go from C-1 to G9 (MIDI 0–127), cents included.' : '.'));
   if (!items.length) { // nothing valid to play: drop the old build so nothing plays or exports a piece that isn't on screen
     msgs.push('Add at least one chord to hear something.'); showErr(msgs);
     if (playing) { stopAudio(0.05); playing = false; setPlayIcon(); }
     built = null; marks = null; offset = 0; $('revoice').hidden = true; updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate(); return;
   }
   const t = currentT();
-  built = isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece);
+  built = buildScore(isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece), items); // the main part, then any others
   marks = landmarks(built);
-  $('revoice').hidden = !isFrozen();
+  $('revoice').hidden = !isFrozen() && !frozenPads().length;
   if (isFrozen()) msgs.unshift((piece.realization.engine === 'custom' ? 'Playing the notes written into this piece, exactly as they are.' : 'Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were.') + ' Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
+  if (!isFrozen() && frozenPads().length) msgs.unshift('Pad parts ' + frozenPads().map(x => x.name).join(', ') + ' play the notes saved by engine ' + frozenPads()[0].realization.engine + ', exactly as they were.');
+  if (built.cut && built.cut.length) msgs.push('Stopped ' + built.cut.join(', ') + ' at ' + LINE_LIMITS.notes.toLocaleString('en-US') + ' notes (' + LINE_LIMITS.total.toLocaleString('en-US') + ' for all lines together), the most a piece can have.');
   if (built.warnings.length) msgs.push('The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.');
   showErr(msgs);
   offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
@@ -2129,8 +2519,22 @@ function updateAvailability() {
 // saved notes play exactly as written when they come from another engine, or are marked "custom" (written by hand or by another program)
 const isFrozen = () => !!(piece && piece.realization && piece.realization.engine !== ENGINE_VERSION && validRealization(piece.realization));
 /* Normalize, and drop a saved realization from this same engine: the settings reproduce it exactly */
-function prepPiece(p) { const q = normalizePiece(p); if (q.realization && q.realization.engine === ENGINE_VERSION) delete q.realization; return q; }
-function unfreeze() { if (piece.realization) { delete piece.realization; setStatus('Re-voiced with engine ' + ENGINE_VERSION); } }
+/* Normalize, and drop saved notes from this same engine (the main part's and pad parts'): the settings reproduce them exactly */
+function prepPiece(p) {
+  const q = normalizePiece(p);
+  if (q.realization && q.realization.engine === ENGINE_VERSION) delete q.realization;
+  for (const pt of q.parts || []) if (pt.realization && pt.preset === 'pad' && pt.realization.engine === ENGINE_VERSION) delete pt.realization;
+  return q;
+}
+// pad parts playing notes saved by another engine
+const frozenPads = () => (piece && piece.parts || []).filter(pt => pt.preset === 'pad' && pt.realization && pt.realization.engine !== ENGINE_VERSION && validRealization(pt.realization));
+/* Back to this engine: the main part, and the pad parts, which follow the same chords and inherit its voicing settings */
+function unfreeze() {
+  let any = false;
+  if (piece.realization) { delete piece.realization; any = true; }
+  for (const pt of piece.parts || []) if (pt.realization && pt.preset === 'pad') { delete pt.realization; any = true; }
+  if (any) setStatus('Re-voiced with engine ' + ENGINE_VERSION);
+}
 function showErr(msgs) { $('err').hidden = !msgs.length; $('err').textContent = msgs.join(' '); }
 let rebuildTimer = null;
 const rebuildSoon = () => { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(() => rebuild(true), 180); };
@@ -2139,7 +2543,10 @@ const rebuildSoon = () => { clearTimeout(rebuildTimer); rebuildTimer = setTimeou
 function commit() {
   const s = JSON.stringify(piece);
   if (s === committed) return;
-  if (committed !== null) { undoStack.push(committed); if (undoStack.length > 100) undoStack.shift(); }
+  if (committed !== null) { // up to 100 steps, and no more than about 40 million characters (big pieces of saved notes are megabytes each)
+    undoStack.push(committed); let size = undoStack.reduce((a, x) => a + x.length, 0);
+    while (undoStack.length > 100 || (undoStack.length > 3 && size > 4e7)) size -= undoStack.shift().length;
+  }
   committed = s; redoStack = [];
   updateUndo(); updateStatus(); saveDraftSoon();
 }
@@ -2153,7 +2560,20 @@ function undo() { if (!undoStack.length) return; redoStack.push(committed); cons
 function redo() { if (!redoStack.length) return; undoStack.push(committed); const s = redoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
 function updateUndo() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
 let draftTimer = null;
-const saveDraftNow = () => { clearTimeout(draftTimer); if (piece) lsSet('cge.draft', JSON.stringify({ piece, libId: currentLibId, savedJSON })); };
+let draftInDb = false; // known once storage has been checked at start
+const saveDraftNow = () => {
+  clearTimeout(draftTimer); if (!piece) return;
+  const d = { piece, libId: currentLibId, savedJSON };
+  if (draftInDb) IDB.set('draft', JSON.parse(JSON.stringify(d))).catch(() => lsSet('cge.draft', JSON.stringify(d)));
+  else lsSet('cge.draft', JSON.stringify(d));
+};
+async function loadDraft() {
+  let d = null;
+  if (await IDB.ready) { draftInDb = true; try { d = await IDB.get('draft'); } catch (e) { d = null; } }
+  if (!d) { try { d = JSON.parse(lsGet('cge.draft') || 'null'); } catch (e) { d = null; } }
+  if (draftInDb) try { localStorage.removeItem('cge.draft'); } catch (e) {} // from older versions; it now lives in the database
+  return d;
+}
 function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraftNow, 600); }
 window.addEventListener('pagehide', saveDraftNow);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDraftNow(); });
@@ -2200,17 +2620,41 @@ async function initLibrary() {
         if (live) clearTimeout(timer);
         lib.items = items;
         renderLibrary();
-      }, err => { clearTimeout(timer); lib.mode = 'local'; loadLocal(); renderLibrary(); setStatus('Library storage stopped responding; saving to this browser instead.', true); });
-    } catch (e) { lib.mode = 'local'; loadLocal(); }
-  } else { lib.mode = 'local'; loadLocal(); }
+      }, async err => { clearTimeout(timer); lib.mode = 'local'; await loadLocal(); renderLibrary(); setStatus('Library storage stopped responding; saving to this browser instead.', true); });
+    } catch (e) { lib.mode = 'local'; await loadLocal(); }
+  } else { lib.mode = 'local'; await loadLocal(); }
   renderLibrary();
 }
-function loadLocal() { if (!STORAGE_OK) { lib.mode = 'none'; lib.items = []; return; } try { lib.items = JSON.parse(lsGet('cge.library') || '[]'); } catch (e) { lib.items = []; } }
-/* Write the library and read it back; throw if the browser didn't keep it */
-function storeLocal() {
-  const s = JSON.stringify(lib.items);
+let libInDb = false;
+async function loadLocal() {
+  let old = []; try { old = STORAGE_OK ? JSON.parse(lsGet('cge.library') || '[]') : []; } catch (e) { old = []; }
+  if (await IDB.ready) {
+    libInDb = true;
+    try {
+      let items = await IDB.all();
+      // a library kept by an older version in localStorage moves into the database, then is removed from localStorage
+      if (old.length) { const have = new Set(items.map(x => x.id)); for (const it of old) if (it && it.id && !have.has(it.id)) await IDB.put(it); items = await IDB.all(); try { localStorage.removeItem('cge.library'); } catch (e) {} }
+      lib.items = items; return;
+    } catch (e) { libInDb = false; }
+  }
+  if (!STORAGE_OK) { lib.mode = 'none'; lib.items = []; return; }
+  lib.items = old;
+}
+/* Write the whole library to localStorage (the fallback) and read it back; throw if the browser didn't keep it */
+function storeLocal(items) {
+  const s = JSON.stringify(items);
   try { localStorage.setItem('cge.library', s); } catch (e) { throw Object.assign(new Error('storage'), { code: e && e.name === 'QuotaExceededError' ? 'quota_exceeded' : 'storage_unavailable' }); }
   if (localStorage.getItem('cge.library') !== s) throw Object.assign(new Error('storage'), { code: 'storage_unavailable' });
+}
+/* Keep one piece, or remove one; the in-memory library changes only once storage has kept the change */
+async function putLocal(item) {
+  if (libInDb) await IDB.put(item);
+  else storeLocal(lib.items.some(x => x.id === item.id) ? lib.items.map(x => x.id === item.id ? item : x) : [...lib.items, item]);
+  lib.items = lib.items.some(x => x.id === item.id) ? lib.items.map(x => x.id === item.id ? item : x) : [...lib.items, item];
+}
+async function removeLocal(id) {
+  if (libInDb) await IDB.remove(id); else storeLocal(lib.items.filter(x => x.id !== id));
+  lib.items = lib.items.filter(x => x.id !== id);
 }
 function renderLibrary() {
   $('lib-note').textContent = lib.mode === 'host' ? (HOST.libraryNote || 'Saved by the page that hosts Chord Glide.')
@@ -2257,7 +2701,7 @@ async function deleteFromLibrary(it) {
   confirmDelete = null;
   try {
     if (lib.mode === 'host') await lib.store.remove(it.id);
-    else { lib.items = lib.items.filter(x => x.id !== it.id); storeLocal(); }
+    else await removeLocal(it.id);
     if (currentLibId === it.id) { currentLibId = null; savedJSON = null; }
     setStatus('Deleted “' + (it.name || 'Untitled piece') + '”'); renderLibrary();
   } catch (e) { setStatus('Couldn\'t delete that piece (' + (e && e.code || 'error') + ').', true); }
@@ -2271,10 +2715,10 @@ async function savePiece(asNew) {
   const body = { name: p.name, modified: p.modified, piece: p };
   try {
     if (lib.mode === 'host') currentLibId = await lib.store.put(!asNew && currentLibId ? currentLibId : null, body);
-    else {
-      if (asNew || !currentLibId || !lib.items.some(x => x.id === currentLibId)) { currentLibId = 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); lib.items.push(Object.assign({ id: currentLibId }, body)); }
-      else lib.items = lib.items.map(x => x.id === currentLibId ? Object.assign({ id: x.id }, body) : x);
-      storeLocal();
+    else { // nothing changes (not the library, not which piece this is) unless storage keeps it
+      const id = asNew || !currentLibId || !lib.items.some(x => x.id === currentLibId) ? 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36) : currentLibId;
+      await putLocal(Object.assign({ id }, body));
+      currentLibId = id;
     }
     savedJSON = JSON.stringify(piece);
     committed = savedJSON;
@@ -2315,22 +2759,32 @@ function periodicWave(ctx, tone) { const tw = toneWave(tone); return ctx.createP
    The voices dip for a few milliseconds around the swap so the change in waveform doesn't click. */
 function swapToneLive(tone) {
   if (!live || !actx || live.tone === tone) return;
-  const L = live, now = actx.currentTime, wave = periodicWave(actx, tone), level = voiceLevel(L.oscs.length, tone);
+  const L = live, now = actx.currentTime, wave = periodicWave(actx, tone), level = voiceLevel(L.levelN, tone) * (L.headroom || 1);
   L.tone = tone;
-  L.gains.forEach(g => { g.gain.cancelScheduledValues(now); g.gain.setTargetAtTime(0, now, 0.004); });
+  const oscs = L.oscs.slice(0, L.mainN), gains = L.gains.slice(0, L.mainN); // the Sound tab is the main part's; other parts keep their own tones
+  gains.forEach(g => { g.gain.cancelScheduledValues(now); g.gain.setTargetAtTime(0, now, 0.004); });
   setTimeout(() => {
     if (live !== L) return; // stopped or restarted meanwhile: the new graph already has the new tone
     const t = actx.currentTime;
-    L.oscs.forEach(o => { try { o.setPeriodicWave(wave); } catch (e) {} });
-    L.gains.forEach(g => { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(level, t, 0.006); });
+    oscs.forEach(o => { try { o.setPeriodicWave(wave); } catch (e) {} });
+    gains.forEach(g => { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(level, t, 0.006); });
   }, 20);
+}
+// the soft clip's curve, for a signal halved on the way in (the curve's −1…1 is −2…2): straight up to −3 dBFS, then a tanh
+// shoulder that approaches full scale but never reaches it
+let clipCurve = null;
+function softClipCurve() {
+  if (clipCurve) return clipCurve;
+  const n = 8193, k = Math.pow(10, -3 / 20), c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 4 - 2, a = Math.abs(x); c[i] = Math.sign(x) * (a <= k ? a : k + (1 - k) * Math.tanh((a - k) / (1 - k))); }
+  return (clipCurve = c);
 }
 function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const P = b.piece, S = P.sound, N = b.N, T = b.total;
   const span = Math.max(0.05, T - from);
   const master = ctx.createGain();
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
-  const bus = ctx.createGain();
+  const bus = ctx.createGain(), held = ctx.createGain(); held.connect(bus); // held: voices that sound throughout, which the closing fade ends
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
   const wetAmt = S.reverb / 100;
   const dry = ctx.createGain(); dry.gain.value = 1 - wetAmt * 0.35;
@@ -2339,34 +2793,83 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   bus.connect(lp); lp.connect(dry); lp.connect(conv); conv.connect(wet);
   dry.connect(comp); wet.connect(comp); comp.connect(master);
   for (const o of outs) master.connect(o);
-  const wave = periodicWave(ctx, S.tone);
-  const r = mulberry32((P.seeds.sound ^ 0xA5A5A5A5) >>> 0);
-  const oscs = [], gains = [], moves = [];
+  /* Every part's voices. The main part's come first and draw their detune and pan from the same random sequence as before,
+     so a piece without other parts sounds exactly as it did; each other part has its own sequence (from its id), its own
+     tone, level (dB), pan and width, and, if its voices rest, an envelope on each voice and an optional vibrato. Each part is
+     balanced by its own voice count, so a part at 0 dB is about as loud as the main part. */
+  const waves = new Map(), waveOf = tone => { if (!waves.has(tone)) waves.set(tone, periodicWave(ctx, tone)); return waves.get(tone); };
+  const parts = b.parts, levelN = parts[0].sub.N; // the main part's level, exactly as before
+  const oscs = [], gains = [], moves = [], envs = [], vibs = [], lfos = [];
   const hasBass = P.voicing.bassMode !== 'none';
-  for (let v = 0; v < N; v++) {
-    const dz = r() * 2 - 1, pz = r() * 2 - 1;
-    const osc = ctx.createOscillator(); osc.setPeriodicWave(wave);
-    osc.detune.value = dz * S.detune;
-    const mv = pitchMoves(b, v, from); // the glides themselves, so accuracy never depends on the piece's length
-    osc.frequency.value = hz(mv[0].p); // set before the clock is read below, so it can never land inside a glide
-    const g = ctx.createGain(); g.gain.value = voiceLevel(N, S.tone);
-    osc.connect(g);
-    if (ctx.createStereoPanner) { const pan = ctx.createStereoPanner(); pan.pan.value = (hasBass && v === 0) ? 0 : pz * (S.width / 100); g.connect(pan); pan.connect(bus); }
-    else g.connect(bus);
-    oscs.push(osc); gains.push(g); moves.push(mv);
+  /* With other parts, the mix is given headroom: every voice is scaled by one over the sum of the parts' levels (as amplitudes;
+     the main part counts as 1), so the parts' peaks can line up without clipping, and a part at −60 dB changes nothing. Measured:
+     Three Parts plays about as loud as a one-part piece, with its peaks as rarely near full scale. Then a
+     soft clip catches what's left: untouched below −3 dBFS, rounded off above it, never past full scale. (The browser's own
+     compressor isn't used as a limiter: it adds make-up gain, and reacts too slowly to catch every peak.) A piece with only
+     its main part has neither, so it plays exactly as before. */
+  const multi = parts.length > 1;
+  const headroom = multi ? 1 / parts.reduce((a, pt) => a + Math.pow(10, (pt.main ? 0 : pt.sound.level) / 20), 0) : 1;
+  for (const pt of parts) {
+    const snd = pt.main ? S : pt.sound;
+    const r = mulberry32(pt.main ? (P.seeds.sound ^ 0xA5A5A5A5) >>> 0 : partSeed(P.seeds.sound, pt.id, 'voices'));
+    // each part balanced by its own voice count, then its level: adding a part (or doubling a line) leaves the others as they are
+    const lvl = voiceLevel(pt.sub.N, snd.tone) * (pt.main ? 1 : Math.pow(10, snd.level / 20)) * headroom;
+    let lfo = null;
+    if (pt.sub.vibrato) { lfo = ctx.createOscillator(); lfo.frequency.value = pt.sub.vibrato.rate; lfos.push(lfo); }
+    for (let lv = 0; lv < pt.sub.N; lv++) {
+      const v = pt.first + lv, dz = r() * 2 - 1, pz = r() * 2 - 1;
+      const osc = ctx.createOscillator(); osc.setPeriodicWave(waveOf(snd.tone));
+      osc.detune.value = dz * snd.detune;
+      const mv = pitchMoves(b, v, from); // the glides themselves, so accuracy never depends on the piece's length
+      osc.frequency.value = hz(mv[0].p); // set before the clock is read below, so it can never land inside a glide
+      const g = ctx.createGain(); g.gain.value = lvl;
+      const em = gainMoves(b, v, from); // a voice that rests: its envelope
+      let env = null;
+      if (em) { env = ctx.createGain(); env.gain.value = em[0].g; osc.connect(env); env.connect(g); } else osc.connect(g);
+      const vm = lfo ? vibratoMoves(b, v, from) : null;
+      let depth = null;
+      if (vm) { depth = ctx.createGain(); depth.gain.value = vm.moves[0].g; lfo.connect(depth); depth.connect(osc.detune); }
+      const pan = pt.main ? ((hasBass && lv === 0) ? 0 : pz * (S.width / 100)) : Math.max(-1, Math.min(1, snd.pan + pz * (snd.width / 100) * (1 - Math.abs(snd.pan))));
+      const to = em ? bus : held; // a voice that sounds throughout fades with the piece; one with notes ends by its own envelope
+      if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(to); }
+      else g.connect(to);
+      oscs.push(osc); gains.push(g); moves.push(mv); envs.push(env ? { p: env.gain, m: em } : null); vibs.push(depth ? { p: depth.gain, m: vm.moves } : null);
+    }
+  }
+  // the volume shape over the piece, if it has one (straight lines in dB)
+  let shape = null;
+  if (P.volume && P.volume.length) { shape = ctx.createGain(); master.disconnect(); master.connect(shape); for (const o of outs) shape.connect(o); }
+  if (multi) { // the soft clip: last, after the volume shape
+    // the shaper's curve spans inputs from −1 to 1, so the signal is halved going in: the curve covers −2 to 2 (up to +6 dBFS).
+    // No oversampling: its smoothing filter can itself overshoot full scale.
+    const half = ctx.createGain(); half.gain.value = 0.5;
+    const clip = ctx.createWaveShaper(); clip.curve = softClipCurve(); clip.oversample = 'none';
+    const last = shape || master; last.disconnect(); last.connect(half); half.connect(clip); for (const o of outs) clip.connect(o);
   }
   /* Read the clock only now, after the slow work above (reverb, pitch curves), and schedule everything against it.
      If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
      past; Chrome then plays it late, or holds the voice at the start pitch set above, so the sound drifts from the picture. */
   const now = offline ? 0 : ctx.currentTime + lead;
-  // fade in, hold, then the closing fade (FADE). Started inside that fade (from past the end), pick it up at the volume it has reached.
-  const into = Math.max(0, from - T), fadeLeft = Math.max(0.05, FADE - into), top = level * Math.max(0, 1 - into / FADE);
-  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(span, attack);
-  master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
-  master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
+  /* Fade in, hold, then the closing fade (FADE). In a piece whose voices all sound throughout, the fade is on the master, after
+     the compressor, exactly as it always was. In a piece with lines or saved notes (voices that rest), it's on the voices that
+     sound throughout (`held`) instead, so a line's last notes ring out by their own release while the held chord fades; the
+     master then just fades in and carries the volume. Started inside the fade (from past the end), pick it up where it is. */
+  const M = b.musicEnd !== undefined ? b.musicEnd : T; // the music's end: the fade starts here even when a long release lengthens the piece
+  const into = Math.max(0, from - M), fadeLeft = Math.max(0.05, FADE - into), left = Math.max(0, 1 - into / FADE), top = level * left;
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(Math.max(0.05, M - from), attack);
+  const fadeOnMaster = !envs.some(x => x);
+  if (fadeOnMaster) {
+    master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
+    master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
+  } else {
+    master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(level, now + attack);
+    held.gain.setValueAtTime(left, now); held.gain.setValueAtTime(left, now + hold); held.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
+  }
   /* Schedule in two passes: every voice's first second, then the rest. A long piece can need tens of thousands of moves;
      this way only the first pass has to fit inside the lead time, and the rest has a whole second to be scheduled. */
-  const at = t => now + (t - from), soon = from + 1, done = new Array(N).fill(0);
+  const at = t => now + (t - from), soon = from + 1, done = new Array(N).fill(0), doneE = new Array(N).fill(0), doneV = new Array(N).fill(0);
+  // straight-line moves for a gain: the first sets the value, the rest ramp to theirs
+  const lines = (L, k, until) => { for (; k < L.m.length && L.m[k].t < until; k++) { const m = L.m[k]; if (k === 0 || m.t <= L.m[k - 1].t) L.p.setValueAtTime(m.g, at(m.t)); else L.p.linearRampToValueAtTime(m.g, at(m.t)); } return k; };
   const schedule = (v, until) => {
     const f = oscs[v].frequency, mv = moves[v]; let k = done[v];
     for (; k < mv.length && mv[k].t < until; k++) {
@@ -2376,10 +2879,18 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
       else f.setValueCurveAtTime(Float32Array.from(m.ps, hz), at(m.t), m.d);
     }
     done[v] = k;
+    if (envs[v]) doneE[v] = lines(envs[v], doneE[v], until);
+    if (vibs[v]) doneV[v] = lines(vibs[v], doneV[v], until);
   };
   oscs.forEach((osc, v) => { schedule(v, soon); osc.start(now); osc.stop(now + span + TAIL); });
+  lfos.forEach(o => { o.start(now); o.stop(now + span + TAIL); });
+  if (shape) { // the volume shape, straight lines in dB from where it stands at `from`
+    const dbg = db => Math.pow(10, db / 20);
+    shape.gain.setValueAtTime(dbg(volumeAt(P, from)), now);
+    for (const x of P.volume) if (x.t > from) shape.gain.exponentialRampToValueAtTime(dbg(x.db), at(x.t));
+  }
   oscs.forEach((osc, v) => schedule(v, Infinity));
-  return { master, oscs, gains, now, tone: S.tone };
+  return { master, oscs, gains, lfos, now, tone: S.tone, mainN: parts[0].sub.N, levelN, headroom, fadeOnMaster };
 }
 function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
 function stopAudio(fade = 0.2) {
@@ -2387,7 +2898,7 @@ function stopAudio(fade = 0.2) {
   const now = actx.currentTime, g = live.master.gain;
   if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); }
   g.linearRampToValueAtTime(0, now + fade);
-  const L = live; L.oscs.forEach(o => { try { o.stop(now + fade + 0.05); } catch (e) {} });
+  const L = live; [...L.oscs, ...(L.lfos || [])].forEach(o => { try { o.stop(now + fade + 0.05); } catch (e) {} });
   setTimeout(() => { try { L.master.disconnect(); } catch (e) {} }, (fade + 0.3) * 1000);
   live = null;
 }
@@ -2582,19 +3093,33 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const labelW = (video ? 150 : narrow ? 86 : 104) * d;
   const E = T + TAIL, te = Math.min(t, E); // the picture runs through the closing fade; the notes hold from T on
   const lay = video ? videoTitleLayout(g, S, W, d) : null; // title (and artist) at the top of a video; the trace starts below them
-  const zz = cameraZ(Math.min(t, T), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = video ? lay.y0 : 22 * d, y1 = H - (video ? 130 : 18) * d;
+  const zz = cameraZ(Math.min(t, T + TAIL), S), x0 = video ? 50 * d : (1 - zz) * 18 * d, x1 = W - labelW, y0 = video ? lay.y0 : 22 * d, y1 = H - (video ? 130 : 18) * d;
   paintBackground(g, W, H, pal);
   const tc = Math.min(t, T), idx = eventIndex(b, tc);
-  const cur = []; for (let v = 0; v < N; v++) cur.push(pitchAt(b, v, tc, idx));
-  const z = cameraZ(tc, S);
+  // voices that rest are silent at times: no dot then, and a gap in the line (gated: whether each voice ever rests)
+  const gated = b.voices ? b.voices.map(r => !!(r.b.gates && r.b.gates[r.v])) : new Array(N).fill(false), quiet = (v, tt) => gated[v] && gainAt(b, v, tt) < 0.02;
+  const cur = []; for (let v = 0; v < N; v++) cur.push(quiet(v, tc) ? null : pitchAt(b, v, tc, idx));
+  const z = cameraZ(Math.min(t, T + TAIL), S); // the zoom out can run on into the closing fade
   // the label column is only reserved while scrolling; zoomed out, the piece runs almost to the edge
   const xEnd = lerp(W - (video ? 50 : 18) * d, x1 - 14 * d, z);
   const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
   const win = (xEnd - x0) / pps;
   let lo = Infinity, hi = -Infinity;
-  for (let v = 0; v < N; v++) for (let k = 0; k <= 40; k++) { const p = pitchAt(b, v, Math.min(T, Math.max(0, te - win + win * k / 40))); if (p < lo) lo = p; if (p > hi) hi = p; }
+  /* The range of pitches in view, which the zoomed view frames. Sampled at fixed moments of the piece (about 40 across the
+     window), not from the playhead, so the same moments are measured every frame; and each voice's value at a moment is the
+     median of it and its neighbours, so a blip caught by one sample (a fast spike or a short grace note) can't move the view,
+     while anything that lasts does. Voices that are resting don't count. */
+  const gdt = win / 40, k0 = Math.ceil((te - win) / gdt), k1 = Math.floor(te / gdt), mid3 = (x, y, w) => Math.max(Math.min(x, y), Math.min(Math.max(x, y), w));
+  for (let v = 0; v < N; v++) {
+    const ps = [];
+    for (let k = k0; k <= k1; k++) { const tt = Math.min(T, Math.max(0, k * gdt)); if (!quiet(v, tt)) ps.push(pitchAt(b, v, tt)); }
+    for (let i = 0; i < ps.length; i++) { const p = ps.length < 3 ? ps[i] : mid3(ps[Math.max(0, i - 1)], ps[i], ps[Math.min(ps.length - 1, i + 1)]); if (p < lo) lo = p; if (p > hi) hi = p; }
+  }
+  if (!(lo <= hi)) { lo = cam.slo !== undefined ? cam.slo : b.min; hi = cam.shi !== undefined ? cam.shi : b.max; } // everything resting: hold the view
   const ck = cam.k || 0.1; // how far the view eases toward its target each frame
-  if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo += (lo - cam.slo) * ck; cam.shi += (hi - cam.shi) * ck; }
+  // widen quickly when something needs the room, narrow at a third of the pace, so the view doesn't breathe in and out
+  const ease = (from, to, widening) => from + (to - from) * (widening ? ck : ck / 3);
+  if (cam.snap) { cam.slo = lo; cam.shi = hi; cam.snap = false; } else { cam.slo = ease(cam.slo, lo, lo < cam.slo); cam.shi = ease(cam.shi, hi, hi > cam.shi); }
   let ylo = lerp(b.min, cam.slo, z), yhi = lerp(b.max, cam.shi, z);
   if (yhi - ylo < 12) { const c = (yhi + ylo) / 2; ylo = c - 6; yhi = c + 6; }
   const padY = (y1 - y0) * 0.07;
@@ -2602,7 +3127,8 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const tA = lerp(0, te - win, z), tB = Math.max(lerp(E, te, z), tA + 0.01);
   const X = tt => x0 + (xEnd - x0) * (tt - tA) / (tB - tA);
   const px = X(te);
-  const env = te <= T ? 1 : Math.max(0, 1 - (te - T) / FADE); // how loud the sound still is
+  const M = b.musicEnd !== undefined ? b.musicEnd : T; // the music's end, where the held parts fade
+  const env = te <= M ? 1 : Math.max(0, 1 - (te - M) / FADE); // how loud the sound still is
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   const colorOf = v => grad || pal.line(v, N);
   const coreOf = v => pal.core;
@@ -2619,15 +3145,16 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     const times = [ta]; for (let k = Math.floor(ta / dt) + 1; k * dt < tb - dt * 0.01; k++) times.push(k * dt); times.push(tb);
     for (let v = 0; v < N; v++) {
       const path = new Path2D();
-      times.forEach((tt, i) => { const x = X(tt), y = Y(pitchAt(b, v, Math.max(0, Math.min(T, tt)))); if (i) path.lineTo(x, y); else path.moveTo(x, y); });
+      let pen = false;
+      times.forEach(tt => { const tq = Math.max(0, Math.min(T, tt)); if (quiet(v, tq)) { pen = false; return; } const x = X(tt), y = Y(pitchAt(b, v, tq)); if (pen) path.lineTo(x, y); else path.moveTo(x, y); pen = true; });
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
   }
-  fadeToBackground(g, W, H, pal, X(T), X(T + FADE)); // the held notes fade out as the sound does
+  fadeToBackground(g, W, H, pal, X(M), X(M + FADE)); // the held notes fade out as the sound does
   if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
   // dots and labels
   const groups = new Map();
-  cur.forEach((p, v) => { const k = Math.round(p * 100); const gp = groups.get(k); if (gp) gp.n++; else groups.set(k, { p, n: 1, v }); });
+  cur.forEach((p, v) => { if (p === null) return; const k = Math.round(p * 100); const gp = groups.get(k); if (gp) gp.n++; else groups.set(k, { p, n: 1, v }); });
   const gs = [...groups.values()].sort((a, b2) => b2.p - a.p);
   const r0 = (video ? 5.5 : 4.6) * d;
   // a dot's own colour as rgba, for its glow (looks with a pitch gradient take the colour at the dot's pitch)
@@ -2732,8 +3259,8 @@ function frame() {
   setText($('r-chord'), (e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label);
   setText($('r-next'), nx ? (nx.kind === 'note' ? '→ ' : '') + nx.label : 'end');
   setText($('r-voices'), String(built.N));
-  const lo = Math.min(...cur), hi = Math.max(...cur);
-  setText($('r-range'), noteName(Math.round(lo)) + '–' + noteName(Math.round(hi)) + ' · ' + ((hi - lo) / 12).toFixed(1) + ' oct');
+  const on = cur.filter(p => p !== null), lo = Math.min(...on), hi = Math.max(...on);
+  setText($('r-range'), on.length ? noteName(Math.round(lo)) + '–' + noteName(Math.round(hi)) + ' · ' + ((hi - lo) / 12).toFixed(1) + ' oct' : 'resting');
   // the clock and the scrubber both include the closing fade (the picture holds its last frame during it)
   const full = built.total + TAIL;
   setText($('time'), fmtClock(Math.min(t, full)) + ' / ' + fmtClock(full));
@@ -2773,7 +3300,11 @@ async function saveFile(filename, data) {
 /* A copy of the piece that also carries its resolved notes, so it reopens exactly even under a later engine */
 function withRealization() {
   const p = JSON.parse(JSON.stringify(piece));
+  // the format follows what the piece uses: 4 with parts or a volume shape (older versions refuse it rather than drop them), else 3
+  if (p.parts && !p.parts.length) delete p.parts; if (p.volume && !p.volume.length) delete p.volume;
+  p.formatVersion = p.parts || p.volume ? 4 : 3;
   if (isFrozen()) p.realization = piece.realization; else if (built) p.realization = realizationOf(built); else delete p.realization; // no chords, no notes
+  if (built && p.parts) { const rz = partRealizations(built); for (const pt of p.parts) if (pt.preset === 'pad' && rz[pt.id]) pt.realization = rz[pt.id]; } // and the pad parts'
   return p;
 }
 function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return pieceJson(p) + '\n'; }
@@ -2841,11 +3372,12 @@ async function doExport(kind) {
     }
     if (kind === 'midichords' || kind === 'all') files.push({ name: name + ' (chords).mid', data: midiChords(built, opts) });
     if (kind === 'musicxml' || kind === 'all') files.push({ name: name + '.musicxml', data: musicXml(built, opts) });
+    const partsNote = built.parts.length > 1 && ['midichords', 'musicxml', 'all'].includes(kind) ? ' ' + (kind === 'all' ? 'MIDI chords and MusicXML carry' : kind === 'musicxml' ? 'MusicXML carries' : 'MIDI chords carries') + ' the main part\'s chords; ' + built.parts.slice(1).map(x => x.name).join(', ') + ' ' + (built.parts.length > 2 ? 'are' : 'is') + ' in the audio and in MIDI with glides.' : '';
     const label = { wav: 'WAV', mp3: 'MP3', midi: 'MIDI glides', midichords: 'MIDI chords', musicxml: 'MusicXML', all: 'all files' }[kind];
     let ok;
     if (saveMode === 'browser' && files.length === 1) ok = await saveFile(files[0].name, new Blob([files[0].data]));
     else { xstatus('Packing…'); ok = await saveFile(name + ' (' + label + ').zip', new Blob([zipStore(files)])); }
-    if (ok && (mp3Note || midiNote)) xstatus($('xstatus').textContent + mp3Note + midiNote);
+    if (ok && (mp3Note || midiNote || partsNote)) xstatus($('xstatus').textContent + mp3Note + midiNote + partsNote);
   } catch (e) { xstatus(e && e.message ? e.message : 'Export failed.'); }
   finally { exporting = false; updateAvailability(); }
 }
@@ -2856,7 +3388,7 @@ function pickMime() {
   const c = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1.4D401F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
   return c.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
 }
-const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.tabs'];
+const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.partbar', '.tabs'];
 function lockUI(on) {
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
   document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo').forEach(el => el.disabled = on || !canSave());
@@ -3138,19 +3670,220 @@ async function probeRendering() {
 }
 
 /* ---------- Wiring ---------- */
+/* ---------- Parts ----------
+   The part bar above the tabs chooses which part the tabs edit. The main part is the piece's own voices; `piece.parts`
+   holds the others. With an added part chosen, the tabs' controls that belong to a part (voices and voicing, departure
+   order and stagger, tone, detune and width) edit that part; each tab shows that part's own settings at the top (its line,
+   doubling, portamento and vibrato, level, pan and envelope); and what every part shares (the chords, chord length, glide
+   time and curve, reverb, brightness, volume shape and seeds) sits under "Whole piece". Edits rebuild as you go and are
+   committed for undo when a control is let go. A part's id never changes once made, so renaming it keeps its seeds. */
+let selPart = 'main'; // the part the tabs edit: 'main' or a part's id
+const STARTS = {
+  melody: { name: 'Melody', preset: 'line', step: '1/8', transpose: [0], portamento: 0.04, vibrato: { cents: 15, rate: 5.5, delay: 0.35 },
+    sound: { tone: 'triangle', level: -1, pan: 0.15, width: 20, detune: 3 }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.2 } },
+  bass: { name: 'Bass', preset: 'line', step: '1/4', transpose: [0], portamento: 0,
+    sound: { tone: 'saw', level: -5, pan: 0, width: 0, detune: 3 }, envelope: { attack: 0.005, decay: 0.25, sustain: 0.55, release: 0.08 } },
+  pad: { name: 'Pad', preset: 'pad', voices: 4, sound: { tone: 'bowed', level: -6, pan: 0, width: 70 } }
+};
+const STEP_NAMES = [['1/1', 'Whole notes'], ['1/2', 'Half notes'], ['1/4', 'Quarter notes'], ['1/8', 'Eighth notes'], ['1/16', 'Sixteenth notes'], ['1/32', 'Thirty-second notes'],
+  ['1/4t', 'Quarter-note triplets'], ['1/8t', 'Eighth-note triplets'], ['1/16t', 'Sixteenth-note triplets']];
+const fmtDb = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(Number.isInteger(v) ? 0 : 1) + ' dB';
+const fmtPan = v => Math.abs(v) < 0.005 ? 'center' : (v < 0 ? 'left ' : 'right ') + Math.round(Math.abs(v) * 100);
+const fmtSec = v => v < 1 ? Math.round(v * 1000) + ' ms' : (+v).toFixed(2) + ' s';
+const toneName = t => { const o = $('tone').querySelector('option[value="' + t + '"]'); return o ? o.textContent.replace(/ \(.*\)$/, '') : t; };
+const partsList = () => piece.parts || (piece.parts = []);
+const partRoom = () => ({ voices: REALIZATION_LIMITS.voices - (built ? built.N : piece.voices), parts: MAX_PARTS - (piece.parts || []).length });
+function uniquePartId(name) {
+  const used = new Set(['main', ...(piece.parts || []).map(x => x.id)]), base = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 20) || 'part';
+  let id = base; for (let k = 2; used.has(id); k++) id = base + '-' + k;
+  return id;
+}
+/* A new line part starts from the chords, so it plays in key straight away: the bass note of each chord, or a chord tone
+   (usually the third) an octave and more above middle C, held for the chord's length */
+function starterLine(kind) {
+  const items = parseProgression(piece.chords).items, beat = 60 / piece.timing.tempo, stepBeats = kind === 'bass' ? 1 : 0.5;
+  if (!items.length) return kind === 'bass' ? 'C2:4' : 'E5:8';
+  const ev = built && built.main.events.length === items.length ? built.main.events : null;
+  let used = 0; // steps so far: the last note takes exactly what's left, so the line ends with the chords
+  return items.map((it, k) => {
+    const len = ev ? (k + 1 < ev.length ? ev[k + 1].t : built.main.total) - ev[k].t : (it.dur || piece.timing.chordSec);
+    const last = ev && k === items.length - 1;
+    const steps = last ? Math.max(0.01, Math.round((built.main.total / beat / stepBeats - used) * 100) / 100) : Math.max(0.25, Math.round(len / beat / stepBeats * 4) / 4);
+    used += steps;
+    const pc = it.kind === 'note' ? ((Math.round(it.midi) % 12) + 12) % 12 : kind === 'bass' ? it.bass : it.pcs[Math.min(1, it.pcs.length - 1)];
+    return noteName(placeBass(pc, kind === 'bass' ? 36 : 72)) + ':' + steps;
+  }).join(' | ');
+}
+/* The tabs' controls that belong to a part, and which kinds of part have them */
+const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all' };
+const applies = (id, n) => PART_CTRL[id] === 'all' || (PART_CTRL[id] === 'pad' && n.preset === 'pad');
+['chords', 'seed-harmony', 'chordsec', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'vshape']
+  .forEach(id => { const w = $(id).closest('.tabpanel > *'); if (w) w.dataset.whole = ''; }); // shared by every part
+const selRaw = () => selPart === 'main' ? null : (piece.parts || []).find(x => x.id === selPart) || null;
+// the chosen part with every setting filled in (only it is normalized, so a large piece of saved notes isn't copied each time)
+const selNorm = () => { const raw = selRaw(); if (!raw) return null; try { return (normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [raw] })).parts || [])[0] || null; } catch (e) { return null; } };
+const partTarget = id => (PART_CTRL[id] && selRaw()) || piece; // where a tab control writes
+const setDeep = (o, path, v) => { const ks = path.split('.'), last = ks.pop(); ks.reduce((a, k) => (a[k] && typeof a[k] === 'object') ? a[k] : (a[k] = {}), o)[last] = v; };
+function addPart(kind) {
+  const part = JSON.parse(JSON.stringify(STARTS[kind]));
+  if (part.preset === 'line') part.line = starterLine(kind);
+  part.id = uniquePartId(part.name);
+  partsList().push(part); selPart = part.id;
+  closePops(); rebuild(true); commit(); syncUI();
+}
+// short, so the menu fits a phone: the name and the kind of part
+function partLabel(n, raw) {
+  if (!n) return (raw.name || raw.id) + ' (left out)';
+  if (n.preset === 'line' && parseLine(n.line, n.transpose).errors.length) return n.name + ' (line: check it)';
+  return n.name + ' (' + { pad: 'pad', line: 'line', notes: 'saved notes' }[n.preset] + ')';
+}
+/* The part bar: the menu of parts, and what can be done to the chosen one */
+function refreshPartBar() {
+  const sel = $('partsel'), raws = piece.parts || [];
+  let norm = []; try { norm = raws.length ? (normalizePiece(Object.assign({}, piece, { realization: undefined })).parts || []) : []; } catch (e) { norm = []; }
+  const opts = [['main', 'Main']].concat(raws.map(r => [r.id, partLabel(norm.find(x => x.id === r.id), r)]));
+  if (sel.options.length !== opts.length || opts.some(([v, t], k) => sel.options[k].value !== v || sel.options[k].textContent !== t)) {
+    sel.textContent = ''; for (const [v, t] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }
+  }
+  sel.value = selPart;
+  const k = raws.findIndex(x => x.id === selPart), raw = raws[k], room = partRoom();
+  $('partmore').disabled = !raw; if (!raw) $('morepop').hidden = true;
+  if (raw && document.activeElement !== $('partname')) $('partname').value = raw.name || raw.id;
+  $('partup').disabled = k <= 0; $('partdown').disabled = k < 0 || k >= raws.length - 1;
+  const n = raw && norm.find(x => x.id === raw.id);
+  $('partdup').disabled = !n || room.parts <= 0 || room.voices < partVoices(n);
+  document.querySelectorAll('[data-addpart]').forEach(b => { const need = b.dataset.addpart === 'pad' ? STARTS.pad.voices : 1; b.disabled = room.parts <= 0 || room.voices < need; });
+  $('parts-room').hidden = !(room.parts <= 0 || room.voices < 4);
+  $('parts-room').textContent = room.parts <= 0 ? 'A piece can have up to ' + MAX_PARTS + ' parts besides the main one.' : 'Room for ' + room.voices + ' more voice' + (room.voices === 1 ? '' : 's') + ' (' + REALIZATION_LIMITS.voices + ' in all).';
+}
+/* Show the tabs for the chosen part: which controls apply, what the tabs are called, and the part's own settings */
+function applyPartView() {
+  if (selPart !== 'main' && !selRaw()) selPart = 'main'; // gone: another piece opened, or undone
+  const n = selNorm(), on = !!n;
+  document.querySelector('.rack').classList.toggle('on-part', on);
+  document.querySelectorAll('.sect.whole').forEach(x => { x.hidden = !on; });
+  for (const id of Object.keys(PART_CTRL)) $(id).closest('.tabpanel > *').hidden = on && !applies(id, n);
+  const line = on && n.preset === 'line', notes = on && n.preset === 'notes';
+  $('t-harmony').textContent = line ? 'Line' : notes ? 'Notes' : 'Harmony';
+  $('t-voicing').textContent = line ? 'Voices' : 'Voicing';
+  $('t-voicing').classList.toggle('dim', notes); $('t-motion').classList.toggle('dim', notes);
+  $('partsel-hint').textContent = on ? 'The tabs below edit ' + n.name + '. Settings shared by every part are under Whole piece.' : 'The tabs below edit the main part.';
+  renderPartBlocks(n);
+  refreshPartBar();
+}
+let peSeq = 0;
+const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(c => e.append(c)); return e; };
+/* The chosen part's own settings, at the top of each tab */
+function renderPartBlocks(n) {
+  const blocks = { harmony: $('pp-harmony'), voicing: $('pp-voicing'), motion: $('pp-motion'), sound: $('pp-sound') };
+  const keep = Object.values(blocks).find(b => b.contains(document.activeElement)); // don't rebuild under the cursor
+  if (keep && n && keep.dataset.part === n.id) return;
+  for (const b of Object.values(blocks)) { b.textContent = ''; b.hidden = true; b.dataset.part = n ? n.id : ''; }
+  if (!n) return;
+  const raw = selRaw();
+  // a control writes only its own setting (the rest keep their defaults, or for a pad, the main part's), so choosing a part changes nothing
+  const own = key => (raw[key] && typeof raw[key] === 'object' && !Array.isArray(raw[key])) ? raw[key] : (raw[key] = {});
+  const changed = () => { rebuildSoon(); refreshPartBar(); };
+  const field = (label, input, extra = []) => { const id = 'pe' + (++peSeq); input.id = id; return mk('div', { className: 'group' }, [mk('label', { htmlFor: id, textContent: label }), input, ...extra]); };
+  const slider = (label, min, max, step, val, fmt, set) => {
+    const id = 'pe' + (++peSeq), out = mk('output'), inp = mk('input', { type: 'range', id, min, max, step });
+    inp.value = val; out.textContent = fmt(+val);
+    inp.addEventListener('input', () => { set(+inp.value); out.textContent = fmt(+inp.value); changed(); });
+    inp.addEventListener('change', commit);
+    return mk('div', { className: 'slider' }, [mk('label', { htmlFor: id, textContent: label }), out, inp]);
+  };
+  const select = (label, html, val, set) => { const sel = mk('select', { innerHTML: html }); sel.value = String(val); sel.addEventListener('change', () => { set(sel.value); rebuild(true); refreshPartBar(); commit(); }); return field(label, sel); };
+  const check = (label, val, set) => { const cb = mk('input', { type: 'checkbox', checked: !!val }); cb.addEventListener('change', () => { set(cb.checked); rebuild(true); refreshPartBar(); commit(); }); return mk('label', {}, [cb, ' ' + label]); };
+  const opts = list => list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
+  const sect = t => mk('p', { className: 'sect', textContent: t });
+  const put = (key, ...els) => { if (els.length) { blocks[key].append(...els); blocks[key].hidden = false; } };
+  if (n.preset === 'line') {
+    const ta = mk('textarea', { value: raw.line || '', spellcheck: false }), err = mk('p', { className: 'err' });
+    const showErr = () => { const e = parseLine(ta.value, raw.transpose || n.transpose).errors; err.hidden = !e.length; err.textContent = e.length ? 'Can\'t read ' + e.slice(0, 4).join(', ') + (e.length > 4 ? '…' : '') + '. Notes look like C4, F#3 or D3+33, with a length in steps after a colon (G4:2); a rest is - (or -:4). Notes out of range (MIDI 0–127, after the doubling on the Voices tab) play as rests.' : ''; };
+    ta.addEventListener('input', () => { raw.line = ta.value; showErr(); changed(); }); ta.addEventListener('change', commit); showErr();
+    const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
+    start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
+    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. The chords it plays over are under Whole piece.' })]),
+      mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), field('Start (beats)', start)]),
+      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; })]));
+    const tr = mk('input', { type: 'text', value: n.transpose.join(', '), autocomplete: 'off', spellcheck: false });
+    tr.addEventListener('input', () => { const v = tr.value.split(/[\s,]+/).filter(Boolean).map(Number).filter(Number.isFinite).slice(0, 8); raw.transpose = v.length ? v : [0]; changed(); }); tr.addEventListener('change', commit);
+    put('voicing', field('Voices at (semitones)', tr, [mk('p', { className: 'hint', innerHTML: 'One voice per number, all singing the line: <code>0</code> is one voice, <code>0,&nbsp;-12</code> adds an octave below, <code>0,&nbsp;7</code> a fifth above.' })]));
+    put('motion', slider('Portamento', 0, 0.3, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }),
+      sect('Vibrato'),
+      slider('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }),
+      slider('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }),
+      slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }));
+  } else if (n.preset === 'notes') {
+    put('harmony', mk('p', { className: 'hint', textContent: 'Saved notes for ' + n.realization.N + ' voices, written into the piece file, played exactly as written.' }));
+  } else {
+    put('harmony', mk('p', { className: 'hint', textContent: 'This pad follows the chords under Whole piece, with its own voices and voicing (Voicing tab), departure order (Motion tab) and sound, and its own random choices.' }));
+  }
+  put('sound', slider('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }),
+    slider('Pan', -1, 1, 0.05, n.sound.pan, fmtPan, v => { own('sound').pan = v; }));
+  if (n.preset !== 'pad') put('sound', sect('Envelope'),
+    slider('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }),
+    slider('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }),
+    slider('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }),
+    slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }));
+}
+/* The part bar's menus */
+function closePops() { for (const [pop, btn] of [['addpop', 'partadd'], ['morepop', 'partmore']]) { $(pop).hidden = true; $(btn).setAttribute('aria-expanded', 'false'); } }
+function togglePop(pop, btn) { const open = $(pop).hidden; closePops(); if (open) { refreshPartBar(); $(pop).hidden = false; $(btn).setAttribute('aria-expanded', 'true'); const f = $(pop).querySelector('input, button:not([disabled])'); if (f) f.focus(); } }
+$('partadd').addEventListener('click', () => togglePop('addpop', 'partadd'));
+$('partmore').addEventListener('click', () => togglePop('morepop', 'partmore'));
+document.addEventListener('click', e => { if (!e.target.closest('.partbar')) closePops(); });
+document.querySelector('.partbar').addEventListener('keydown', e => { if (e.key === 'Escape') { closePops(); $('partsel').focus(); } });
+document.querySelectorAll('[data-addpart]').forEach(b => b.addEventListener('click', () => addPart(b.dataset.addpart)));
+$('partsel').addEventListener('change', () => { selPart = $('partsel').value; syncUI(); });
+$('partname').addEventListener('input', () => { const raw = selRaw(); if (raw) { raw.name = $('partname').value; refreshPartBar(); applyPartView(); } });
+$('partname').addEventListener('change', commit);
+const movePart = d => { const ps = piece.parts, k = ps.findIndex(x => x.id === selPart), j = k + d; if (k < 0 || j < 0 || j >= ps.length) return; [ps[k], ps[j]] = [ps[j], ps[k]]; rebuild(true); commit(); syncUI(); };
+$('partup').addEventListener('click', () => movePart(-1));
+$('partdown').addEventListener('click', () => movePart(1));
+$('partdup').addEventListener('click', () => { const raw = selRaw(); if (!raw) return; const c = JSON.parse(JSON.stringify(raw)); c.name = (raw.name || raw.id) + ' copy'; c.id = uniquePartId(c.name); piece.parts.splice(piece.parts.indexOf(raw) + 1, 0, c); selPart = c.id; closePops(); rebuild(true); commit(); syncUI(); });
+$('partdel').addEventListener('click', () => { const k = (piece.parts || []).findIndex(x => x.id === selPart); if (k < 0) return; piece.parts.splice(k, 1); if (!piece.parts.length) delete piece.parts; selPart = 'main'; closePops(); rebuild(true); commit(); syncUI(); });
+
+/* The volume shape: a few shapes over the piece's current length (straight lines in dB) */
+const SHAPES = {
+  fadein: T => [{ t: 0, db: -36 }, { t: T * 0.25, db: 0 }],
+  crescendo: T => [{ t: 0, db: -15 }, { t: T, db: 0 }],
+  swell: T => [{ t: 0, db: -12 }, { t: T * 0.65, db: 0 }, { t: T, db: -9 }],
+  fadeout: T => [{ t: 0, db: 0 }, { t: T * 0.7, db: 0 }, { t: T, db: -30 }]
+};
+const shapeAt = (name, T) => SHAPES[name](T).map(x => ({ t: Math.round(x.t * 100) / 100, db: x.db }));
+function syncVolumeShape() {
+  const v = piece.volume, T = built ? built.total : 0, sel = $('vshape');
+  let name = 'none';
+  if (v && v.length) name = Object.keys(SHAPES).find(k => JSON.stringify(shapeAt(k, T)) === JSON.stringify(v)) || 'custom';
+  sel.querySelector('option[value="custom"]').hidden = name !== 'custom';
+  sel.value = name; sel.disabled = !built;
+  $('vshape-hint').textContent = name === 'custom' ? 'A shape from the piece file, or one set for a different length. Choose a shape to set it for the piece as it is now.' : 'A shape over the whole piece, on top of the volume control. Set for the piece\'s current length.';
+}
+$('vshape').addEventListener('change', () => {
+  const v = $('vshape').value;
+  if (v === 'none') delete piece.volume; else if (SHAPES[v] && built) piece.volume = shapeAt(v, built.total);
+  rebuild(true); commit(); syncVolumeShape();
+});
+
 const STRUCTURAL = new Set(['chordsec', 'voices', 'continuity', 'coverage', 'stacking', 'spacing', 'variation', 'spread', 'glide', 'stagger', 'top', 'bassoct', 'bassmode', 'easing', 'order']);
 for (const [id, path, fmt] of SLIDERS) {
   const el = $(id);
   el.addEventListener('input', () => {
-    if (STRUCTURAL.has(id)) unfreeze();
-    if (id === 'voices') piece.voices = parseInt(el.value, 10); else setPath(piece, path, parseFloat(el.value));
-    $('o-' + id).textContent = fmt(getPath(piece, path));
-    if (id !== 'tempo') rebuildSoon(); updateStatus();
+    const tgt = partTarget(id); // the chosen part, for a control that belongs to a part
+    if (STRUCTURAL.has(id)) { if (tgt === piece) unfreeze(); else delete tgt.realization; }
+    const v = id === 'voices' ? parseInt(el.value, 10) : parseFloat(el.value);
+    setDeep(tgt, path, v);
+    $('o-' + id).textContent = fmt(v);
+    // tempo was only for exports; now it also times written lines
+    if (id !== 'tempo' || (piece.parts || []).some(x => x.preset === 'line')) rebuildSoon(); updateStatus(); if (tgt !== piece) refreshPartBar();
   });
   el.addEventListener('change', commit);
 }
 for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => {
-  if (STRUCTURAL.has(id)) unfreeze(); setPath(piece, path, conv($(id).value));
+  const tgt = partTarget(id);
+  if (STRUCTURAL.has(id)) { if (tgt === piece) unfreeze(); else delete tgt.realization; } setDeep(tgt, path, conv($(id).value));
+  if (tgt !== piece) { rebuild(true); refreshPartBar(); commit(); return; }
   const swap = id === 'tone' && playing && !recording && live; // tone doesn't change any pitch, so the running voices can just change waveform
   rebuild(true, !swap); if (swap) swapToneLive(piece.sound.tone);
   commit();
@@ -3190,9 +3923,12 @@ function showVolume() {
 function setVolume(v) {
   volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
   if (live && actx) { const now = actx.currentTime, g = live.master.gain; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else g.cancelScheduledValues(now); g.setTargetAtTime(volume, now, 0.03);
-    const end = startAt + (built ? built.total : 0);
-    if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + FADE); }
-    else if (end + FADE > now) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(volume * Math.max(0, (end + FADE - now) / FADE), now + 0.03); g.linearRampToValueAtTime(0, end + FADE); } }
+    if (live.fadeOnMaster) { // the closing fade is on the master too, so set it up again from the new volume
+      const end = startAt + (built ? built.total : 0);
+      if (end > now + 0.2) { g.setValueAtTime(volume, end); g.linearRampToValueAtTime(0, end + FADE); }
+      else if (end + FADE > now) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(volume * Math.max(0, (end + FADE - now) / FADE), now + 0.03); g.linearRampToValueAtTime(0, end + FADE); }
+    } // otherwise it's on the held voices, and runs on by itself
+  }
 }
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
@@ -3523,13 +4259,13 @@ function applyAccent(hex) {
 { const k = lsGet('cge.ui'); if (k && k !== 'system') document.documentElement.setAttribute('data-ui', k); }
 applyAccent(cssHex(lsGet('cge.accent') || '') || '');
 readColors(); fit(); selectTab(tabs[0]);
-(() => {
-  let draft = null; try { draft = JSON.parse(lsGet('cge.draft') || 'null'); } catch (e) {}
+(async () => {
+  const draft = await loadDraft();
   let ok = false;
   if (draft && draft.piece) { try { currentLibId = draft.libId || null; savedJSON = draft.savedJSON || null; applyPiece(draft.piece, { record: false }); setStatus('Picked up where you left off'); ok = true; } catch (e) { currentLibId = null; savedJSON = null; } }
   if (!ok) applyPiece(examplePiece(EXAMPLES[0]), { record: false });
+  requestAnimationFrame(frame); // drawing starts once there's a piece
 })();
-requestAnimationFrame(frame);
 initLibrary();
 initDownloads();
 </script>

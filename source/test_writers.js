@@ -1,6 +1,6 @@
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8') + fs.readFileSync(path.join(__dirname, 'writers.js'), 'utf8');
-const W = new Function(SRC + '; return {parseProgression, buildPiece, defaultPiece, normalizePiece, pitchAt, zipStore, encodeWav24, midiWithGlides, midiChords, musicXml, mp4Mux, webmMux, id3v2, midiGlideFiles, pieceJson, mp3WithInfo, builtFromRealization};')();
+const W = new Function(SRC + '; return {parseProgression, buildPiece, defaultPiece, normalizePiece, pitchAt, zipStore, encodeWav24, midiWithGlides, midiChords, musicXml, mp4Mux, webmMux, id3v2, midiGlideFiles, pieceJson, mp3WithInfo, buildScore, gainAt, builtFromRealization};')();
 const p = W.normalizePiece(Object.assign(W.defaultPiece(), { name: 'Test piece', motion: { order: 'low-high', stagger: 50 } }));
 const b = W.buildPiece(W.parseProgression('=Bb6:1, Ebmaj9, Cm11:3.2, Abmaj9#11, Bb13sus4, Gm7, Ebmaj9:2, =Bb6').items, p);
 const out = process.argv[2] || fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'chord-glide-test-'));
@@ -163,5 +163,46 @@ const wideErr = midiPitchError(wide, 60);
 check('MIDI glides beyond the bend range hand over near the current pitch, within 5 cents (worst ' + (wideErr * 100).toFixed(1) + ' cents)', wideErr <= 0.05);
 const slowErr = Math.max(midiPitchError(b, 30), midiPitchError(wide, 30));
 check('MIDI glides at the slowest tempo (30 BPM, the longest ticks) stay within 7 cents (worst ' + (slowErr * 100).toFixed(1) + ' cents)', slowErr <= 0.07);
+// MIDI with parts: every part's voices, and a voice that rests gets real note-offs and fresh note-ons
+{
+  const appSrc = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const EX = new Function(appSrc.slice(appSrc.indexOf('const EXAMPLES = ['), appSrc.indexOf('const LAYERS')) + 'return EXAMPLES;')();
+  const P3 = W.normalizePiece(Object.assign(W.defaultPiece(), EX.find(x => x.name === 'Three Parts')));
+  const it = W.parseProgression(P3.chords).items, sc = W.buildScore(W.buildPiece(it, P3), it);
+  const smf = Buffer.from(W.midiWithGlides(sc, { tempo: 120 })), tracks = [];
+  for (let i = 14; i < smf.length;) { const len = smf.readUInt32BE(i + 4); tracks.push(smf.subarray(i + 8, i + 8 + len)); i += 8 + len; }
+  const decode = tr => { const ev = []; let tick = 0;
+    for (let i = 0; i < tr.length;) { let d = 0; do { d = (d << 7) | (tr[i] & 127); } while (tr[i++] & 128); tick += d; const st = tr[i];
+      if (st === 0xFF) { let n = 0, j = i + 2; do { n = (n << 7) | (tr[j] & 127); } while (tr[j++] & 128); i = j + n; continue; }
+      ev.push({ t: tick / 960 * 60 / 120, type: st & 0xF0, a: tr[i + 1], b: tr[i + 2] }); i += 3; } return ev; };
+  const mel = sc.parts[2].first, ev = decode(tracks[1 + mel]), gates = sc.parts[2].sub.gates[0];
+  const ons = ev.filter(e => e.type === 0x90), offs = ev.filter(e => e.type === 0x80);
+  const near = (a, b) => Math.abs(a - b) < 0.002;
+  check('MIDI with parts: one track per voice across all parts (' + sc.N + ')', tracks.length === 1 + sc.N);
+  check('MIDI with parts: a voice that rests has a note-on at each note and a note-off as it stops (' + gates.length + ' notes)',
+    ons.length === gates.length && offs.length === gates.length && gates.every((g, k) => near(ons[k].t, g.on) && near(offs[k].t, g.off)));
+  // while it sounds, the note plus bend is the voice's pitch
+  // (a portamento slides up to 7 semitones in 40 ms, about 250 semitones a second: there a MIDI tick, half a millisecond at
+  // 120 BPM, is itself worth several cents, so slides are checked to 10 cents and held notes to 5)
+  const sub = sc.parts[2].sub, sliding = t => sub.events.some(e => e.g > 0 && t >= e.t && t < e.t + e.g);
+  let worst = 0, worstSlide = 0, note = null, bend = 0, k = 0;
+  for (let s2 = 0; s2 <= 22000; s2++) { const t = sc.total * s2 / 22000;
+    while (k < ev.length && ev[k].t <= t + 1e-9) { const e = ev[k++]; if (e.type === 0x90) note = e.a; if (e.type === 0x80) note = null; if (e.type === 0xE0) bend = ((e.b << 7 | e.a) - 8192) / 8191 * 48; }
+    if (note !== null && W.gainAt(sc, mel, t) > 0.05) { const e2 = Math.abs(note + bend - W.pitchAt(sc, mel, t)); if (sliding(t)) worstSlide = Math.max(worstSlide, e2); else worst = Math.max(worst, e2); } }
+  check('MIDI with parts: while it sounds, the melody holds each note within 5 cents (worst ' + (worst * 100).toFixed(1) + ') and its fast slides within 10 (worst ' + (worstSlide * 100).toFixed(1) + ')', worst <= 0.05 && worstSlide <= 0.1);
+  check('MIDI chords and MusicXML carry the main part only, unchanged by the other parts',
+    Buffer.compare(Buffer.from(W.midiChords(sc, { tempo: 120 })), Buffer.from(W.midiChords(sc.main, { tempo: 120 }))) === 0 && W.musicXml(sc, { tempo: 120 }).length === W.musicXml(sc.main, { tempo: 120 }).length);
+  const files = W.midiGlideFiles(Object.assign({}, sc), { tempo: 120 });
+  check('MIDI with parts splits into files of 15 voices across parts when needed', files.length === 1 && files[0].voices[1] === 9);
+}
+// MIDI glides stop where the music does: a file claiming a glide of 10⁹ seconds in a 1-second piece
+{
+  const huge = { engine: 'custom', easing: 'smooth', N: 2, total: 1, events: [{ t: 0, g: 0, label: 'a', kind: 'note', targets: [60, 64] }, { t: 0.5, g: 1e9, label: 'b', kind: 'note', targets: [72, 64], off: [0, 1e9], dur: [1e9, 1e9] }] };
+  const hb = W.builtFromRealization(huge, W.defaultPiece()), t0 = Date.now(), smf = Buffer.from(W.midiWithGlides(hb, { tempo: 60 })), ms = Date.now() - t0;
+  let lastTick = 0; for (let i = 14; i < smf.length;) { const len = smf.readUInt32BE(i + 4), tr = smf.subarray(i + 8, i + 8 + len); let tick = 0;
+    for (let j = 0; j < tr.length;) { let d = 0; do { d = (d << 7) | (tr[j] & 127); } while (tr[j++] & 128); tick += d; lastTick = Math.max(lastTick, tick); const st = tr[j]; if (st === 0xFF) { let n = 0, k = j + 2; do { n = (n << 7) | (tr[k] & 127); } while (tr[k++] & 128); j = k + n; } else j += 3; }
+    i += 8 + len; }
+  check('MIDI with glides: a glide claiming 10⁹ seconds in a 1-second piece is written only to the end (' + ms + ' ms, last event at tick ' + lastTick + ' of 960)', ms < 1000 && lastTick <= 960);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

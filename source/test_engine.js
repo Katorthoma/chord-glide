@@ -1,7 +1,7 @@
 // node test_engine.js — engine v3 checks
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES};')();
+const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES, buildScore, parseLine, gainAt, gainMoves, vibratoMoves, volumeAt, partSeed, partRealizations, realizationOf, LINE_LIMITS, landmarks, FADE};')();
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (d ? '  ' + d : '')); };
 console.log('engine v' + E.ENGINE_VERSION);
@@ -117,7 +117,7 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const nb = E.buildPiece(E.parseProgression('Dm7, Cmaj7/D').items, vo({ bassMode: 'nearest' }));
   const pc = nb.events[1].targets[0] % 12;
   check('Nearest chord tone ignores a slash note outside the chord', [0, 4, 7, 11].includes(pc), E.noteName(nb.events[1].targets[0]));
-  let refused = false; try { E.normalizePiece({ formatVersion: 4, chords: 'C' }); } catch (e) { refused = /newer/.test(e.message); }
+  let refused = false; try { E.normalizePiece({ formatVersion: 5, chords: 'C' }); } catch (e) { refused = /newer/.test(e.message); }
   check('A newer file format is refused, not silently downgraded', refused);
   const kept = E.normalizePiece({ formatVersion: 3, chords: 'C', myNotes: { a: 1 } });
   check('Unknown fields are kept', kept.myNotes && kept.myNotes.a === 1);
@@ -207,6 +207,118 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const wLong = Math.max(worst(long10, 0), worst(long10, 587.3));
   check('Pitch schedule: linear glides and saved notes replay exactly, at any length; eased glides within 0.01 cent',
     wLin < 1e-9 && wLong < 1e-9 && wSmooth < 1e-4, 'linear ' + wLin.toExponential(1) + ', 10-minute saved notes ' + wLong.toExponential(1) + ', eased ' + (wSmooth * 100).toFixed(4) + ' cents');
+}
+// ---- Parts (file format 4): the Three Parts example from the app, rests, envelopes, seeds, saved notes with rests ----
+{
+  const appSrc = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const EX = new Function(appSrc.slice(appSrc.indexOf('const EXAMPLES = ['), appSrc.indexOf('const LAYERS')) + 'return EXAMPLES;')();
+  const ex = EX.find(x => x.name === 'Three Parts');
+  const P3 = E.normalizePiece(Object.assign(E.defaultPiece(), ex));
+  const items = E.parseProgression(P3.chords).items;
+  const score = E.buildScore(E.buildPiece(items, P3), items);
+  check('Format: a piece without parts or a volume shape is still written as format 3, with no new fields; one with parts as format 4',
+    base().formatVersion === 3 && !('parts' in base()) && !('volume' in base()) && P3.formatVersion === 4 && P3.parts.length === 2);
+  const plain = E.normalizePiece(Object.assign(E.defaultPiece(), ex, { parts: undefined }));
+  check('Parts never change the main part: its voicing is identical with or without them', JSON.stringify(E.buildPiece(items, plain).events) === JSON.stringify(score.main.events));
+  check('Three Parts: both lines parse, and every part ends with the chords', P3.parts.every(pt => !E.parseLine(pt.line).errors.length) && score.parts.every(pt => Math.abs(pt.sub.total - score.total) < 1e-9) && score.N === 9,
+    score.parts.map(pt => pt.name + ' ' + pt.sub.N + ' voices, ' + pt.sub.total + ' s').join('; '));
+  // the melody's top voice in bar 8: C6 (14–14.75 s), B5 (–15), a rest (15–15.5), G5 (15.5–16)
+  const m = score.parts[2].first, g = t => E.gainAt(score, m, t), pt = t => E.pitchAt(score, m, t);
+  check('A voice attacks, moves, sustains, releases, rests and attacks again',
+    g(14.0) < g(13.95) - 0.05 && g(14.03) > 0.9 && Math.abs(g(14.6) - 0.7) < 1e-9 && pt(14.6) === 84 && pt(14.9) === 83 && g(15.1) > 0 && g(15.3) === 0 && g(15.45) === 0 && pt(15.49) === 83 && pt(15.5) === 79 && g(15.6) > 0.9,
+    [14.0, 14.03, 14.6, 14.9, 15.1, 15.3, 15.6].map(t => t + ' s: ' + E.noteName(pt(t)) + ' at ' + g(t).toFixed(2)).join(', '));
+  const tr = score.parts[2];
+  check('A line doubled an octave down moves in parallel', [1, 3.3, 9.9, 17].every(t => E.pitchAt(score, tr.first, t) - E.pitchAt(score, tr.first + 1, t) === 12));
+  // gain moves replay the envelope exactly (straight lines), from any point
+  let gw = 0, gr = [0, 1];
+  for (const from of [0, 7.3, 15.2]) { const mv = E.gainMoves(score, m, from); for (let k = 0; k <= 3000; k++) { const t = from + (score.total + 1 - from) * k / 3000;
+    let val = mv[0].g; for (let j = 1; j < mv.length; j++) { if (mv[j].t <= t) val = mv[j].g; else { if (mv[j].t > mv[j - 1].t) val = mv[j - 1].g + (mv[j].g - mv[j - 1].g) * (t - mv[j - 1].t) / (mv[j].t - mv[j - 1].t); break; } }
+    gw = Math.max(gw, Math.abs(val - g(t))); gr = [Math.min(gr[0], val), Math.max(gr[1], val)]; } }
+  check('Envelope moves replay the envelope exactly from any point, and stay between 0 and 1', gw < 1e-9 && gr[0] >= 0 && gr[1] <= 1 && E.gainMoves(score, 0, 0) === null, 'worst ' + gw.toExponential(1));
+  const vm = E.vibratoMoves(score, m, 0);
+  check('Vibrato blooms only into notes long enough to hold it', vm && vm.rate === 5.5 && Math.max(...vm.moves.map(x => x.g)) === 18 && E.vibratoMoves(score, 0, 0) === null);
+  // seeds: a part's voicing comes from its own id, so other parts never reroll it
+  const pad = { name: 'Strings', preset: 'pad', voices: 4, voicing: { top: 84 } };
+  const one = E.normalizePiece(Object.assign(E.defaultPiece(), ex, { parts: [pad] })), two = E.normalizePiece(Object.assign(E.defaultPiece(), ex, { parts: [ex.parts[0], ex.parts[1], pad] }));
+  const sOne = E.buildScore(E.buildPiece(items, one), items), sTwo = E.buildScore(E.buildPiece(items, two), items);
+  const padOf = sc => JSON.stringify(sc.parts.find(x => x.id === 'strings').sub.events.map(e => e.targets));
+  check('Seeds per part: adding other parts before a pad part leaves its voicing unchanged, and it differs from the main part\'s', padOf(sOne) === padOf(sTwo) && E.partSeed(1, 'strings', 'voicing') !== E.partSeed(1, 'bass', 'voicing'));
+  // a line that repeats fills the piece; legato joins notes into one gate; a line's lengths follow the tempo
+  const rep = E.normalizePiece(Object.assign(E.defaultPiece(), ex, { parts: [{ name: 'Pulse', preset: 'line', line: 'C3 G3', step: '1/8', repeat: true, legato: true }] }));
+  const sRep = E.buildScore(E.buildPiece(items, rep), items), pul = sRep.parts[1].sub;
+  check('A repeating line fills the piece (88 eighth notes at 120 BPM), and legato makes it one long note', pul.events.length === 88 && pul.total === 22 && pul.gates[0].length === 1 && Math.abs(pul.events[5].t - 1.25) < 1e-9);
+  // saved notes in a part, with rests (null): the voice is silent there and jumps to its next note
+  const notesPart = { name: 'Written', preset: 'notes', realization: { engine: 'custom', easing: 'linear', N: 2, total: 4, events: [
+    { t: 0, g: 0, label: 'a', kind: 'note', targets: [60, 64] }, { t: 1, g: 0.5, label: 'b', kind: 'note', targets: [null, 65] }, { t: 2, g: 0.5, label: 'c', kind: 'note', targets: [67, 67] }] } };
+  const wn = E.normalizePiece(Object.assign(E.defaultPiece(), { chords: 'C:4', parts: [notesPart] })), sW = E.buildScore(E.buildPiece(E.parseProgression('C:4').items, wn), E.parseProgression('C:4').items);
+  const w0 = sW.parts[1].first;
+  check('Saved notes with rests: the voice rests, then jumps straight to its next note; the other voice still glides',
+    E.gainAt(sW, w0, 0.5) === 1 && E.gainAt(sW, w0, 1.5) === 0 && E.pitchAt(sW, w0, 1.5) === 60 && E.pitchAt(sW, w0, 2.01) === 67 && E.gainAt(sW, w0, 2.2) > 0.9 && E.pitchAt(sW, w0 + 1, 1.25) === 64.5 && E.gainMoves(sW, w0 + 1, 0) === null);
+  check('Saved notes with rests are accepted only in parts', !E.normalizePiece({ chords: 'C', realization: notesPart.realization }).realization && !!wn.parts);
+  // the volume shape: straight lines in dB between its points, held before the first and after the last
+  const vs = E.normalizePiece({ chords: 'C', volume: [{ t: 10, db: 0 }, { t: 0, db: -24 }, { t: 20, db: 99 }] });
+  check('Volume shape: sorted, limited to +12 dB, and straight in dB between points', vs.formatVersion === 4 && E.volumeAt(vs, 0) === -24 && E.volumeAt(vs, 5) === -12 && E.volumeAt(vs, 15) === 6 && E.volumeAt(vs, 30) === 12 && E.volumeAt(base(), 3) === 0);
+  // the overall voice limit
+  const many = E.normalizePiece({ chords: 'C', voices: 32, parts: [{ preset: 'pad', voices: 32 }, { preset: 'line', line: 'C4', transpose: [0, 12] }] });
+  check('All parts together stay within 64 voices: a part that would go over is left out', many.parts.length === 1 && many.parts[0].preset === 'pad');
+}
+// ---- Safety and fidelity for parts (from review) ----
+{
+  // a file can claim a glide far longer than the piece: the schedule stops at the end, without allocating for the rest
+  const huge = { engine: 'custom', easing: 'smooth', N: 1, total: 1, events: [{ t: 0, g: 0, label: 'a', kind: 'note', targets: [60] }, { t: 0.5, g: 1e9, label: 'b', kind: 'note', targets: [72], off: [0], dur: [1e9] }] };
+  const hb = E.builtFromRealization(huge, base()), t0 = Date.now(), hm = E.pitchMoves(hb, 0, 0), pts = hm.reduce((a, m) => a + (m.ps ? m.ps.length : 1), 0);
+  check('A glide that claims to last 10⁹ seconds is scheduled only up to the end of the piece', pts < 200 && Date.now() - t0 < 200 && hm.every(m => (m.t || 0) <= 1 + 1e-9), pts + ' points');
+  // lines: finite, sensible lengths; a budget per part and for the whole piece
+  const longDigits = 'C4:' + '9'.repeat(400);
+  check('A line refuses an endless or too short a length (a 400-digit length, 1/128 of a step)', E.parseLine(longDigits).errors.length === 1 && E.parseLine('C4:0.0078').errors.length === 1 && E.parseLine('C4:0.25').errors.length === 0);
+  const tiny = E.normalizePiece({ chords: 'C:20', timing: { tempo: 180 }, parts: [{ name: 'Fizz', preset: 'line', step: '1/32', line: 'C4:0.02 D4:0.02', repeat: true }] });
+  const tit = E.parseProgression(tiny.chords).items, tsc = E.buildScore(E.buildPiece(tit, tiny), tit);
+  check('A line of notes too short to hear (under 5 ms) is left out, not expanded into hundreds of thousands', tsc.parts.length === 1);
+  const many = E.normalizePiece({ chords: 'C:3000', timing: { tempo: 180 }, parts: Array.from({ length: 7 }, (_, k) => ({ name: 'Run ' + (k + 1), preset: 'line', step: '1/32', line: 'C4 E4 G4', repeat: true })) });
+  const mit = E.parseProgression(many.chords).items, msc = E.buildScore(E.buildPiece(mit, many), mit);
+  const counts = msc.parts.slice(1).map(pt => pt.sub.notes), sum = counts.reduce((a, x) => a + x, 0);
+  check('Lines stop at ' + E.LINE_LIMITS.notes + ' notes each and ' + E.LINE_LIMITS.total + ' together, and say so', counts.every(c => c <= E.LINE_LIMITS.notes) && sum <= E.LINE_LIMITS.total && msc.cut.length >= 5, counts.join(', '));
+  // the voice budget counts the main part's saved notes
+  const r60 = { engine: 'custom', easing: 'linear', N: 60, total: 4, events: [{ t: 0, g: 0, label: 'a', kind: 'chord', targets: new Array(60).fill(60) }] };
+  const big = E.normalizePiece({ chords: 'C', voices: 15, realization: r60, parts: [{ name: 'Pad', preset: 'pad', voices: 20 }, { name: 'Tune', preset: 'line', line: 'C5', transpose: [0, 12, 24, 36] }] });
+  check('All parts stay within 64 voices counting the main part\'s saved notes (60 + 4, not 60 + 20)', big.parts.length === 1 && big.parts[0].name === 'Tune');
+  // pitches outside MIDI 0–127 are refused where they're written
+  const items = E.parseProgression('=C-1-50, =G9+50, =C-1, Cmaj7[C2 G#9], =G9').items, errs = E.parseProgression('=C-1-50, =G9+50, =C-1, Cmaj7[C2 G#9], =G9').errors;
+  check('Notes outside MIDI 0–127 are refused: =C-1-50, =G9+50 and a pin at G#9, while C-1 and G9 are fine', errs.length === 3 && items.length === 2, errs.join(', '));
+  const lr = E.parseLine('C8 G9 E4', [0, 12]);
+  check('A line note that its doubling would take past G9 is reported, and plays as a rest so the timing holds', lr.errors.length === 1 && /G9 \(out of range\)/.test(lr.errors[0]) && lr.notes.length === 3 && lr.notes[1].p === null && lr.notes[0].p === 108);
+  // pad parts keep their resolved notes: saved by another engine, they play exactly as saved
+  const pp = E.normalizePiece(Object.assign(E.defaultPiece(), { chords: 'C, Am, F, G', voices: 6, parts: [{ name: 'Strings', preset: 'pad', voices: 4 }] }));
+  const pit = E.parseProgression(pp.chords).items, psc = E.buildScore(E.buildPiece(pit, pp), pit), rz = E.partRealizations(psc);
+  check('Pad parts\' resolved notes are saved with the piece, the main part\'s separately', rz.strings && rz.strings.N === 4 && E.realizationOf(psc).N === 6);
+  const old = JSON.parse(JSON.stringify(rz.strings)); old.engine = '3.0'; old.events.forEach(e => { e.targets = e.targets.map(x => x + 0.5); });
+  const pf = E.normalizePiece(Object.assign({}, pp, { parts: [Object.assign({}, pp.parts[0], { realization: old })] })), pfs = E.buildScore(E.buildPiece(pit, pf), pit);
+  check('A pad part saved by another engine plays its saved notes exactly, and a mismatched voice count is ignored',
+    JSON.stringify(pfs.parts[1].sub.events.map(e => e.targets)) === JSON.stringify(old.events.map(e => e.targets)) && pfs.parts[1].sub.frozen === '3.0'
+    && !E.normalizePiece(Object.assign({}, pp, { parts: [Object.assign({}, pp.parts[0], { voices: 5, realization: old })] })).parts[0].realization);
+  // a release that runs past the chords' end extends the piece, so it isn't cut off
+  // releases ring on into the tail while the held parts fade; only what wouldn't fit in it extends the music
+  const ring = rel => { const rl = E.normalizePiece({ chords: 'C:4', timing: { tempo: 60 }, parts: [{ name: 'Bell', preset: 'line', step: '1/4', line: 'C5:4', envelope: { release: rel } }] });
+    const rit = E.parseProgression(rl.chords).items; return E.buildScore(E.buildPiece(rit, rl), rit); };
+  const r25 = ring(2.5), r5 = ring(5);
+  check('A 2.5 s release rings out in the tail without lengthening the music (4 s); a 5 s release lengthens the piece only by what won\'t fit (6.2 s), and the held parts still fade from the music\'s end (4 s)',
+    r25.total === 4 && r25.musicEnd === 4 && r5.musicEnd === 4 && E.gainAt(r25, r25.parts[1].first, 6.49) > 0 && E.gainAt(r25, r25.parts[1].first, 6.5) === 0 && Math.abs(r5.total - 6.2) < 1e-9 && E.gainAt(r5, r5.parts[1].first, 6.2 + 2.79) > 0 && E.gainAt(r5, r5.parts[1].first, 9) === 0, r25.total + ' s, ' + r5.total + ' s');
+}
+// ---- Auto zoom for pieces saved as dense snapshots ----
+{
+  // 100 s of snapshots 0.05 s apart: four chords, each with a glide at its start; the last one moving to within 0.1 s of the end
+  const N = 4, ev = [], total = 100, chordAt = t => Math.min(3, Math.floor(t / 25)), names = ['C', 'Am', 'F', 'G'];
+  for (let i = 0; i < 2000; i++) { const t = i * 0.05, c = chordAt(t), into = t - c * 25;
+    ev.push({ t, g: 0.05, label: names[c], kind: 'chord', targets: Array.from({ length: N }, (_, v) => 48 + v * 5 + c * 2 + (into < 2 ? into : 2) + (c === 3 && t > 99.85 ? 1 : 0)) }); }
+  const dense = E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total, events: ev }, base());
+  const L = E.landmarks(dense);
+  check('Auto zoom on dense snapshots: a few seconds of the whole piece first (4 s for 100 s), and a zoom out of at least 3 s that runs on into the closing fade',
+    Math.abs(L.inStart - 4) < 1e-9 && L.inEnd >= L.inStart + 2 && L.outEnd > total && Math.abs(L.outEnd - (total + E.FADE * 0.9)) < 1e-9 && L.outEnd - L.outStart >= 3 - 1e-9, JSON.stringify(L));
+  // when the last chord's final move is 8 s before the end and it then holds still, the zoom out starts there and ends with the music
+  const still = Array.from({ length: 2000 }, (_, i) => { const t = i * 0.05, c = chordAt(t);
+    return { t, g: 0.05, label: names[c], kind: 'chord', targets: Array.from({ length: N }, (_, v) => 48 + v * 5 + c * 2 + (t >= 92 ? 1 : 0)) }; });
+  const S = E.landmarks(E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total, events: still }, base()));
+  check('… and when the last chord settles 8 s before the end, the zoom out starts there and ends with the music', Math.abs(S.outStart - 92) < 0.06 && S.outEnd === total, JSON.stringify(S));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

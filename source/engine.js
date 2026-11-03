@@ -18,6 +18,7 @@ function mulberry32(a) {
 
 // A note with its octave, and optional cents after the octave: C4, F#2, C-1 (octave -1), D3+33, B3-14, A4+12.5¢
 const NOTE_OCT = '[A-G][#b]?-?\\d(?:[+-]\\d{1,2}(?:\\.\\d+)?¢?)?';
+const PLAYABLE = p => p >= 0 && p <= 127; // MIDI's range, which saved notes must keep to
 function parseNoteOct(s) {
   const m = s.match(/^([A-G][#b]?)(-?\d)(?:([+-]\d{1,2}(?:\.\d+)?)¢?)?$/);
   return m ? pcOf(m[1]) + 12 * (parseInt(m[2], 10) + 1) + (m[3] ? parseFloat(m[3]) / 100 : 0) : null;
@@ -34,11 +35,11 @@ function parseItem(raw) {
   const pm = t.match(/\[([^\]]*)\]$/);
   if (pm) {
     pin = pm[1].split(/[_\s,]+/).filter(Boolean).map(parseNoteOct);
-    if (pin.some(x => x === null)) return { kind: 'error', label: raw.trim() };
+    if (pin.some(x => x === null || !PLAYABLE(x))) return { kind: 'error', label: raw.trim() }; // unreadable, or outside MIDI 0–127
     t = t.slice(0, pm.index);
   }
   const um = t.match(new RegExp('^(?:=|->|→)(' + NOTE_OCT + ')$'));
-  if (um) return { kind: 'note', midi: parseNoteOct(um[1]), label: um[1], dur };
+  if (um) { const m = parseNoteOct(um[1]); return PLAYABLE(m) ? { kind: 'note', midi: m, label: um[1], dur } : { kind: 'error', label: raw.trim() }; }
   const m = t.match(/^([A-G][#b]?)(.*)$/);
   if (!m) return { kind: 'error', label: raw.trim() };
   const root = pcOf(m[1]);
@@ -142,7 +143,7 @@ const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ:
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
-const PIECE_FORMAT_VERSION = 3;
+const PIECE_FORMAT_VERSION = 4; // 4 adds parts and a volume shape; pieces without them are still written as 3
 function defaultPiece() {
   return {
     format: PIECE_FORMAT, formatVersion: PIECE_FORMAT_VERSION, engine: ENGINE_VERSION,
@@ -199,6 +200,23 @@ function normalizePiece(p) {
   }
   { const big = realizationTooLarge(p.realization); if (big) throw new Error('This piece can\'t be opened safely: ' + big + '.'); }
   if (validRealization(p.realization)) out.realization = JSON.parse(JSON.stringify(p.realization));
+  { // parts beyond the main one, within the overall voice limit
+    // the main part's voices: its saved notes' count when it has some (they can have more voices than the setting)
+    const used = new Set(['main']); let room = REALIZATION_LIMITS.voices - Math.max(out.voices, out.realization ? out.realization.N : 0);
+    out.parts = [];
+    (Array.isArray(p.parts) ? p.parts : []).slice(0, MAX_PARTS).forEach((q, i) => {
+      const part = normalizePart(q, out, i, used); if (!part) return;
+      const n = partVoices(part); if (n > room) return;
+      room -= n; out.parts.push(part);
+    });
+    if (!out.parts.length) delete out.parts;
+  }
+  { // the volume shape: points in seconds and dB, joined by straight lines in dB
+    const pts = (Array.isArray(p.volume) ? p.volume : []).filter(x => x && Number.isFinite(+x.t) && Number.isFinite(+x.db)).slice(0, 64)
+      .map(x => ({ t: num(x.t, 0, 3600, 0), db: num(x.db, -60, 12, 0) })).sort((a, b) => a.t - b.t);
+    if (pts.length) out.volume = pts; else delete out.volume;
+  }
+  out.formatVersion = out.parts || out.volume ? 4 : 3; // other pieces still open in older versions
   return out;
 }
 
@@ -350,32 +368,262 @@ function realizationTooLarge(r) {
   if (r.events.some(e => e && Array.isArray(e.targets) && e.targets.some(p => typeof p === 'number' && (p < 0 || p > 127)))) return 'some of its notes are outside the playable range (MIDI 0–127)';
   return '';
 }
-function validRealization(r) {
+function validRealization(r, rests = false) {
   // N and total must be real numbers: a total written as text ("28") would later be joined as text, not added
   if (!r || typeof r !== 'object' || !Array.isArray(r.events) || !r.events.length || !Number.isInteger(r.N) || r.N < 1) return false;
   if (typeof r.total !== 'number' || !Number.isFinite(r.total) || r.total <= 0 || realizationTooLarge(r)) return false;
   const okNum = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
   let lastT = -Infinity;
   return r.events.every(e => {
-    if (!e || !Array.isArray(e.targets) || e.targets.length !== r.N || !e.targets.every(x => typeof x === 'number' && Number.isFinite(x))) return false;
+    if (!e || !Array.isArray(e.targets) || e.targets.length !== r.N || !e.targets.every(x => (typeof x === 'number' && Number.isFinite(x)) || (rests && x === null))) return false;
     if (!okNum(e.t) || !okNum(e.g) || e.t < lastT || e.t > r.total) return false; // times present, nonnegative, in order
     lastT = e.t;
     if (e.off === undefined && e.dur === undefined) return true;
     return Array.isArray(e.off) && Array.isArray(e.dur) && e.off.length === r.N && e.dur.length === r.N && e.off.every(okNum) && e.dur.every(okNum);
   });
 }
+/* Resolved notes for the pad parts of a score (lines regenerate exactly from what's written; saved notes are already notes) */
+function partRealizations(built) {
+  const out = {};
+  for (const pt of built.parts || []) if (!pt.main && pt.preset === 'pad') out[pt.id] = pt.sub.frozen ? pt.realization : realizationOf(pt.sub);
+  return out;
+}
 function realizationOf(built) {
+  if (built.main) built = built.main; // the main part's; other pad parts' come from partRealizations()
   return { engine: ENGINE_VERSION, easing: built.piece.timing.easing, N: built.N, total: built.total,
     events: built.events.map(e => ({ t: e.t, g: e.g, label: e.label, kind: e.kind, targets: e.targets.slice(), off: e.off.slice(), dur: e.dur.slice() })) };
 }
-function builtFromRealization(r, piece) {
-  const P = normalizePiece(piece);
+function builtFromRealization(r, piece, normalized = false) {
+  const P = normalized ? piece : normalizePiece(piece);
   const events = r.events.map(e => ({ t: e.t, g: e.g, label: String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
     off: e.off ? e.off.slice() : new Array(r.N).fill(0), dur: e.dur ? e.dur.slice() : new Array(r.N).fill(e.g), fallback: false }));
+  // rests (null, allowed in parts): the voice holds its last pitch silently, then jumps to its next note as it sounds again
+  let gates = null;
+  if (events.some(e => e.targets.some(x => x === null))) {
+    gates = [];
+    for (let v = 0; v < r.N; v++) {
+      const firstP = events.map(e => e.targets[v]).find(x => x !== null);
+      let held = firstP === undefined ? 60 : firstP, on = null; const gs = [];
+      events.forEach((e, i) => {
+        const x = e.targets[v];
+        if (x === null) { e.targets[v] = held; e.dur[v] = 0; if (on !== null) { gs.push({ on, off: e.t }); on = null; } }
+        else { if (on === null) { on = e.t; if (i > 0) e.dur[v] = 0; } held = x; }
+      });
+      if (on !== null) gs.push({ on, off: r.total });
+      gates.push(gs.length === 1 && gs[0].on === 0 && gs[0].off === r.total ? null : gs);
+    }
+    if (gates.every(x => x === null)) gates = null;
+  }
   let min = Infinity, max = -Infinity;
   for (const e of events) for (const p of e.targets) { if (p < min) min = p; if (p > max) max = p; }
-  return { events, total: r.total, N: r.N, min, max, warnings: [], piece: P, ease: EASE[r.easing] || EASE.smooth, frozen: r.engine };
+  return { events, total: r.total, N: r.N, min, max, warnings: [], piece: P, ease: EASE[r.easing] || EASE.smooth, frozen: r.engine, gates };
 }
+
+/* ======== Parts (file format 4) ========
+   The main part is the piece itself: its voices and its Voicing, Motion and Sound settings, voiced by the chord-following
+   engine exactly as in format 3. A piece can add more parts in `parts`. Each has its own voices, sound (tone, level in dB,
+   pan, width, detune) and envelope, and one of these pitch sources (presets):
+     pad   – chord-following: the same engine, with its own voices, voicing and motion, and seeds derived from its id
+     line  – a written line of notes and rests at the piece's tempo, doubled at fixed intervals (transpose), with portamento
+             and vibrato
+     notes – saved notes written by another program (`realization`, engine "custom"); a target of null is a rest
+   Voices can rest: gates (when a voice sounds) and the part's envelope shape its gain over time. */
+/* After the music's end: the tail (the closing fade and the reverb, which the clock and every render include), and the
+   closing fade of the parts that sound throughout (the main part and pads) inside it */
+const TAIL = 3.0, FADE = 2.8;
+const PRESETS = ['pad', 'line', 'notes'];
+const MAX_PARTS = 12;
+const STEPS = { '1/1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125, '1/4t': 2 / 3, '1/8t': 1 / 3, '1/16t': 1 / 6 }; // in beats
+const ENVELOPES = { // attack, decay and release in seconds; sustain as a fraction of full level
+  pad: { attack: 0.4, decay: 0, sustain: 1, release: 1 },
+  line: { attack: 0.01, decay: 0.15, sustain: 0.75, release: 0.12 },
+  notes: { attack: 0.005, decay: 0, sustain: 1, release: 0.03 }
+};
+/* A stable seed for one part and one purpose: adding, removing or reordering parts never changes another part's seeds */
+function partSeed(seed, id, salt) {
+  let h = (0x811C9DC5 ^ (seed >>> 0)) >>> 0;
+  for (const ch of String(id) + '/' + salt) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193); }
+  h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; h = Math.imul(h, 0x297A2D39); h ^= h >>> 15;
+  return h >>> 0;
+}
+function normalizePart(q, P, i, used) {
+  if (!q || typeof q !== 'object') return null;
+  const num = (v, lo, hi, dflt) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt; };
+  const obj = x => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {};
+  const preset = PRESETS.includes(q.preset) ? q.preset : 'line';
+  let id = String(q.id || q.name || preset).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'part';
+  for (let k = 2, base = id; used.has(id); k++) id = base + '-' + k;
+  used.add(id);
+  const s = obj(q.sound), e = obj(q.envelope), E0 = ENVELOPES[preset];
+  const part = { id, name: String(q.name || id).slice(0, 40), preset,
+    sound: { tone: TONES[s.tone] ? s.tone : P.sound.tone, level: num(s.level, -60, 12, 0), pan: num(s.pan, -1, 1, 0),
+      width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune) },
+    envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release) } };
+  if (preset === 'pad') {
+    part.voices = Math.round(num(q.voices, 3, MAX_VOICES, 5)); // like the main part: a bass and at least two above it
+    part.voicing = Object.assign({}, P.voicing, obj(q.voicing)); part.motion = Object.assign({}, P.motion, obj(q.motion)); // limited when it's voiced
+    // its resolved notes, saved with the piece like the main part's, so a later engine plays it exactly as it was
+    const big = realizationTooLarge(q.realization); if (big) throw new Error('This piece can\'t be opened safely: part ' + (i + 1) + ' ' + big + '.');
+    if (validRealization(q.realization) && q.realization.N === part.voices) part.realization = JSON.parse(JSON.stringify(q.realization));
+  } else if (preset === 'line') {
+    part.line = typeof q.line === 'string' ? q.line.slice(0, 20000) : '';
+    part.step = STEPS[q.step] ? q.step : '1/8';
+    part.start = num(q.start, 0, 100000, 0); // in beats
+    part.repeat = !!q.repeat; part.legato = !!q.legato;
+    part.transpose = (Array.isArray(q.transpose) && q.transpose.length ? q.transpose : [0]).slice(0, 8).map(x => num(x, -48, 48, 0));
+    part.portamento = num(q.portamento, 0, 2, 0.03);
+    const vb = obj(q.vibrato);
+    part.vibrato = { cents: num(vb.cents, 0, 100, 0), rate: num(vb.rate, 0.5, 12, 5.5), delay: num(vb.delay, 0, 5, 0.3) };
+  } else {
+    const big = realizationTooLarge(q.realization); if (big) throw new Error('This piece can\'t be opened safely: part ' + (i + 1) + ' ' + big + '.');
+    if (!validRealization(q.realization, true)) return null;
+    part.realization = JSON.parse(JSON.stringify(q.realization));
+  }
+  return part;
+}
+const partVoices = part => part.preset === 'pad' ? part.voices : part.preset === 'line' ? part.transpose.length : part.realization.N;
+/* A written line: notes like the chord box's (C4, F#3, D3+33) with a length in steps (`G4:2`), and rests (`-` or `r`).
+   Bar lines `|` and commas are ignored. */
+/* A line can be written out of range only by its notes (with `transpose`, the intervals it's doubled at): a note that would
+   go outside MIDI 0–127 is reported and kept as a rest of the same length, so the timing holds. Lengths must be finite, from
+   1/64 to 1024 steps. */
+function parseLine(text, transpose = [0]) {
+  const notes = [], errors = [], re = new RegExp('^(-|r|' + NOTE_OCT + ')(?::(\\d+(?:\\.\\d+)?))?$');
+  for (const tok of String(text || '').split(/[\s|,]+/).filter(Boolean)) {
+    const m = tok.match(re), steps = m ? (m[2] === undefined ? 1 : parseFloat(m[2])) : 0;
+    if (!m || !Number.isFinite(steps) || steps < 1 / 64 || steps > 1024) { errors.push(tok); continue; }
+    const p = m[1] === '-' || m[1] === 'r' ? null : parseNoteOct(m[1].replace(/¢$/, ''));
+    if (p !== null && !transpose.every(d => PLAYABLE(p + d))) { errors.push(tok + ' (out of range)'); notes.push({ p: null, steps }); continue; }
+    notes.push({ p, steps });
+  }
+  return { notes, errors };
+}
+const LINE_LIMITS = { notes: 20000, total: 100000, shortest: 0.005 }; // notes per part and in the whole piece; shortest note (s)
+/* A line part's timeline: one event per note, a glide of `portamento` seconds from a note straight before it (a jump after
+   a rest), and a gate per note. Notes that follow each other end a moment early so the next one is heard as a new note,
+   unless the part is legato, which joins them into one gate. A repeating line fills `until`. */
+function buildLine(part, P, until, budget = LINE_LIMITS.notes) {
+  const tr = part.transpose, { notes } = parseLine(part.line, tr), N = tr.length;
+  const beat = 60 / P.timing.tempo, stepSec = STEPS[part.step] * beat;
+  if (notes.some(n => n.steps * stepSec < LINE_LIMITS.shortest)) return null; // too short to hear, and the way to millions of notes
+  // stops at the note budget or the longest a piece can be, whichever comes first
+  const maxNotes = Math.min(budget, LINE_LIMITS.notes), end = Math.min(part.repeat ? until : Infinity, REALIZATION_LIMITS.seconds);
+  const seq = []; let t = part.start * beat, cut = false;
+  while (notes.length && t < end - 1e-9) {
+    for (const n of notes) {
+      if (t >= end - 1e-9) break;
+      if (seq.length >= maxNotes) { cut = true; break; }
+      const t1 = t + n.steps * stepSec; seq.push({ t0: t, t1: Math.min(t1, end), p: n.p }); t = t1;
+    }
+    if (cut || !part.repeat) break;
+  }
+  const sounding = seq.filter(x => x.p !== null);
+  if (!sounding.length) return null;
+  const first = sounding[0].p, zeros = () => new Array(N).fill(0);
+  const events = [{ t: 0, g: 0, label: noteName(first), kind: 'note', targets: tr.map(x => first + x), off: zeros(), dur: zeros() }];
+  const raw = [];
+  seq.forEach((x, k) => {
+    if (x.p === null) return;
+    const prev = seq[k - 1], joined = prev && prev.p !== null && Math.abs(prev.t1 - x.t0) < 1e-9;
+    const g = joined ? Math.min(part.portamento, (x.t1 - x.t0) * 0.5) : 0;
+    if (!(events.length === 1 && x.t0 === 0)) events.push({ t: x.t0, g, label: noteName(x.p), kind: 'note', targets: tr.map(d => x.p + d), off: zeros(), dur: new Array(N).fill(g) });
+    if (part.legato && joined && raw.length) raw[raw.length - 1].off = x.t1; else raw.push({ on: x.t0, off: x.t1 });
+  });
+  const gates = raw.map((gt, k) => { const next = raw[k + 1], cut = next && Math.abs(next.on - gt.off) < 1e-9 ? Math.min(0.03, (gt.off - gt.on) * 0.25) : 0; return { on: gt.on, off: gt.off - cut }; });
+  let min = Infinity, max = -Infinity;
+  for (const e of events) for (const p of e.targets) { if (p < min) min = p; if (p > max) max = p; }
+  return { events, total: seq[seq.length - 1].t1, N, min, max, warnings: [], piece: P, ease: EASE.smooth, gates: tr.map(() => gates),
+    vibrato: part.vibrato.cents > 0 ? part.vibrato : null, notes: seq.length, cut };
+}
+function buildPart(part, P, items, until, budget) {
+  let sub = null;
+  if (part.preset === 'line') sub = buildLine(part, P, until, budget);
+  else if (part.preset === 'pad' && part.realization && part.realization.engine !== ENGINE_VERSION && validRealization(part.realization))
+    sub = builtFromRealization(part.realization, P, true); // saved by another engine: play it exactly as it was
+  else if (part.preset === 'notes') sub = builtFromRealization(part.realization, P, true);
+  else if (items && items.length) { // pad: the chord-following engine with this part's voices and settings, and its own seeds
+    const S = P.seeds;
+    sub = buildPiece(items, { name: P.name, chords: P.chords, voices: part.voices, timing: P.timing, voicing: part.voicing, motion: part.motion, sound: P.sound,
+      seeds: { harmony: S.harmony, voicing: partSeed(S.voicing, part.id, 'voicing'), motion: partSeed(S.motion, part.id, 'motion'), sound: partSeed(S.sound, part.id, 'sound') } });
+  }
+  if (sub) sub.env = part.envelope;
+  return sub;
+}
+/* The whole score: the main part (as built by buildPiece or builtFromRealization) and the piece's other parts.
+   Voices are numbered across parts, main first; `voices[v]` says which part and which of its voices. The chord
+   timeline (`events`) stays the main part's, for labels, auto zoom, MIDI chords and MusicXML. */
+function buildScore(main, items) {
+  const P = main.piece;
+  const list = [{ id: 'main', name: 'Main', preset: 'pad', main: true, sub: main, envelope: null,
+    sound: { tone: P.sound.tone, level: 0, pan: 0, width: P.sound.width, detune: P.sound.detune } }];
+  const others = P.parts || [];
+  // non-repeating lines and saved notes can run past the chords; repeating lines then fill the whole length
+  let budget = LINE_LIMITS.total; // notes all lines may make together
+  const take = sub => { if (sub && sub.notes) budget -= sub.notes; return sub; };
+  const subs = others.map(part => part.preset === 'line' && part.repeat ? null : take(buildPart(part, P, items, main.total, budget)));
+  let total = main.total; for (const s of subs) if (s) total = Math.max(total, s.total);
+  others.forEach((part, k) => { const sub = subs[k] || (part.preset === 'line' && part.repeat ? take(buildPart(part, P, items, total, budget)) : null); if (sub) list.push(Object.assign({}, part, { sub })); });
+  /* Three ends: the music's (`total`, where the parts that sound throughout begin their closing fade); each line's last release,
+     which rings on at its own level into the tail while they fade; and the end of the tail. A release only extends the music
+     by what wouldn't fit in the tail (with 0.2 s to spare), so the usual releases end within it and change nothing. */
+  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env) for (const gs of pt.sub.gates) if (gs && gs.length) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release);
+  const musicEnd = total; // where the held parts' closing fade begins, whatever the releases do
+  total = Math.max(total, ring - (TAIL - 0.2));
+  total = Math.min(total, REALIZATION_LIMITS.seconds);
+  const voices = [];
+  list.forEach((pt, k) => { pt.first = voices.length; for (let v = 0; v < pt.sub.N; v++) voices.push({ p: k, b: pt.sub, v }); });
+  let min = Infinity, max = -Infinity; for (const pt of list) { min = Math.min(min, pt.sub.min); max = Math.max(max, pt.sub.max); }
+  return { events: main.events, total, musicEnd, N: voices.length, min, max, warnings: main.warnings, piece: P, ease: main.ease, frozen: main.frozen, main, parts: list, voices,
+    cut: list.filter(pt => pt.sub.cut).map(pt => pt.name) };
+}
+/* ---- Gain over time ----
+   A voice's envelope as a polyline of { t, g } (g from 0 to 1): for each gate, attack to 1, decay to sustain, hold until
+   the gate closes, then release to 0. The next gate starts from wherever the last one had got to. */
+function polyAt(pts, t) {
+  if (t <= pts[0].t) return pts[0].g;
+  let lo = 0, hi = pts.length - 1;
+  if (t >= pts[hi].t) return pts[hi].g;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m].t <= t) lo = m; else hi = m; }
+  const a = pts[lo], b = pts[hi];
+  return b.t > a.t ? a.g + (b.g - a.g) * (t - a.t) / (b.t - a.t) : b.g;
+}
+function cutPoly(pts, T) { const out = pts.filter(p => p.t < T); if (out.length < pts.length) out.push({ t: T, g: polyAt(pts, T) }); return out; }
+function envelopePoints(gates, env) {
+  const { attack: A, decay: D, sustain: S, release: R } = env, pts = [{ t: 0, g: 0 }];
+  gates.forEach((gt, k) => {
+    const nextOn = k + 1 < gates.length ? gates[k + 1].on : Infinity;
+    let loc = cutPoly([{ t: gt.on, g: polyAt(pts, gt.on) }, { t: gt.on + A, g: 1 }, { t: gt.on + A + D, g: S }], Math.max(gt.on, gt.off));
+    if (gt.off > loc[loc.length - 1].t) loc.push({ t: gt.off, g: loc[loc.length - 1].g });
+    loc.push({ t: Math.max(gt.on, gt.off) + R, g: 0 });
+    pts.push(...cutPoly(loc, nextOn));
+  });
+  return pts;
+}
+function voiceEnvelope(sub, v) {
+  if (!sub.gates || !sub.gates[v]) return null; // always sounding
+  if (!sub.envCache) sub.envCache = [];
+  return sub.envCache[v] || (sub.envCache[v] = envelopePoints(sub.gates[v], sub.env || ENVELOPES.notes));
+}
+function gainAt(built, v, t) {
+  if (built.voices) { const r = built.voices[v]; return gainAt(r.b, r.v, t); }
+  const pts = voiceEnvelope(built, v); return pts ? polyAt(pts, t) : 1;
+}
+/* Moves for a gain AudioParam from `from` on (straight lines), or null for a voice that always sounds */
+function gainMoves(built, v, from = 0) {
+  if (built.voices) { const r = built.voices[v]; return gainMoves(r.b, r.v, from); }
+  const pts = voiceEnvelope(built, v); if (!pts) return null;
+  return [{ t: from, g: polyAt(pts, from) }, ...pts.filter(p => p.t > from)];
+}
+/* Vibrato depth (in cents) over time for a line part: it blooms after `delay` into each note long enough to hold it */
+function vibratoMoves(built, v, from = 0) {
+  if (built.voices) { const r = built.voices[v]; return vibratoMoves(r.b, r.v, from); }
+  const vb = built.vibrato; if (!vb || !built.gates || !built.gates[v]) return null;
+  const pts = [{ t: 0, g: 0 }];
+  for (const gt of built.gates[v]) { const s = gt.on + vb.delay; if (gt.off - s < 0.12) continue; pts.push({ t: s, g: 0 }, { t: Math.min(s + 0.25, gt.off), g: vb.cents }, { t: gt.off, g: vb.cents }, { t: gt.off + 0.05, g: 0 }); }
+  return { rate: vb.rate, moves: [{ t: from, g: polyAt(pts, from) }, ...pts.filter(p => p.t > from)] };
+}
+/* The volume shape at time t, in dB (0 with no shape) */
+function volumeAt(P, t) { const pts = P.volume; return pts && pts.length ? polyAt(pts.map(x => ({ t: x.t, g: x.db })), t) : 0; }
 
 const EASE = {
   smooth: x => x * x * (3 - 2 * x),
@@ -443,6 +691,7 @@ function eventIndex(built, t) {
   return lo;
 }
 function pitchAt(built, v, t, idx) {
+  if (built.voices) { const r = built.voices[v]; return pitchAt(r.b, r.v, t); } // a whole score: ask the voice's own part
   const ev = built.events;
   const i = idx ?? eventIndex(built, t);
   const e = ev[i];
@@ -460,20 +709,22 @@ function pitchAt(built, v, t, idx) {
    sampled `perSec` times a second, during the glide only ('curve'). Holds need no moves at all.
    Moves: { kind: 'set', t, p } | { kind: 'ramp', t, p } (ramp to p, arriving at t) | { kind: 'curve', t, d, ps } */
 function pitchMoves(built, v, from = 0, perSec = 240) {
+  if (built.voices) { const r = built.voices[v]; return pitchMoves(r.b, r.v, from, perSec); }
   const ev = built.events, ease = built.ease;
   const linear = [0.1, 0.3, 0.5, 0.7, 0.9].every(x => Math.abs(ease(x) - x) < 1e-12);
-  const moves = [{ kind: 'set', t: from, p: pitchAt(built, v, from) }];
+  const moves = [{ kind: 'set', t: from, p: pitchAt(built, v, from) }], end = Math.max(from, built.total);
   let lastP = moves[0].p, lastT = from; // where the previous move left the voice
   for (let i = 1; i < ev.length; i++) {
     const e = ev[i], next = i + 1 < ev.length ? ev[i + 1].t : Infinity;
     if (next <= from) continue;
+    if (e.t >= end) break; // nothing after the end is heard
     const a = ev[i - 1].targets[v], b = e.targets[v];
     // at the event itself the voice holds `a` (a previous glide cut short by this event jumps here, as pitchAt does)
     if (e.t > from && a !== lastP) { moves.push({ kind: 'set', t: e.t, p: a }); lastP = a; lastT = e.t; }
     if (a === b) continue;
     const s = e.t + (e.g > 0 ? e.off[v] : 0), d = e.g > 0 ? e.dur[v] : 0;
     if (d <= 0) { const t = Math.max(s, from); if (t > from || lastP !== b) { moves.push({ kind: 'set', t, p: b }); lastP = b; lastT = t; } continue; }
-    const t0 = Math.max(s, from), t1 = Math.min(s + d, next);
+    const t0 = Math.max(s, from), t1 = Math.min(s + d, next, end); // never past the end: a file can claim a glide far longer than the piece
     if (t1 <= t0) continue;
     const p0 = pitchAt(built, v, t0, i), p1 = t1 >= s + d ? b : pitchAt(built, v, t1, i);
     if (!(t0 === lastT && p0 === lastP)) moves.push({ kind: 'set', t: t0, p: p0 }); // a glide straight on from the last needs no anchor
@@ -489,20 +740,33 @@ function pitchMoves(built, v, from = 0, perSec = 240) {
 }
 /* Times when the first chord is established and when the last chord arrives (for auto zoom) */
 function landmarks(built) {
-  const ev = built.events;
-  const chordIdx = ev.map((e, i) => e.kind === 'chord' ? i : -1).filter(i => i >= 0);
-  if (!chordIdx.length) return { inStart: 0, inEnd: Math.min(2, built.total), outStart: built.total, outEnd: built.total };
-  const f = ev[chordIdx[0]];
-  // the last real arrival: skip trailing events that only shimmer (every voice moves, if at all, by less than a quarter of a
-  // semitone), as in pieces saved as dense snapshots. A repeated chord moves nothing at all and still counts.
-  const moved = i => i === 0 ? Infinity : Math.max(...ev[i].targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
-  let k = chordIdx.length - 1;
-  while (k > 0) { const m = moved(chordIdx[k]); if (m > 0 && m < 0.25) k--; else break; }
-  const l = ev[chordIdx[k]];
-  const inStart = f.g > 0 ? f.t : 0;
-  const inEnd = Math.min(built.total, (f.g > 0 ? f.t + f.g : 0) + 1.2);
-  const outStart = Math.max(inEnd, l.t + l.g);
-  return { inStart, inEnd, outStart, outEnd: built.total };
+  const ev = built.events, T = built.musicEnd !== undefined ? built.musicEnd : built.total;
+  /* Chords, not events: snapshots of the same chord less than 0.2 s apart are one chord, as in pieces saved as dense snapshots
+     of every voice. A chord settles when its last real movement (a quarter of a semitone or more) has ended. With one event
+     per chord, as the engine writes them, this gives exactly the same landmarks as before. */
+  const groups = [];
+  ev.forEach((e, i) => {
+    const mv = i === 0 ? Infinity : Math.max(...e.targets.map((p, v) => Math.abs(p - ev[i - 1].targets[v])));
+    const g = groups[groups.length - 1];
+    if (g && g.label === e.label && g.kind === e.kind && e.t - g.lastT < 0.2) { g.lastT = e.t; if (mv >= 0.25) g.settle = e.t + e.g; }
+    else groups.push({ label: e.label, kind: e.kind, t: e.t, g: e.g, lastT: e.t, moved: mv, settle: e.g > 0 ? e.t + e.g : 0 });
+  });
+  const chords = groups.filter(g => g.kind === 'chord');
+  if (!chords.length) return { inStart: 0, inEnd: Math.min(2, T), outStart: T, outEnd: T };
+  const f = chords[0];
+  // the last real arrival: skip trailing chords that only shimmer (every voice moves, if at all, by less than a quarter of a
+  // semitone). A repeated chord moves nothing at all and still counts.
+  let k = chords.length - 1;
+  while (k > 0 && chords[k].moved > 0 && chords[k].moved < 0.25) k--;
+  const l = chords[k];
+  let inStart = f.g > 0 ? f.t : 0, inEnd = Math.min(T, f.settle + 1.2);
+  // a long piece shows its whole shape for a few seconds first (4% of its length, up to 6 s)
+  const overview = T > 60 ? Math.min(6, T * 0.04) : 0;
+  if (inStart < overview) { inStart = overview; inEnd = Math.min(T, Math.max(inEnd, inStart + 2)); }
+  let outStart = Math.max(inEnd, Math.max(l.t + l.g, l.settle)), outEnd = T;
+  // the zoom out takes at least 3 s: when the music moves to the very end, it runs on into the closing fade
+  if (outEnd - outStart < 3) { outEnd = T + FADE * 0.9; outStart = Math.max(inEnd, Math.min(outStart, outEnd - 3)); }
+  return { inStart, inEnd, outStart, outEnd };
 }
 
 /* Harmony seed: a diatonic progression with extended chords, opening and closing on one high note */

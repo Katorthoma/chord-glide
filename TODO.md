@@ -59,7 +59,7 @@ parts: [
 
 **Interface:** Harmony, Parts (a list; selecting a part shows only its controls), Sound, and Export, with automation kept small.
 
-**Versions:** file format 4 and engine 4.0.
+**Versions:** file format 4. The engine stays 3.1: its version changes only when an existing voicing can change, and the main part voices exactly as before.
 
 ### Decisions
 
@@ -73,12 +73,12 @@ parts: [
   - [x] Up to 32 voices in the editor (MIDI with glides already splits into files of 15)
   - [x] Glides up to 12 seconds
   - [x] Pitches with cents, e.g. `D3+33`
-  - [ ] Parts with their own voices, tone, level, pan and width; per-part seeds; format 4 with format-3 compatibility
-  - [ ] Gain over time: envelopes and rests, and a volume shape over the piece
-  - [ ] A basic written-line part (proof that a voice can attack, move, sustain, release, rest and attack again), with a fixture piece of one pad, one bass and one melody
-  - [ ] Saved notes as an optional cache, with parts and rests
-  - [ ] Export capability messages
-  - [ ] Interface for parts
+  - [x] Parts with their own voices, tone, level, pan and width; per-part seeds; format 4 with format-3 compatibility
+  - [x] Gain over time: envelopes and rests, and a volume shape over the piece
+  - [x] A basic written-line part (proof that a voice can attack, move, sustain, release, rest and attack again), with a fixture piece of one pad, one bass and one melody
+  - [x] Saved notes as an optional cache, with parts and rests
+  - [x] Export capability messages
+  - [x] Interface for parts
 - **4.2, musical generators:**
   - [ ] Beat grid; chord lengths in bars and beats (`:2bar`, `:3beat`), and the offer to switch a piece to bars
   - [ ] Bass and arpeggio patterns, copies (echo), rhythmic gates, pitch-envelope percussion (kick)
@@ -107,6 +107,7 @@ From the earlier roadmap:
 
 ## Done
 
+- [x] 4.1: parts (pad, written line, saved notes) with their own voices and sound; gain over time (envelopes, rests, volume shape); per-part seeds; file format 4; the Parts tab; Three Parts example
 - [x] 4.0.5: pitch accuracy independent of length; up to 32 voices; glides up to 12 s; cents in note names
 - [x] 4.0.4: live tone swap; playback scheduled after the slow work; no heat haze on the unplayed part; MIDI glides within 5 cents; saved-notes snapshot limit; tone-level tool
 - [x] 4.0.3: five more tones (Brass, Harp, Octaves, Chime, Air), gain-matched and tested; tone menu in four groups

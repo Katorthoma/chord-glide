@@ -18,7 +18,7 @@
  */
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8') + fs.readFileSync(path.join(__dirname, 'writers.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, normalizePiece, parseProgression, buildPiece, builtFromRealization, validRealization, midiWithGlides, midiGlideFiles, midiChords, musicXml};')();
+const E = new Function(SRC + '; return {ENGINE_VERSION, normalizePiece, parseProgression, buildPiece, buildScore, builtFromRealization, validRealization, midiWithGlides, midiGlideFiles, midiChords, musicXml};')();
 
 const args = process.argv.slice(2);
 const flag = f => args.includes(f);
@@ -37,16 +37,18 @@ const tempo = opt('--tempo') ? Math.max(20, Math.min(300, +opt('--tempo'))) : pi
 
 const frozen = !flag('--revoice') && piece.realization && piece.realization.engine !== E.ENGINE_VERSION && E.validRealization(piece.realization);
 let built;
+const { items, errors } = E.parseProgression(piece.chords);
 if (frozen) {
   built = E.builtFromRealization(piece.realization, piece);
   console.log((piece.realization.engine === 'custom' ? 'Using the notes written into this piece' : 'Using the notes saved by engine ' + piece.realization.engine) + ' (pass --revoice to voice it with engine ' + E.ENGINE_VERSION + ').');
 } else {
-  const { items, errors } = E.parseProgression(piece.chords);
   if (errors.length) console.warn('Skipped chords it could not read: ' + errors.join(', '));
   if (!items.length) { console.error('The piece has no chords.'); process.exit(1); }
   built = E.buildPiece(items, piece);
   if (built.warnings.length) console.warn('Voiced with nearest notes: ' + built.warnings.join(', '));
 }
+built = E.buildScore(built, items); // the main part, then the piece's other parts
+if (built.parts.length > 1) console.log('Parts: ' + built.parts.map(x => x.name + ' (' + x.sub.N + ')').join(', ') + '. MIDI with glides carries every part; MIDI chords and MusicXML carry the main part\'s chords.');
 
 const all = flag('--all') || !(flag('--midi') || flag('--chords') || flag('--musicxml'));
 const outDir = opt('--out') || path.dirname(path.resolve(file));

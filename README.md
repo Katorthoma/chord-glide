@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.0.5
+# Chord Glide 4.1
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -54,12 +54,31 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 
 **Saved notes.** Saved notes marked `"engine": "custom"` (written by hand or by another program) always play exactly as written, in the app and here. Files asking for more than 64 voices, more than an hour of saved notes or notes outside MIDI's range are refused. If a piece was saved by an older engine, the exporter uses that engine's saved notes so the result matches what you heard. Add `--revoice` to voice the piece again with the current engine.
 
+**Parts (file format 4).** Besides its main part (the piece's own voices, Voicing, Motion and Sound settings), a piece can have more parts in `parts`, each with its own voices, sound and envelope. Add them with the **Part** menu above the tabs (the tabs then edit the part you choose), or try the **Three Parts** example. The piece file holds them like this:
+
+```json
+"parts": [
+  { "name": "Bass", "preset": "line", "step": "1/4", "line": "C2 C3 C2 C3 | B1 B2 B1 B2 | A1:2 -:2",
+    "sound": { "tone": "saw", "level": -3, "pan": 0, "width": 0 },
+    "envelope": { "attack": 0.005, "decay": 0.25, "sustain": 0.55, "release": 0.08 } },
+  { "name": "Strings", "preset": "pad", "voices": 5, "voicing": { "top": 84 }, "sound": { "tone": "bowed", "level": -6 } }
+],
+"volume": [{ "t": 0, "db": -18 }, { "t": 12, "db": 0 }]
+```
+
+- `preset` is the pitch source. `"pad"` follows the chords like the main part, with its own `voices`, `voicing` and `motion`, and seeds derived from its name, so adding or removing other parts never changes it. `"line"` is a written line at the piece's tempo: notes as in the chord box (`C4`, `F#3`, `D3+33`) with a length in steps (`G4:2`), `-` for a rest, and `|` for readability; `step` is `"1/4"`, `"1/8"`, `"1/16"` and so on; `repeat` loops it to the end of the piece, `legato` joins notes, `transpose` (for example `[0, -12]`) doubles it, `portamento` slides into notes (seconds), and `vibrato` (`cents`, `rate`, `delay`) blooms on long notes. `"notes"` is saved notes in a `realization` (as above), where a target of `null` is a rest.
+- `sound`: `tone`, `level` (dB), `pan` (−1 to 1), `width`, `detune`. `envelope`: `attack`, `decay`, `release` (seconds) and `sustain` (0 to 1). A voice that rests is silent between its notes, and MIDI with glides gives it real note-offs. At the end, a line's last notes ring out by their own release into the closing tail while the parts that sound throughout (the main part and pads) fade; a release longer than the tail lengthens the piece by the difference. Vibrato, like detune, is part of the sound: it's in the audio, not in the drawn lines or the MIDI pitch.
+- **Mixing:** each part is balanced by its own voice count, so a part at 0 dB is about as loud as the main part, and a part's voice count doesn't change the balance. With several parts, the mix shares out headroom: every voice is scaled by one over the sum of the parts' levels (as amplitudes, the main part counting as 1), so adding a part at 0 dB brings everything down about 6 dB while a part at −60 dB changes nothing, and a soft clip rounds off anything above −3 dBFS. A piece with only its main part has neither.
+- **Limits:** notes in a line are from 1/64 to 1024 steps long and at least 5 ms; a line makes at most 20,000 notes and all lines together 100,000. Notes outside MIDI 0–127 (after a line's doubling) are refused, with a message. A pad part saves its resolved notes in `realization`, like the main part, and plays them exactly when they come from another engine.
+- `volume` is a shape over the whole piece: points in seconds and dB, joined by straight lines in dB.
+- All parts together can have up to 64 voices. MIDI chords and MusicXML carry the main part's chords; the audio, video and MIDI with glides carry every part. A piece without parts or a volume shape is still saved as format 3, so older versions open it.
+
 **Audio and video** come from the HTML page, because rendering them needs a browser's audio engine.
 
 ## Working on the code
 
 - **Build.** `source/` holds the real source: `head.html`, `engine.js`, `writers.js` and `app.js`. Edit those, then run `node source/build.js` to rebuild `Chord Glide.html`. The build also copies the engine and writers into `cli/`, so the two never drift, and it refuses a `head.html` that loads external fonts.
-- **Engine tests:** `node source/test_engine.js` runs 61 checks.
+- **Engine tests:** `node source/test_engine.js` runs 74 checks.
 - **Writer tests:** `node source/test_writers.js [folder]` writes sample MIDI, MusicXML, WAV and ZIP files to that folder (created if needed, or a temporary folder if you leave it out), and checks the structure of the MP4 and WebM writers with stand-in data. Real encoding needs a browser, so the three sample videos it writes aren't playable footage.
 - **Tone levels:** `node tools/measure-tone-levels.js` measures each tone's loudness on the opening piece and prints the gain that would match it to Soft, for setting `TONE_GAIN` when a tone is added or changed. It needs Playwright (`npm install playwright`) and isn't part of releases.
 - **Making a release:** `node source/release.js` runs the engine and writer tests, rebuilds, and writes `releases/chord-glide-<version>.zip` containing only the release files. Use it instead of Finder's Compress, which adds `.DS_Store` files and a `__MACOSX` folder.

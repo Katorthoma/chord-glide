@@ -135,12 +135,14 @@ const clampMidi = m => Math.max(0, Math.min(127, Math.round(m)));
 
 /* MIDI with glides holds 15 voices (one MPE member channel each). A larger piece goes into several files of up to 15 voices:
    returns [{ voices: [first, last] (1-based), data }], one entry when it all fits. */
+/* Every voice as { b: its part's timeline, v: its number there }, across all parts of a score */
+const voiceRefs = built => built.voices || Array.from({ length: built.N }, (_, v) => ({ b: built, v }));
 function midiGlideFiles(built, opts = {}) {
   if (built.N <= 15) return [{ voices: [1, built.N], data: midiWithGlides(built, opts) }];
-  const out = [];
+  const out = [], refs = voiceRefs(built);
   for (let a = 0; a < built.N; a += 15) {
-    const b = Math.min(built.N, a + 15), cut = arr => arr.slice(a, b);
-    const part = Object.assign({}, built, { N: b - a, events: built.events.map(e => Object.assign({}, e, { targets: cut(e.targets), off: cut(e.off), dur: cut(e.dur) })) });
+    const b = Math.min(built.N, a + 15);
+    const part = Object.assign({}, built, { N: b - a, voices: refs.slice(a, b) });
     out.push({ voices: [a + 1, b], data: midiWithGlides(part, Object.assign({}, opts, { title: (opts.title || 'Piece') + ' (voices ' + (a + 1) + '–' + b + ')' })) });
   }
   return out;
@@ -151,7 +153,7 @@ function midiGlideFiles(built, opts = {}) {
    last value sent; it carries the pitch at the middle of the tick, so inside any tick the error is at most half a tick's movement. */
 function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendRange = 48, tolerance = 0.02 } = {}) {
   const tick = t => Math.round(t * tempo / 60 * PPQ);
-  const N = Math.min(built.N, 15);
+  const refs = voiceRefs(built), N = Math.min(refs.length, 15);
   const mpe = [ // MPE configuration on the master channel (1): 15 member channels
     { tick: 0, ord: 3, data: [0xB0, 101, 0] }, { tick: 0, ord: 4, data: [0xB0, 100, 6] }, { tick: 0, ord: 5, data: [0xB0, 6, 15] },
     { tick: 0, ord: 6, data: [0xB0, 101, 127] }, { tick: 0, ord: 7, data: [0xB0, 100, 127] }
@@ -160,17 +162,23 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
   const bendVal = s => Math.max(0, Math.min(16383, Math.round(8192 + (s / bendRange) * 8191)));
   for (let v = 0; v < N; v++) {
     const ch = v + 1, ev = []; let ord = 0;
-    const add = (t, data) => ev.push({ tick: tick(t), ord: ord++, data });
+    const sb = refs[v].b, lv = refs[v].v, evs = sb.events, gates = sb.gates && sb.gates[lv]; // this voice's own part
+    const add = (t, data) => ev.push({ tick: tick(Math.max(0, Math.min(t, built.total))), ord: ord++, data }); // nothing after the end
     add(0, [0xB0 | ch, 101, 0]); add(0, [0xB0 | ch, 100, 0]); add(0, [0xB0 | ch, 6, bendRange]); add(0, [0xB0 | ch, 38, 0]);
     add(0, [0xB0 | ch, 101, 127]); add(0, [0xB0 | ch, 100, 127]);
     add(0, metaText(0x03, 'Voice ' + (v + 1)));
-    let note = clampMidi(built.events[0].targets[v]), lastBend = 8192;
+    let note = clampMidi(evs[0].targets[lv]), lastBend = 8192;
     const bend = (t, semis) => { const b = bendVal(semis); if (b !== lastBend) { add(t, [0xE0 | ch, b & 0x7F, (b >> 7) & 0x7F]); lastBend = b; } };
-    add(0, [0xE0 | ch, 0, 64]); add(0, [0x90 | ch, note, 88]);
-    for (let i = 1; i < built.events.length; i++) {
-      const e = built.events[i], a = built.events[i - 1].targets[v], b = e.targets[v];
-      if (a === b) continue;
-      const t0 = e.t + (e.off ? e.off[v] : 0), d = e.dur ? e.dur[v] : e.g;
+    // one change of pitch (event i), written up to `stop` (the end of a note, for a voice that rests)
+    const change = (i, stop = Infinity) => {
+      const e = evs[i], a = evs[i - 1].targets[lv], b = e.targets[lv];
+      if (a === b) return;
+      // a glide is written only until the next change, the note's end or the part's end, whichever comes first: a file can claim
+      // a glide far longer than the piece, and walking it tick by tick would never finish
+      const next = i + 1 < evs.length ? evs[i + 1].t : Infinity, limit = Math.min(stop, next, sb.total, built.total);
+      const t0 = e.t + (e.off ? e.off[lv] : 0);
+      if (t0 >= limit) return;
+      const d = Math.min(e.dur ? e.dur[lv] : e.g, Math.max(0, limit - t0));
       const reach = (t, p) => { // past the bend range mid-glide: hand over to a new note near where the pitch is now
         if (Math.abs(p - note) <= bendRange) return;
         add(t, [0x80 | ch, note, 0]);
@@ -179,16 +187,27 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
         bend(t, Math.max(-bendRange, Math.min(bendRange, p - note)));
         add(t, [0x90 | ch, note, 88]);
       };
-      if (d <= 0) { reach(t0, b); bend(t0, b - note); continue; }
-      const spt = 60 / (tempo * PPQ), at = t => pitchAt(built, v, Math.min(Math.max(t, t0), e.t + e.g), i);
+      const full = e.dur ? e.dur[lv] : e.g;
+      if (full <= 0) { reach(t0, b); bend(t0, b - note); return; }
+      const spt = 60 / (tempo * PPQ), at = t => pitchAt(sb, lv, Math.min(Math.max(t, t0), e.t + e.g), i);
       let sent = a;
       for (let k = Math.ceil(t0 / spt - 1e-9), kEnd = Math.round((t0 + d) / spt); k < kEnd; k++) {
         const t = k * spt;
         if (Math.abs(at(t + spt) - sent) > tolerance) { const p = at(t + spt / 2); reach(t, p); bend(t, p - note); sent = p; }
       }
-      bend(t0 + d, b - note);
+      if (d >= full) bend(t0 + d, b - note);
+      else if (limit === next) { reach(next, b); bend(next, b - note); } // cut short by the next change, which starts from the target
+    };
+    if (!gates) { // always sounding: one note from start to end, bent along every glide
+      add(0, [0xE0 | ch, 0, 64]); add(0, [0x90 | ch, note, 88]);
+      for (let i = 1; i < evs.length; i++) change(i);
+      add(built.total, [0x80 | ch, note, 0]);
+    } else for (const gt of gates) { // a voice that rests: a note-off when it stops, and a fresh note-on when it sounds again
+      const p0 = pitchAt(sb, lv, gt.on); note = clampMidi(p0); lastBend = -1;
+      bend(gt.on, p0 - note); add(gt.on, [0x90 | ch, note, 88]);
+      for (let i = 1; i < evs.length; i++) if (evs[i].t >= gt.on - 1e-9 && evs[i].t < gt.off) change(i, gt.off);
+      add(gt.off, [0x80 | ch, note, 0]);
     }
-    add(built.total, [0x80 | ch, note, 0]);
     tracks.push(trackChunk(ev));
   }
   return smf(tracks);
@@ -196,6 +215,7 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
 
 /* Settled chords only: one channel, notes start at each change */
 function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
+  if (built.main) built = built.main; // the chords are the main part's
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const ev = []; let ord = 0;
   built.events.forEach((e, i) => {
@@ -211,6 +231,7 @@ function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
 /* ---- MusicXML: the settled chords on a grand staff (glides are not notated) ---- */
 const xmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function musicXml(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
+  if (built.main) built = built.main; // the harmonic score is the main part's
   const evs = built.events;
   const flatCount = evs.filter(e => /^[A-G]b/.test(e.label)).length, sharpCount = evs.filter(e => /^[A-G]#/.test(e.label)).length;
   const pieceFlats = flatCount > sharpCount;
