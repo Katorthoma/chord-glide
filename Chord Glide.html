@@ -365,7 +365,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.1 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.1.1 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -846,6 +846,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.1.1</span>Steady lines at any zoom<span class="when">2 Nov 2026</span></h4>
+          <p>The lines are now drawn from each voice's own notes and glides rather than from samples spaced to suit the current zoom. Before, a note shorter than the spacing could be caught in one frame and missed in the next, so while auto zoom zoomed in or out, short notes flickered in and out and sharp edges jittered, and zoomed out, quick shapes were drawn as zigzags. Now every note shows where it starts and stops however short it is, edges keep their shape, and zoomed out the picture is thinned in steps fixed in the piece, so it changes only at a few moments during a zoom instead of every frame. While the view scrolls, the next moments of the piece now show faintly past the playhead, under the note labels, and the playhead stands where this piece's labels fit, so the right side of the picture isn't left empty. How the piece sounds is unchanged.</p>
 
           <h4><span class="step ver">4.1</span>Parts<span class="when">2 Nov 2026</span></h4>
           <p>A piece can now have more than one part. The new <b>Part</b> menu above the tabs adds a melody, a bass line or another pad alongside the chords, each with its own voices, tone, level, pan and stereo width, and the tabs then edit whichever part you choose. Melodies and bass lines are written like the chord box, a note and its length in steps (<code>G4:2</code>) with <code>-</code> for a rest, and they start from your chords so they play in key. For the first time voices can rest: each note has an envelope (how it starts, settles and fades), and the picture shows rests as gaps in the lines. Lines can repeat to the end, be doubled at other intervals, slide into their notes and bloom into vibrato. A <b>volume shape</b> on the Sound tab can fade the piece in, build it, swell it or fade it out. Each part is balanced by its own voices, so how many voices a part has doesn't change the balance, and a piece with several parts shares out headroom by the parts' levels so they don't clip together. At the end, a line's last notes ring out by their own release while the held chords fade. MIDI with glides carries every part, with real note-offs where voices rest; MIDI chords and MusicXML carry the chords. Try the <b>Three Parts</b> example. A piece with parts is saved as file format 4, which older versions refuse rather than open without its parts; every other piece is saved as before, and keeps the same voicing and motion.</p>
@@ -2350,7 +2353,7 @@ function webmMux({ video, audio, meta = null }) {
 }
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.1';
+const APP_VERSION = '4.1.1';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -3085,6 +3088,109 @@ function pitchGradient(g, pal, Y) {
 
 /* Shared by the screen and the video recorder. S: an optional snapshot { built, piece, marks, colors } to draw instead of the
    live piece, so a video render keeps drawing exactly what it started with whatever happens in the editor meanwhile. */
+/* Each voice's line as drawn, in piece time. Its pitch comes from pitchMoves() (exact: holds, jumps and linear glides as they
+   are, eased glides at 120 points a second), from a minute before the start to the end of the closing tail, and it's cut into
+   runs where the voice sounds (its gain is 0.02 or more), with the edges of each run found exactly. Each run is a flat list
+   [t, p, t, p, …]. Levels of detail are made when first asked for: at level L, the piece is cut into cells of LINE_CELL·2^L
+   seconds, and each cell keeps its first, lowest, highest and last points, so nothing within a cell is lost from sight
+   (a short note still shows) and the result never depends on where a frame happens to be. Kept per built score. */
+const LINE_CELL = 1 / 1024, LINE_LEVELS = 30, LINE_QUIET = 0.02, lineCache = new WeakMap();
+function voiceLines(b) {
+  let c = lineCache.get(b);
+  if (!c) { c = { runs: [], levels: [], make: v => makeRuns(b, v) }; lineCache.set(b, c); }
+  return c;
+}
+function linesAt(c, v, level) {
+  if (!c.levels[v]) c.levels[v] = new Map();
+  let r = c.levels[v].get(level);
+  if (!r) { r = (c.runs[v] || (c.runs[v] = c.make(v))).map(run => thinRun(run, LINE_CELL * Math.pow(2, level))); c.levels[v].set(level, r); }
+  return r;
+}
+function makeRuns(b, v) {
+  const E = b.total + TAIL, P = []; // the pitch line: flat [t, p, …], times never going back
+  const add = (t, p) => { const n = P.length; if (n) { if (t < P[n - 2]) t = P[n - 2]; if (t === P[n - 2] && p === P[n - 1]) return; } P.push(t, p); };
+  const moves = pitchMoves(b, v, 0, 120), last = () => P[P.length - 1];
+  add(-60, moves[0].p);
+  for (const m of moves) {
+    if (m.kind === 'set') { add(m.t, last()); add(m.t, m.p); }
+    else if (m.kind === 'ramp') add(m.t, m.p);
+    else { add(m.t, last()); const n = m.ps.length; m.ps.forEach((p, k) => add(m.t + m.d * k / (n - 1), p)); }
+  }
+  add(Math.max(E, P[P.length - 2]), last());
+  // where the voice sounds
+  const gm = gainMoves(b, v, 0), spans = [];
+  if (!gm) spans.push([-Infinity, Infinity]);
+  else {
+    let on = gm[0].g >= LINE_QUIET ? -Infinity : null;
+    for (let i = 1; i < gm.length; i++) {
+      const a = gm[i - 1], q = gm[i], ua = a.g >= LINE_QUIET, uq = q.g >= LINE_QUIET;
+      if (ua === uq) continue;
+      const x = q.t > a.t ? a.t + (q.t - a.t) * (LINE_QUIET - a.g) / (q.g - a.g) : q.t;
+      if (uq) on = x; else { spans.push([on, x]); on = null; }
+    }
+    if (on !== null) spans.push([on, Infinity]);
+  }
+  const t0 = P[0], tEnd = P[P.length - 2], runs = [];
+  for (const [s0, e0] of spans) {
+    const s = Math.max(s0, t0), e = Math.min(e0, tEnd); if (!(e >= s)) continue;
+    const run = [s, lineValue(P, s, true)];
+    for (let k = firstAfter(P, s); k < P.length && P[k] < e; k += 2) run.push(P[k], P[k + 1]);
+    run.push(e, lineValue(P, e, false));
+    runs.push(run);
+  }
+  return runs;
+}
+// the index (even) of the first point after t (strictly), or P.length
+function firstAfter(P, t) { let lo = 0, hi = P.length / 2; while (lo < hi) { const m = (lo + hi) >> 1; if (P[2 * m] <= t) lo = m + 1; else hi = m; } return 2 * lo; }
+// the line's value at t: just after t (after = true: at a jump, where it lands) or just before it (where it leaves from)
+function lineValue(P, t, after) {
+  const n = P.length / 2;
+  let lo = 0, hi = n; // first point at or after t (before), or strictly after t (after)
+  while (lo < hi) { const m = (lo + hi) >> 1; if (after ? P[2 * m] <= t : P[2 * m] < t) lo = m + 1; else hi = m; }
+  if (after) { if (lo === 0) return P[1]; if (lo >= n) return P[2 * n - 1]; const i = 2 * (lo - 1), j = 2 * lo; return P[i + 1] + (P[j + 1] - P[i + 1]) * (t - P[i]) / (P[j] - P[i]); }
+  if (lo === 0) return P[1]; if (lo >= n) return P[2 * n - 1];
+  const i = 2 * (lo - 1), j = 2 * lo; return P[j] > P[i] ? P[i + 1] + (P[j + 1] - P[i + 1]) * (t - P[i]) / (P[j] - P[i]) : P[j + 1];
+}
+function thinRun(run, cell) {
+  const n = run.length / 2; if (n <= 2) return run;
+  const out = [];
+  for (let k = 0; k < n;) {
+    const c = Math.floor(run[2 * k] / cell); let j = k, lo = k, hi = k;
+    while (j + 1 < n && Math.floor(run[2 * (j + 1)] / cell) === c) { j++; if (run[2 * j + 1] < run[2 * lo + 1]) lo = j; if (run[2 * j + 1] > run[2 * hi + 1]) hi = j; }
+    for (const i of [...new Set([k, lo, hi, j])].sort((a, z) => a - z)) out.push(run[2 * i], run[2 * i + 1]);
+    k = j + 1;
+  }
+  return out;
+}
+// add the runs' parts between ta and tb to a path
+function traceRuns(path, runs, ta, tb, X, Y) {
+  let lo = 0, hi = runs.length; // the first run that ends after ta
+  while (lo < hi) { const m = (lo + hi) >> 1; const r = runs[m]; if (r[r.length - 2] < ta) lo = m + 1; else hi = m; }
+  for (let i = lo; i < runs.length && runs[i][0] <= tb; i++) {
+    const r = runs[i], s = Math.max(ta, r[0]), e = Math.min(tb, r[r.length - 2]);
+    if (e < s) continue;
+    path.moveTo(X(s), Y(lineValue(r, s, true)));
+    for (let k = firstAfter(r, s); k < r.length && r[k] < e; k += 2) path.lineTo(X(r[k]), Y(r[k + 1]));
+    path.lineTo(X(e), Y(lineValue(r, e, false)));
+  }
+}
+/* The width of the widest note label a piece shows, at the size it's drawn: measured at moments 0.1 s apart, grouping
+   voices as the labels do (a pitch shared by several voices is one label, "×n"), and kept per built score, label setting
+   and size, so the playhead stands where those labels fit and stays there. */
+const labelRoomCache = new WeakMap();
+function labelRoom(g, S, video, narrow, d) {
+  const b = S.built, font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${(S.colors && S.colors.data) || 'monospace'}`, key = font + '|' + S.piece.view.labels;
+  let c = labelRoomCache.get(b); if (!c) { c = new Map(); labelRoomCache.set(b, c); }
+  if (c.has(key)) return c.get(key);
+  const N = b.N, gated = b.voices ? b.voices.map(r => !!(r.b.gates && r.b.gates[r.v])) : new Array(N).fill(false), texts = new Set();
+  for (let k = 0; k * 0.1 <= b.total; k++) {
+    const t = k * 0.1, groups = new Map();
+    for (let v = 0; v < N; v++) { if (gated[v] && gainAt(b, v, t) < 0.02) continue; const p = pitchAt(b, v, t), q = Math.round(p * 100); const gp = groups.get(q); if (gp) gp.n++; else groups.set(q, { p, n: 1 }); }
+    groups.forEach(gp => texts.add(pitchLabel(gp.p, S) + (gp.n > 1 ? ' ×' + gp.n : '')));
+  }
+  g.save(); g.font = font; let w = 0; texts.forEach(s => { w = Math.max(w, g.measureText(s).width); }); g.restore();
+  c.set(key, w); return w;
+}
 function drawScene(g, W, H, d, t, cam, video, S = null) {
   if (!S) S = { built, piece, marks, colors, artist: video ? videoArtist() : '' };
   const b = S.built, N = b.N, T = b.total, C = S.colors;
@@ -3100,8 +3206,11 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const gated = b.voices ? b.voices.map(r => !!(r.b.gates && r.b.gates[r.v])) : new Array(N).fill(false), quiet = (v, tt) => gated[v] && gainAt(b, v, tt) < 0.02;
   const cur = []; for (let v = 0; v < N; v++) cur.push(quiet(v, tc) ? null : pitchAt(b, v, tc, idx));
   const z = cameraZ(Math.min(t, T + TAIL), S); // the zoom out can run on into the closing fade
-  // the label column is only reserved while scrolling; zoomed out, the piece runs almost to the edge
-  const xEnd = lerp(W - (video ? 50 : 18) * d, x1 - 14 * d, z);
+  /* Scrolling, the playhead stands far enough from the right edge for the widest label this piece shows (labelRoom()), and
+     no further than it used to (the label column, labelW); zoomed out, the piece runs almost to the edge. Past the playhead,
+     the next moments of the piece show faintly, out to the right margin (xR), under the labels. */
+  const margin = (video ? 50 : 18) * d, room = Math.min(W - x1 + 14 * d, margin + 12 * d + labelRoom(g, S, video, narrow, d) + 4 * d);
+  const xEnd = lerp(W - margin, W - room, z), xR = video ? W - margin : W - (1 - z) * margin;
   const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
   const win = (xEnd - x0) / pps;
   let lo = Infinity, hi = -Infinity;
@@ -3109,7 +3218,7 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
      window), not from the playhead, so the same moments are measured every frame; and each voice's value at a moment is the
      median of it and its neighbours, so a blip caught by one sample (a fast spike or a short grace note) can't move the view,
      while anything that lasts does. Voices that are resting don't count. */
-  const gdt = win / 40, k0 = Math.ceil((te - win) / gdt), k1 = Math.floor(te / gdt), mid3 = (x, y, w) => Math.max(Math.min(x, y), Math.min(Math.max(x, y), w));
+  const gdt = Math.pow(2, Math.round(Math.log2(win / 40))), k0 = Math.ceil((te - win) / gdt), k1 = Math.floor(te / gdt), mid3 = (x, y, w) => Math.max(Math.min(x, y), Math.min(Math.max(x, y), w));
   for (let v = 0; v < N; v++) {
     const ps = [];
     for (let k = k0; k <= k1; k++) { const tt = Math.min(T, Math.max(0, k * gdt)); if (!quiet(v, tt)) ps.push(pitchAt(b, v, tt)); }
@@ -3133,24 +3242,28 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const colorOf = v => grad || pal.line(v, N);
   const coreOf = v => pal.core;
   g.lineJoin = 'round'; g.lineCap = 'round';
-  const step = 2 * d;
+  /* The lines come from each voice's own moves (voiceLines()), not from samples taken at this frame's spacing, so a note is
+     drawn where it starts and stops however short it is, and an edge has the same slope at every zoom. Zoomed out, each line
+     is thinned to cells of about 1 to 2 pixels that are fixed in the piece (powers of two of a second), so the picture is the
+     same from frame to frame and changes only when the zoom passes one of those sizes. */
+  const lines = voiceLines(b), ideal = (tB - tA) * 2 * d / (xEnd - x0);
+  const level = Math.max(0, Math.min(LINE_LEVELS, Math.floor(Math.log2(ideal / LINE_CELL))));
   for (const future of [false, true]) {
-    if (future && z > 0.995) continue;
-    const xa = future ? px : x0, xb = future ? xEnd : px;
+    const xa = future ? px : x0, xb = future ? Math.max(xEnd, xR) : px;
     if (xb - xa < 0.5) continue;
-    /* Sample at fixed moments of the piece (every `dt` seconds, about every 2 pixels), plus the two ends. Sampling from the
-       playhead instead would shift the samples a fraction of a pixel every frame, and a line that wiggles faster than the
-       sampling would seem to boil, like heat haze. */
-    const dt = (tB - tA) * step / (xEnd - x0), ta = tA + (tB - tA) * (xa - x0) / (xEnd - x0), tb = tA + (tB - tA) * (xb - x0) / (xEnd - x0);
-    const times = [ta]; for (let k = Math.floor(ta / dt) + 1; k * dt < tb - dt * 0.01; k++) times.push(k * dt); times.push(tb);
+    const ta = tA + (tB - tA) * (xa - x0) / (xEnd - x0), tb = tA + (tB - tA) * (xb - x0) / (xEnd - x0);
+    // what's ahead of a scrolling view isn't framed yet, so it's kept within the trace's band rather than run over the title
+    if (future && z > 0) { g.save(); g.beginPath(); g.rect(0, y0 - 6 * d, W, y1 - y0 + 12 * d); g.clip(); }
     for (let v = 0; v < N; v++) {
       const path = new Path2D();
-      let pen = false;
-      times.forEach(tt => { const tq = Math.max(0, Math.min(T, tt)); if (quiet(v, tq)) { pen = false; return; } const x = X(tt), y = Y(pitchAt(b, v, tq)); if (pen) path.lineTo(x, y); else path.moveTo(x, y); pen = true; });
+      traceRuns(path, linesAt(lines, v, level), ta, tb, X, Y);
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
+    if (future && z > 0) g.restore();
   }
   fadeToBackground(g, W, H, pal, X(M), X(M + FADE)); // the held notes fade out as the sound does
+  // the look ahead fades out toward the right margin
+  if (z > 0 && xR - xEnd > 1) { const fw = Math.min(90 * d, (xR - xEnd) * 0.7) * z; fadeToBackground(g, W, H, pal, xR - fw, xR); }
   if (z < 0.98) { g.globalAlpha = (1 - z) * 0.8; g.strokeStyle = pal.accent; g.lineWidth = 1.5 * d; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.globalAlpha = 1; }
   // dots and labels
   const groups = new Map();
@@ -3185,7 +3298,7 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     const txt = pitchLabel(gp.p, S) + (gp.n > 1 ? ' ×' + gp.n : '');
     const w = g.measureText(txt).width;
     const tx = lx + w > W - 4 * d ? px - 12 * d - w : lx; // near the right edge, put the label on the left of the dot
-    if (z < 0.98 || tx !== lx) { g.globalAlpha = 0.85 * env; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); }
+    { g.globalAlpha = 0.85 * env; g.fillStyle = pal.bg; g.fillRect(tx - 3 * d, y - 7 * d, w + 6 * d, 14 * d); }
     g.globalAlpha = env; g.fillStyle = pal.text; g.fillText(txt, tx, y); g.globalAlpha = 1;
   }
   if (video) {

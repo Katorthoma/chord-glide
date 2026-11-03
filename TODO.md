@@ -84,6 +84,10 @@ parts: [
   - [ ] Bass and arpeggio patterns, copies (echo), rhythmic gates, pitch-envelope percussion (kick)
   - [ ] MIDI note-ons per part; MusicXML for notation-compatible parts
   - [ ] Bounce of the Spheres rewritten as a short piece file
+  - [ ] Per-note loudness: a velocity for each note in lines and saved notes, so a part's notes can differ (quiet drips, accented downbeats, a big final chord) without splitting it into parts by level
+  - [ ] Shaping a held note: a gain curve within a note (a pad breathing at a chord change, an armonica re-bowed between notes)
+  - [ ] Curved decays: exponential envelope segments, so plucks and rings die away naturally rather than in straight lines
+  - [ ] Glass Tide rewritten as a short piece file (needs the three above)
 - **4.3, generative motion:**
   - [ ] Swarm: stochastic wander, convergence and divergence
   - [ ] Per-voice modulation; pan and filter automation
