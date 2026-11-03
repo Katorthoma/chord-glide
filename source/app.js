@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.1.2';
+const APP_VERSION = '4.1.3';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -145,7 +145,7 @@ function rebuild(keepTime = true, restartAudio = true) {
   }
   const t = currentT();
   built = buildScore(isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece), items); // the main part, then any others
-  marks = landmarks(built);
+  marks = zoomMarks(); syncZoomUI();
   $('revoice').hidden = !isFrozen() && !frozenPads().length;
   if (isFrozen()) msgs.unshift((piece.realization.engine === 'custom' ? 'Playing the notes written into this piece, exactly as they are.' : 'Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were.') + ' Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
   if (!isFrozen() && frozenPads().length) msgs.unshift('Pad parts ' + frozenPads().map(x => x.name).join(', ') + ' play the notes saved by engine ' + frozenPads()[0].realization.engine + ', exactly as they were.');
@@ -164,6 +164,7 @@ function updateAvailability() {
   const has = !!built, save = canSave();
   for (const id of ['play', 'restart', 'scrub']) $(id).disabled = !has;
   document.querySelectorAll('[data-export]').forEach(b => b.disabled = !save || (!has && b.dataset.export !== 'json'));
+  $('xopen').disabled = !save || exporting;
   for (const id of ['vrender', 'vrecord']) $(id).disabled = !save || !has;
 }
 // saved notes play exactly as written when they come from another engine, or are marked "custom" (written by hand or by another program)
@@ -582,6 +583,22 @@ function fit() {
   if (w && h && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
 }
 new ResizeObserver(fit).observe(cv);
+/* When auto zoom zooms in and out: the piece's own times if it has them (view.zoom, set on the Export tab), else the
+   automatic ones (landmarks()) */
+function zoomMarks() { return piece.view.zoom ? Object.assign({}, piece.view.zoom) : landmarks(built); }
+// times as m:ss.s, and back (also plain seconds)
+const fmtZoom = s => { const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
+function parseZoom(text) { const m = String(text).trim().match(/^(?:(\d+):)?(\d+(?:\.\d*)?|\.\d+)$/); return m ? (m[1] ? +m[1] * 60 : 0) + parseFloat(m[2]) : NaN; }
+const ZOOM_KEYS = ['inStart', 'inEnd', 'outStart', 'outEnd'], ZOOM_IDS = ['zin0', 'zin1', 'zout0', 'zout1'];
+function syncZoomUI() {
+  if (!$('vzoom')) return;
+  const custom = !!(piece && piece.view.zoom), L = built ? zoomMarks() : null;
+  $('vzoom').value = custom ? 'custom' : 'auto'; $('vzoom-times').hidden = !custom;
+  ZOOM_IDS.forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = L ? fmtZoom(L[ZOOM_KEYS[i]]) : ''; });
+  $('vzoom-hint').textContent = !L ? '' : (custom ? 'This piece zooms in and out at these times in Auto view, on the stage and in videos. Times are m:ss or seconds; Now takes the playhead.'
+    : 'Auto view zooms in ' + fmtZoom(L.inStart) + '–' + fmtZoom(L.inEnd) + ' and out ' + fmtZoom(L.outStart) + '–' + fmtZoom(L.outEnd) + '. Choose Custom times to set your own. Fast movement sets how a voice moving faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.');
+}
+function setZoom(next) { piece.view.zoom = next; marks = zoomMarks(); screenCam.snap = true; syncZoomUI(); commit(); }
 function cameraZ(t, S = null) {
   const m = (S ? S.piece : piece).view.mode;
   if (m === 'scroll') return 1;
@@ -747,15 +764,21 @@ function voiceLines(b) {
   if (!c) { c = { runs: [], levels: [], make: v => makeRuns(b, v) }; lineCache.set(b, c); }
   return c;
 }
-function linesAt(c, v, level) {
+// one voice's lines at a level of detail, drawn in a style for busy movement ('range', 'middle' or 'every'): { runs, bands }
+function linesAt(c, v, level, style = 'range') {
   if (!c.levels[v]) c.levels[v] = new Map();
-  let r = c.levels[v].get(level);
-  if (!r) { r = (c.runs[v] || (c.runs[v] = c.make(v))).map(run => thinRun(run, LINE_CELL * Math.pow(2, level))); c.levels[v].set(level, r); }
+  const key = style + level; let r = c.levels[v].get(key);
+  if (!r) { r = { runs: [], bands: [] }; for (const run of (c.runs[v] || (c.runs[v] = c.make(v)))) { const t = thinRun(run, LINE_CELL * Math.pow(2, level), style); r.runs.push(...t.lines); r.bands.push(...t.bands); } c.levels[v].set(key, r); }
   return r;
 }
 function makeRuns(b, v) {
   const E = b.total + TAIL, P = []; // the pitch line: flat [t, p, …], times never going back
-  const add = (t, p) => { const n = P.length; if (n) { if (t < P[n - 2]) t = P[n - 2]; if (t === P[n - 2] && p === P[n - 1]) return; } P.push(t, p); };
+  const add = (t, p) => { const n = P.length;
+    if (n) { if (t < P[n - 2]) t = P[n - 2]; if (t === P[n - 2] && p === P[n - 1]) return; }
+    // a point on the straight line through the two before it adds nothing (saved notes repeat a held pitch many times a second)
+    if (n >= 4) { const t0 = P[n - 4], p0 = P[n - 3], t1 = P[n - 2], p1 = P[n - 1];
+      if (t1 > t0 && t > t1 && Math.abs(p0 + (p - p0) * (t1 - t0) / (t - t0) - p1) < 1e-6) { P[n - 2] = t; P[n - 1] = p; return; } }
+    P.push(t, p); };
   const moves = pitchMoves(b, v, 0, 120), last = () => P[P.length - 1];
   add(-60, moves[0].p);
   for (const m of moves) {
@@ -798,16 +821,96 @@ function lineValue(P, t, after) {
   if (lo === 0) return P[1]; if (lo >= n) return P[2 * n - 1];
   const i = 2 * (lo - 1), j = 2 * lo; return P[j] > P[i] ? P[i + 1] + (P[j + 1] - P[i + 1]) * (t - P[i]) / (P[j] - P[i]) : P[j + 1];
 }
-function thinRun(run, cell) {
-  const n = run.length / 2; if (n <= 2) return run;
+function thinRun(run, cell, style = 'range') {
+  /* Seen from far out, a voice can move faster than the picture can show: a kick diving on every beat, a part jumping octaves
+     on every note. A cell is busy where the voice keeps turning back on itself (up and down, by a semitone or more, four times
+     or more within four cells either side; cells are 1 to 2 pixels). How busy cells are drawn is the trace look's choice:
+     'range' (a faint band over the notes the voice moves between: the lowest and highest in the cell and its neighbours),
+     'middle' (one point per cell, the average over it and the two cells either side: a steady line at the middle), or
+     'every' (as every other cell). Every other cell (holds, single edges, glides, single spikes, the start and end of every
+     note) keeps its first, lowest, highest and last points, which for a line that doesn't turn back is all there is to see.
+     Cells are fixed in the piece, so the result is the same in every frame. Returns { lines: [runs], bands: [[t, lo, hi, …]] }. */
+  const n = run.length / 2; if (n <= 2) return { lines: [run], bands: [] };
+  const cells = []; // { c, k, j, m: [t, average] }
+  for (let k = 0; k < n;) { const c = Math.floor(run[2 * k] / cell); let j = k; while (j + 1 < n && Math.floor(run[2 * (j + 1)] / cell) === c) j++; cells.push({ c, k, j, m: cellMean(run, k, j) }); k = j + 1; }
+  const last = cells.length - 1;
+  // how many times the line turns back by a semitone or more between points k and j (a wobble smaller than that isn't a turn)
+  const turns = (k, j) => { let dir = 0, ext = run[2 * k + 1], n = 0;
+    for (let x = k + 1; x <= j; x++) { const p = run[2 * x + 1];
+      if (dir === 0) { if (Math.abs(p - ext) >= 1) { dir = p > ext ? 1 : -1; ext = p; } continue; }
+      if (dir > 0 ? p > ext : p < ext) ext = p; else if (Math.abs(p - ext) >= 1) { n++; dir = -dir; ext = p; } }
+    return n; };
+  const busy = style === 'every' ? cells.map(() => false)
+    : cells.map((q, i) => { let a = i, b = i; while (a > 0 && q.c - cells[a - 1].c <= 4) a--; while (b < last && cells[b + 1].c - q.c <= 4) b++; return turns(cells[a].k, cells[b].j) >= 4; });
+  const lines = [], bands = []; let cur = [], band = null, bandEnd = 0;
+  const closeBand = () => { const n = band.length; band.push(bandEnd, band[n - 2], band[n - 1]); bands.push(band); band = null; }; // runs on to the end of its last cell
+  cells.forEach((q, i) => {
+    if (!busy[i] || i === 0 || i === last) { // its first, lowest, highest and last points (a run's own start and end always)
+      if (band) closeBand();
+      let lo = q.k, hi = q.k; for (let x = q.k + 1; x <= q.j; x++) { if (run[2 * x + 1] < run[2 * lo + 1]) lo = x; if (run[2 * x + 1] > run[2 * hi + 1]) hi = x; }
+      for (const x of [...new Set([q.k, lo, hi, q.j])].sort((u, w) => u - w)) cur.push(run[2 * x], run[2 * x + 1]);
+      return; }
+    if (style === 'middle') {
+      let sum = 0, cnt = 0;
+      for (let o = i - 2; o <= i + 2; o++) if (o >= 0 && o <= last && Math.abs(cells[o].c - q.c) <= 2) { sum += cells[o].m[1]; cnt++; }
+      cur.push(q.m[0], sum / cnt); return; }
+    // range: the line stops and a band takes over until the voice calms down
+    if (!band) { if (cur.length) lines.push(cur); cur = []; band = []; }
+    let lo = Infinity, hi = -Infinity;
+    for (let o = i - 1; o <= i + 1; o++) if (o >= 0 && o <= last && Math.abs(cells[o].c - q.c) <= 1) for (let x = cells[o].k; x <= cells[o].j; x++) { const p = run[2 * x + 1]; if (p < lo) lo = p; if (p > hi) hi = p; }
+    if (!band.length) band.push(q.c * cell, lo, hi); // from the start of its first cell, then one point per cell
+    band.push((q.c + 0.5) * cell, lo, hi); bandEnd = (q.c + 1) * cell;
+  });
+  if (band) closeBand(); if (cur.length) lines.push(cur);
+  return { lines, bands };
+}
+// the time-weighted average pitch of points k..j of a run, placed at the middle of their time (a plain average if no time passes)
+function cellMean(run, k, j) {
+  const t0 = run[2 * k], t1 = run[2 * j];
+  if (!(t1 > t0)) { let s = 0; for (let i = k; i <= j; i++) s += run[2 * i + 1]; return [t0, s / (j - k + 1)]; }
+  let area = 0; for (let i = k; i < j; i++) area += (run[2 * i + 3] + run[2 * i + 1]) / 2 * (run[2 * i + 2] - run[2 * i]);
+  return [(t0 + t1) / 2, area / (t1 - t0)];
+}
+// a band's low and high at t (between its points)
+function bandAt(B, t) {
+  const n = B.length / 3; let a = 0, z = n; while (a < z) { const m = (a + z) >> 1; if (B[3 * m] <= t) a = m + 1; else z = m; }
+  if (a === 0) return [B[1], B[2]]; if (a >= n) return [B[3 * n - 2], B[3 * n - 1]];
+  const i = 3 * (a - 1), j = 3 * a, f = B[j] > B[i] ? (t - B[i]) / (B[j] - B[i]) : 1;
+  return [B[i + 1] + (B[j + 1] - B[i + 1]) * f, B[i + 2] + (B[j + 2] - B[i + 2]) * f];
+}
+// each band's part between ta and tb, as [t, lo, hi, …]
+function bandsIn(bands, ta, tb) {
   const out = [];
-  for (let k = 0; k < n;) {
-    const c = Math.floor(run[2 * k] / cell); let j = k, lo = k, hi = k;
-    while (j + 1 < n && Math.floor(run[2 * (j + 1)] / cell) === c) { j++; if (run[2 * j + 1] < run[2 * lo + 1]) lo = j; if (run[2 * j + 1] > run[2 * hi + 1]) hi = j; }
-    for (const i of [...new Set([k, lo, hi, j])].sort((a, z) => a - z)) out.push(run[2 * i], run[2 * i + 1]);
-    k = j + 1;
-  }
+  for (const B of bands) { if (B[B.length - 3] < ta || B[0] > tb) continue;
+    const s = Math.max(ta, B[0]), e = Math.min(tb, B[B.length - 3]); if (e < s) continue;
+    const part = [s, ...bandAt(B, s)]; for (let k = 0; k < B.length; k += 3) if (B[k] > s && B[k] < e) part.push(B[k], B[k + 1], B[k + 2]); part.push(e, ...bandAt(B, e));
+    out.push(part); }
   return out;
+}
+// draw bands: a faint fill between the lowest and highest notes, with thin edges and no glow
+function drawBands(g, bands, ta, tb, X, Y, color, pal, d, fade) {
+  const parts = bandsIn(bands, ta, tb); if (!parts.length) return;
+  const fill = new Path2D(), edges = new Path2D();
+  for (const P of parts) { const n = P.length / 3;
+    fill.moveTo(X(P[0]), Y(P[2])); for (let k = 1; k < n; k++) fill.lineTo(X(P[3 * k]), Y(P[3 * k + 2])); for (let k = n - 1; k >= 0; k--) fill.lineTo(X(P[3 * k]), Y(P[3 * k + 1])); fill.closePath();
+    edges.moveTo(X(P[0]), Y(P[2])); for (let k = 1; k < n; k++) edges.lineTo(X(P[3 * k]), Y(P[3 * k + 2]));
+    edges.moveTo(X(P[0]), Y(P[1])); for (let k = 1; k < n; k++) edges.lineTo(X(P[3 * k]), Y(P[3 * k + 1])); }
+  g.save(); g.fillStyle = color; g.strokeStyle = color;
+  g.globalAlpha = (pal.dark ? 0.16 : 0.12) * fade; g.fill(fill);
+  g.globalAlpha = 0.6 * fade; g.lineWidth = 0.9 * d * pal.weight; g.stroke(edges);
+  g.restore();
+}
+// the lowest and highest pitch the lines (and bands) draw between ta and tb
+function runsRange(L, ta, tb) {
+  const runs = L.runs; let lo = Infinity, hi = -Infinity, a = 0, z = runs.length;
+  for (const P of bandsIn(L.bands, ta, tb)) for (let k = 0; k < P.length; k += 3) { if (P[k + 1] < lo) lo = P[k + 1]; if (P[k + 2] > hi) hi = P[k + 2]; }
+  while (a < z) { const m = (a + z) >> 1; const r = runs[m]; if (r[r.length - 2] < ta) a = m + 1; else z = m; }
+  for (let i = a; i < runs.length && runs[i][0] <= tb; i++) {
+    const r = runs[i], s = Math.max(ta, r[0]), e = Math.min(tb, r[r.length - 2]); if (e < s) continue;
+    for (const p of [lineValue(r, s, true), lineValue(r, e, false)]) { if (p < lo) lo = p; if (p > hi) hi = p; }
+    for (let k = firstAfter(r, s); k < r.length && r[k] < e; k += 2) { const p = r[k + 1]; if (p < lo) lo = p; if (p > hi) hi = p; }
+  }
+  return [lo, hi];
 }
 // add the runs' parts between ta and tb to a path
 function traceRuns(path, runs, ta, tb, X, Y) {
@@ -860,17 +963,15 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const xEnd = lerp(W - margin, W - room, z), xR = video ? W - margin : W - (1 - z) * margin;
   const pps = Math.max(34, Math.min(80, (W / d) / 11)) * d;
   const win = (xEnd - x0) / pps;
+  /* The range of pitches the zoomed view frames: everything the lines draw over the stretch in view (from voiceLines(), at
+     the level of detail they're drawn at), so whatever is drawn fits, a move that repeats (a kick diving on every beat) stays
+     in frame, and the range changes only as something enters or leaves the stretch, never with how a frame happens to sample
+     it. Voices that are resting don't count. */
+  const tA = lerp(0, te - win, z), tB = Math.max(lerp(E, te, z), tA + 0.01);
+  const lines = voiceLines(b), ideal = (tB - tA) * 2 * d / (xEnd - x0), busyStyle = S.piece.view.trace.busy || 'range';
+  const level = Math.max(0, Math.min(LINE_LEVELS, Math.floor(Math.log2(ideal / LINE_CELL))));
   let lo = Infinity, hi = -Infinity;
-  /* The range of pitches in view, which the zoomed view frames. Sampled at fixed moments of the piece (about 40 across the
-     window), not from the playhead, so the same moments are measured every frame; and each voice's value at a moment is the
-     median of it and its neighbours, so a blip caught by one sample (a fast spike or a short grace note) can't move the view,
-     while anything that lasts does. Voices that are resting don't count. */
-  const gdt = Math.pow(2, Math.round(Math.log2(win / 40))), k0 = Math.ceil((te - win) / gdt), k1 = Math.floor(te / gdt), mid3 = (x, y, w) => Math.max(Math.min(x, y), Math.min(Math.max(x, y), w));
-  for (let v = 0; v < N; v++) {
-    const ps = [];
-    for (let k = k0; k <= k1; k++) { const tt = Math.min(T, Math.max(0, k * gdt)); if (!quiet(v, tt)) ps.push(pitchAt(b, v, tt)); }
-    for (let i = 0; i < ps.length; i++) { const p = ps.length < 3 ? ps[i] : mid3(ps[Math.max(0, i - 1)], ps[i], ps[Math.min(ps.length - 1, i + 1)]); if (p < lo) lo = p; if (p > hi) hi = p; }
-  }
+  for (let v = 0; v < N; v++) { const r = runsRange(linesAt(lines, v, level, busyStyle), Math.min(te, T) - win, Math.min(te, T)); if (r[0] < lo) lo = r[0]; if (r[1] > hi) hi = r[1]; }
   if (!(lo <= hi)) { lo = cam.slo !== undefined ? cam.slo : b.min; hi = cam.shi !== undefined ? cam.shi : b.max; } // everything resting: hold the view
   const ck = cam.k || 0.1; // how far the view eases toward its target each frame
   // widen quickly when something needs the room, narrow at a third of the pace, so the view doesn't breathe in and out
@@ -880,7 +981,6 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   if (yhi - ylo < 12) { const c = (yhi + ylo) / 2; ylo = c - 6; yhi = c + 6; }
   const padY = (y1 - y0) * 0.07;
   const Y = p => y1 - padY - (p - ylo) / (yhi - ylo) * (y1 - y0 - 2 * padY);
-  const tA = lerp(0, te - win, z), tB = Math.max(lerp(E, te, z), tA + 0.01);
   const X = tt => x0 + (xEnd - x0) * (tt - tA) / (tB - tA);
   const px = X(te);
   const M = b.musicEnd !== undefined ? b.musicEnd : T; // the music's end, where the held parts fade
@@ -893,8 +993,6 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
      drawn where it starts and stops however short it is, and an edge has the same slope at every zoom. Zoomed out, each line
      is thinned to cells of about 1 to 2 pixels that are fixed in the piece (powers of two of a second), so the picture is the
      same from frame to frame and changes only when the zoom passes one of those sizes. */
-  const lines = voiceLines(b), ideal = (tB - tA) * 2 * d / (xEnd - x0);
-  const level = Math.max(0, Math.min(LINE_LEVELS, Math.floor(Math.log2(ideal / LINE_CELL))));
   for (const future of [false, true]) {
     const xa = future ? px : x0, xb = future ? Math.max(xEnd, xR) : px;
     if (xb - xa < 0.5) continue;
@@ -903,8 +1001,10 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     if (future && z > 0) { g.save(); g.beginPath(); g.rect(0, y0 - 6 * d, W, y1 - y0 + 12 * d); g.clip(); }
     for (let v = 0; v < N; v++) {
       const path = new Path2D();
-      traceRuns(path, linesAt(lines, v, level), ta, tb, X, Y);
+      const L = linesAt(lines, v, level, busyStyle);
+      traceRuns(path, L.runs, ta, tb, X, Y);
       glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
+      if (L.bands.length) drawBands(g, L.bands, ta, tb, X, Y, colorOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
     }
     if (future && z > 0) g.restore();
   }
@@ -1037,7 +1137,7 @@ async function initDownloads() {
   $('xhint').textContent = saveMode === 'browser'
     ? 'Files download straight to your computer. MusicXML shows where the voices settle; the glides live in the MIDI and audio.'
     : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip. MusicXML shows where the voices settle; the glides live in the MIDI and audio.');
-  if (!canSave()) { document.querySelectorAll('[data-export], #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
+  if (!canSave()) { document.querySelectorAll('[data-export], #xopen, #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
 }
 function xstatus(m) { $('xstatus').textContent = m; }
 async function saveFile(filename, data) {
@@ -1110,7 +1210,7 @@ async function encodeMp3(a, kbps = 192, stop = null) {
 let exporting = false;
 async function doExport(kind) {
   if (exporting || (!built && kind !== 'json')) return;
-  exporting = true; document.querySelectorAll('[data-export]').forEach(b => b.disabled = true);
+  exporting = true; document.querySelectorAll('[data-export], #xopen').forEach(b => b.disabled = true);
   const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: String($('name').value || '').trim() || name, artist: artistName() };
   try {
     if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
@@ -1151,7 +1251,7 @@ function pickMime() {
 const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.partbar', '.tabs'];
 function lockUI(on) {
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
-  document.querySelectorAll('[data-export], #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo').forEach(el => el.disabled = on || !canSave());
+  document.querySelectorAll('[data-export], #xopen, #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo, #vzoom, #busy, .vzc input, .znow').forEach(el => el.disabled = on || !canSave());
   if (!on && typeof showArtistOption === 'function' && canSave()) showArtistOption(); // dimmed again if there's no name
   if (!on) updateAvailability();
 }
@@ -1422,6 +1522,14 @@ async function probeRendering() {
 { // remembered video choices (this browser only; not part of the piece)
   try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v) for (const [id, k] of [['vaspect', 'aspect'], ['vsize', 'size'], ['vfps', 'fps'], ['vformat', 'format'], ['vquality', 'quality']]) if (v[k] !== undefined && [...$(id).options].some(x => x.value == v[k])) $(id).value = String(v[k]); } catch (e) {}
   for (const id of ['vaspect', 'vsize', 'vfps', 'vformat', 'vquality']) $(id).addEventListener('change', () => { saveVideoOpts(); showVideoEstimate(); });
+  // auto zoom times: Automatic, or this piece's own (starting from the automatic ones)
+  $('vzoom').addEventListener('change', () => { if (!built) return; if ($('vzoom').value === 'custom') { const L = landmarks(built), z = {}; ZOOM_KEYS.forEach(k => { z[k] = Math.round(L[k] * 10) / 10; }); setZoom(z); } else setZoom(undefined); });
+  const zoomField = (i, val) => { if (!piece.view.zoom || !Number.isFinite(val) || val < 0) { syncZoomUI(); return; }
+    const z = Object.assign({}, piece.view.zoom), v = ZOOM_KEYS.map(k => z[k]); v[i] = Math.round(val * 10) / 10;
+    for (let k = i + 1; k < 4; k++) v[k] = Math.max(v[k], v[k - 1]); for (let k = i - 1; k >= 0; k--) v[k] = Math.min(v[k], v[k + 1]); // keep them in order around the one changed
+    ZOOM_KEYS.forEach((k, j) => { z[k] = v[j]; }); setZoom(z); };
+  ZOOM_IDS.forEach((id, i) => { $(id).addEventListener('change', () => zoomField(i, parseZoom($(id).value))); $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $(id).blur(); }); });
+  document.querySelectorAll('.znow').forEach(btn => btn.addEventListener('click', () => zoomField(+btn.dataset.z, currentT())));
   try { const v = JSON.parse(lsGet('cge.video') || 'null'); if (v && typeof v.artist === 'boolean') $('vartist').checked = v.artist; } catch (e) {}
   $('vartist').addEventListener('change', saveVideoOpts);
   showArtistOption();
@@ -1730,7 +1838,20 @@ EXAMPLES.forEach(ex => {
   b.onclick = () => { setPlaying(false); currentLibId = null; savedJSON = null; applyPiece(examplePiece(ex), { fresh: true }); setStatus('Opened the example “' + ex.name + '”'); };
   $('examples').appendChild(b);
 });
-document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => doExport(b.dataset.export)));
+document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => { closeExportMenu(true); doExport(b.dataset.export); }));
+/* The export menu: Export opens a list of formats; choosing one saves it. Arrow keys move through the list, Escape or a click
+   elsewhere closes it. */
+function openExportMenu() { $('xlist').hidden = false; $('xopen').setAttribute('aria-expanded', 'true'); const first = [...$('xlist').querySelectorAll('button:not(:disabled)')][0]; if (first) first.focus(); }
+function closeExportMenu(refocus) { if ($('xlist').hidden) return; $('xlist').hidden = true; $('xopen').setAttribute('aria-expanded', 'false'); if (refocus) $('xopen').focus(); }
+$('xopen').addEventListener('click', () => $('xlist').hidden ? openExportMenu() : closeExportMenu(false));
+$('xlist').addEventListener('keydown', e => {
+  const items = [...$('xlist').querySelectorAll('button:not(:disabled)')], i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = items.length; if (n) items[(i + (e.key === 'ArrowDown' ? 1 : n - 1) + n) % n].focus(); }
+  else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); if (items.length) items[e.key === 'Home' ? 0 : items.length - 1].focus(); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeExportMenu(true); }
+  else if (e.key === 'Tab') closeExportMenu(false);
+});
+document.addEventListener('pointerdown', e => { if (!$('xlist').hidden && !e.target.closest('.xmenu')) closeExportMenu(false); });
 $('vrecord').addEventListener('click', () => recording ? finishRecording(true) : startRecording());
 const tabs = [...document.querySelectorAll('.rack [role=tab]')]; // the controls panel only; the Guide has its own tabs
 function selectTab(tab) { tabs.forEach(t => { const on = t === tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $(t.getAttribute('aria-controls')).hidden = !on; }); }
@@ -1811,9 +1932,9 @@ $('theater').addEventListener('click', () => setTheater(!layoutEl.classList.cont
 $('fullscreen').addEventListener('click', () => setFull(!isFull()));
 /* ---------- Guide: six pages with a sidebar (tabs across the top on phones) ---------- */
 const aboutDlg = $('about');
-const guideTabs = [...document.querySelectorAll('.guide-nav [role=tab]')];
+const guideTabs = [...document.querySelectorAll('#about .guide-nav [role=tab]')];
 { // the tabs run down the side, or across the top on narrow screens (same breakpoint as the CSS)
-  const nav = document.querySelector('.guide-nav'), narrow = matchMedia('(max-width: 640px)');
+  const nav = document.querySelector('#about .guide-nav'), narrow = matchMedia('(max-width: 640px)');
   const orient = () => nav.setAttribute('aria-orientation', narrow.matches ? 'horizontal' : 'vertical');
   orient(); narrow.addEventListener('change', orient);
 }
@@ -1977,16 +2098,32 @@ function syncLook() {
   document.querySelectorAll('#looks .swatch').forEach(el => { const on = el.dataset.k === tr.look; el.classList.toggle('on', on); el.querySelector('input').checked = on; });
   $('lookq').value = tr.look;
   $('glowamt').value = tr.glow; $('o-glowamt').textContent = Math.round(tr.glow) + '%';
-  $('lineweight').value = tr.weight; $('o-lineweight').textContent = (+tr.weight).toFixed(2) + '×';
+  const bz = tr.busy || 'range'; $('busy').value = bz; $('busys').value = bz; $('b-' + bz).checked = true; $('lineweight').value = tr.weight; $('o-lineweight').textContent = (+tr.weight).toFixed(2) + '×';
   $('c-line').value = tr.custom.line; $('c-line2').value = tr.custom.line2; $('c-bg').value = tr.custom.bg;
   $('customcolors').hidden = $('customhint').hidden = tr.look !== 'custom';
   if (settingsDlg.open) drawLookPreviews();
 }
-$('settingsbtn').addEventListener('click', () => { settingsDlg.showModal(); syncLook(); drawLookPreviews(); });
+$('settingsbtn').addEventListener('click', () => { settingsDlg.showModal(); syncLook(); drawLookPreviews(); showSettingsPage(lsGet('cge.settings') || 'look'); });
+/* Settings pages, chosen from a sidebar like the Guide's (tabs across the top on narrow screens) */
+const settingsTabs = [...document.querySelectorAll('#settings-nav [role=tab]')];
+{ const nav = $('settings-nav'), narrow = matchMedia('(max-width: 640px)');
+  const orient = () => nav.setAttribute('aria-orientation', narrow.matches ? 'horizontal' : 'vertical'); orient(); narrow.addEventListener('change', orient); }
+function showSettingsPage(k, focusTab) {
+  if (!settingsTabs.some(t => t.dataset.spage === k)) k = 'look';
+  settingsTabs.forEach(t => { const on = t.dataset.spage === k; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $('s-' + t.dataset.spage).hidden = !on; if (on && focusTab) t.focus(); });
+  $('settings-pages').scrollTop = 0; lsSet('cge.settings', k);
+  if (k === 'look') drawLookPreviews();
+}
+settingsTabs.forEach((t, i) => {
+  t.addEventListener('click', () => showSettingsPage(t.dataset.spage));
+  t.addEventListener('keydown', e => { const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]; if (d) { e.preventDefault(); showSettingsPage(settingsTabs[(i + d + settingsTabs.length) % settingsTabs.length].dataset.spage, true); } });
+});
 $('settings-close').addEventListener('click', () => settingsDlg.close());
 settingsDlg.addEventListener('click', e => { if (e.target === settingsDlg) settingsDlg.close(); });
 $('lookq').addEventListener('change', () => setLook({ look: $('lookq').value }, true));
 $('glowamt').addEventListener('input', () => setLook({ glow: +$('glowamt').value }, false));
+for (const id of ['busy', 'busys']) $(id).addEventListener('change', () => setLook({ busy: $(id).value }, true)); // the same setting in three places: the video settings, Settings and the view menu
+document.querySelectorAll('input[name=busyq]').forEach(r => r.addEventListener('change', () => setLook({ busy: r.value }, true)));
 $('lineweight').addEventListener('input', () => setLook({ weight: +$('lineweight').value }, false));
 ['glowamt', 'lineweight', 'c-line', 'c-line2', 'c-bg'].forEach(id => $(id).addEventListener('change', commit));
 [['c-line', 'line'], ['c-line2', 'line2'], ['c-bg', 'bg']].forEach(([id, key]) => $(id).addEventListener('input', () => setLook({ custom: { [key]: $(id).value.toLowerCase() } }, false)));

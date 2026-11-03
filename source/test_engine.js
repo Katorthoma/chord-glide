@@ -312,17 +312,25 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
     ev.push({ t, g: 0.05, label: names[c], kind: 'chord', targets: Array.from({ length: N }, (_, v) => 48 + v * 5 + c * 2 + (into < 2 ? into : 2) + (c === 3 && t > 99.85 ? 1 : 0)) }); }
   const dense = E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total, events: ev }, base());
   const L = E.landmarks(dense);
-  check('Auto zoom on dense snapshots: a few seconds of the whole piece first (4 s for 100 s), and a zoom out of at least 3 s that runs on into the closing fade',
-    Math.abs(L.inStart - 4) < 1e-9 && L.inEnd >= L.inStart + 2 && L.outEnd > total && Math.abs(L.outEnd - (total + E.FADE * 0.9)) < 1e-9 && L.outEnd - L.outStart >= 3 - 1e-9, JSON.stringify(L));
+  check('Auto zoom on dense snapshots: zooms in from the first chord as it always has, and out over at least 3 s that run on into the closing fade',
+    L.inStart === 0 && Math.abs(L.inEnd - 1.25) < 1e-9 && L.outEnd > total && Math.abs(L.outEnd - (total + E.FADE * 0.9)) < 1e-9 && L.outEnd - L.outStart >= 3 - 1e-9, JSON.stringify(L));
   // snapshots without chord names (as other programs write them) aren't merged into one chord that lasts the whole piece
   const unnamed = E.landmarks(E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total, events: ev.map(e => { const o = Object.assign({}, e); delete o.label; return o; }) }, base()));
   check('Saved notes without labels have no chord name (not "undefined")', E.builtFromRealization({ engine: 'custom', easing: 'linear', N: 3, total: 2, events: [{ t: 0, g: 0, targets: [60, 64, 67] }] }, base()).events[0].label === '');
-  check('Auto zoom on unnamed snapshots: zooms in after the opening view, not across the whole piece', unnamed.inStart === 4 && unnamed.inEnd <= 6 + 1e-9 && unnamed.outEnd > total, JSON.stringify(unnamed));
+  check('Auto zoom on unnamed snapshots: zooms in at the start and out at the end, not across the whole piece', unnamed.inStart === 0 && unnamed.inEnd < 2 && unnamed.outStart > 95 && unnamed.outEnd > total, JSON.stringify(unnamed));
   // when the last chord's final move is 8 s before the end and it then holds still, the zoom out starts there and ends with the music
   const still = Array.from({ length: 2000 }, (_, i) => { const t = i * 0.05, c = chordAt(t);
     return { t, g: 0.05, label: names[c], kind: 'chord', targets: Array.from({ length: N }, (_, v) => 48 + v * 5 + c * 2 + (t >= 92 ? 1 : 0)) }; });
   const S = E.landmarks(E.builtFromRealization({ engine: 'custom', easing: 'linear', N, total, events: still }, base()));
   check('… and when the last chord settles 8 s before the end, the zoom out starts there and ends with the music', Math.abs(S.outStart - 92) < 0.06 && S.outEnd === total, JSON.stringify(S));
+}
+// ---- Auto zoom times chosen for a piece ----
+{
+  const z = E.normalizePiece(Object.assign(base(), { view: { zoom: { inStart: 2, inEnd: 1, outStart: 30, outEnd: 35 } } })).view.zoom;
+  check('A piece can set its own auto zoom times, kept in order (an end before its start moves up to it)', z && z.inStart === 2 && z.inEnd === 2 && z.outStart === 30 && z.outEnd === 35, JSON.stringify(z));
+  const bad = E.normalizePiece(Object.assign(base(), { view: { zoom: { inStart: 2, inEnd: 'x', outStart: 30, outEnd: 35 } } })).view.zoom;
+  const none = E.normalizePiece(base()).view.zoom;
+  check('… and times that aren\'t numbers are dropped, so the piece zooms automatically; a piece without them has none', bad === undefined && none === undefined);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

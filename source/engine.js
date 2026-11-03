@@ -195,8 +195,14 @@ function normalizePiece(p) {
     const tr = (p.view && p.view.trace && typeof p.view.trace === 'object') ? p.view.trace : {}, c = (tr.custom && typeof tr.custom === 'object') ? tr.custom : {};
     const hex = (v, dflt) => /^#[0-9a-f]{6}$/i.test(String(v)) ? String(v).toLowerCase() : dflt;
     const dc = d.view.trace.custom;
-    out.view.trace = { look: pickFrom(tr.look, LOOKS, 'theme'), glow: num(tr.glow, 0, 100, 60), weight: num(tr.weight, 0.5, 3, 1),
+    out.view.trace = { look: pickFrom(tr.look, LOOKS, 'theme'), glow: num(tr.glow, 0, 100, 60), weight: num(tr.weight, 0.5, 3, 1), busy: pickFrom(tr.busy, ['range', 'middle', 'every'], 'range'),
       custom: { line: hex(c.line, dc.line), line2: hex(c.line2, hex(c.line, dc.line2)), bg: hex(c.bg, dc.bg) } };
+  }
+  { // auto zoom times chosen for this piece (seconds), in place of the automatic ones; kept in order
+    const zm = p.view && p.view.zoom, ks = ['inStart', 'inEnd', 'outStart', 'outEnd'];
+    delete out.view.zoom;
+    if (zm && typeof zm === 'object') { const v = ks.map(k => Number(zm[k]));
+      if (v.every(x => Number.isFinite(x) && x >= 0 && x <= 86400)) { for (let i = 1; i < 4; i++) v[i] = Math.max(v[i], v[i - 1]); out.view.zoom = {}; ks.forEach((k, i) => { out.view.zoom[k] = v[i]; }); } }
   }
   { const big = realizationTooLarge(p.realization); if (big) throw new Error('This piece can\'t be opened safely: ' + big + '.'); }
   if (validRealization(p.realization)) out.realization = JSON.parse(JSON.stringify(p.realization));
@@ -753,16 +759,14 @@ function landmarks(built) {
   });
   const chords = groups.filter(g => g.kind === 'chord');
   if (!chords.length) return { inStart: 0, inEnd: Math.min(2, T), outStart: T, outEnd: T };
-  const f = chords[0];
   // the last real arrival: skip trailing chords that only shimmer (every voice moves, if at all, by less than a quarter of a
   // semitone). A repeated chord moves nothing at all and still counts.
   let k = chords.length - 1;
   while (k > 0 && chords[k].moved > 0 && chords[k].moved < 0.25) k--;
   const l = chords[k];
-  let inStart = f.g > 0 ? f.t : 0, inEnd = Math.min(T, f.settle + 1.2);
-  // a long piece shows its whole shape for a few seconds first (4% of its length, up to 6 s)
-  const overview = T > 60 ? Math.min(6, T * 0.04) : 0;
-  if (inStart < overview) { inStart = overview; inEnd = Math.min(T, Math.max(inEnd, inStart + 2)); }
+  // the zoom in, as it has always been: from the first chord's glide until 1.2 s after it arrives (a piece can set its own
+  // times instead, in view.zoom)
+  const fe = ev.find(e => e.kind === 'chord'), inStart = fe.g > 0 ? fe.t : 0, inEnd = Math.min(T, (fe.g > 0 ? fe.t + fe.g : 0) + 1.2);
   let outStart = Math.max(inEnd, Math.max(l.t + l.g, l.settle)), outEnd = T;
   // the zoom out takes at least 3 s: when the music moves to the very end, it runs on into the closing fade
   if (outEnd - outStart < 3) { outEnd = T + FADE * 0.9; outStart = Math.max(inEnd, Math.min(outStart, outEnd - 3)); }
