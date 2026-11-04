@@ -1,3 +1,11 @@
+# Chord Glide 4.2.3 · 4 Nov 2026
+
+Engine 3.1 and the file formats are unchanged.
+
+- **No key deletes a saved piece.** Since 4.2.1, Backspace or Delete in the Open window's list (which has the keyboard as soon as a row is clicked) asked to delete the chosen piece and then deleted it, and the next piece after that, so holding the key down could delete one piece after another in moments. Those keys now do nothing there; deleting is only the **Delete** button.
+- **Delete needs two separate presses.** The second press counts only half a second or more after the first, so a double-click asks but doesn't delete.
+- **Undo a delete.** After a piece is deleted, the Open window says so with an **Undo** button, which brings it back exactly as it was (and, if it was the piece you had open, as the open piece again, saved). It's there until you use it, delete another piece, or leave the page.
+
 # Chord Glide 4.2.2 · 4 Nov 2026
 
 Engine 3.1 and the file formats are unchanged.

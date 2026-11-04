@@ -129,7 +129,7 @@ dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh,
 .open-nav .nav-foot button { width: 100%; justify-content: center; text-align: center; border: 1px solid var(--rule); background: var(--stage); color: var(--ink); font-weight: 500; }
 .open-nav .nav-foot button:hover { border-color: var(--accent); }
 .open-nav .short { display: none; }
-.open-panel { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.open-panel { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); }
 .open-tools { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
 .open-tools[hidden] { display: none; }
 .open-tools input[type=search] { flex: 1; min-width: 0; padding: 6px 10px; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; }
@@ -137,6 +137,9 @@ dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh,
 .sortby select { padding: 5px 8px; font-size: 13px; }
 .lib-note { margin: 0; padding: 8px 14px 0; font-size: 12.5px; color: var(--muted); }
 .lib-note:empty { display: none; }
+.lib-undo { display: flex; align-items: center; gap: 10px; margin: 8px 14px 0; padding: 6px 6px 6px 12px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); font-size: 13px; }
+.lib-undo[hidden] { display: none; }
+.lib-undo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-split { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
 .lib-list { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; border-right: 1px solid var(--rule); outline: none; }
 .lib-list li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 5px; cursor: pointer; }
@@ -466,7 +469,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.2.2 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.2.3 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -805,6 +808,7 @@ figure.vl circle { fill: var(--ink); }
           <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label>
         </div>
         <p id="lib-note" class="hint lib-note"></p>
+        <div id="lib-undo" class="lib-undo" role="status" hidden><span id="lib-undo-text"></span><button type="button" id="lib-undo-btn" class="small">Undo</button></div>
         <div class="open-split" id="open-split">
           <ul id="lib-list" class="lib-list" role="listbox" aria-label="Pieces" tabindex="0"></ul>
           <div id="lib-detail" class="lib-detail"></div>
@@ -1101,6 +1105,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.2.3</span>Safer deleting<span class="when">4 Nov 2026</span></h4>
+          <p>In the Open window, no key deletes a saved piece any more (Backspace and Delete in the list used to), a double-click on <b>Delete</b> only asks, and a deleted piece can be brought back with <b>Undo</b>.</p>
 
           <h4><span class="step ver">4.2.2</span>A quieter sidebar<span class="when">4 Nov 2026</span></h4>
           <p>The long explanations under the controls now wait behind a <b>?</b> beside each control's name (Chords, Tuning, Pattern, Line, Balance, Echo, the seeds and more) and open in place when you press it, so the sidebar shows the controls themselves. What you open stays open as you move between parts and tabs. <b>Settings → Interface → Help text</b> can show them all, as before. What's changing with the piece, such as which part the tabs edit or when Auto view zooms, stays in view. With a mouse, hovering a <b>?</b> previews its first sentence. Settings has more room between its sections.</p>
@@ -3175,7 +3182,7 @@ const EXAMPLE_PIECES = [{"format":"chord-glide-piece","formatVersion":3,"name":"
 {"format":"chord-glide-piece","formatVersion":5,"name":"Bounce of the Spheres","chords":"=G4:2beat\n[Bloom]\nCadd9:2bar\n[Intro]\nC G7\n[A]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[A2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[B]\nAm Dm7 G7 Cmaj7 Fmaj7 Bm7b5 E7 Am\n[Breakdown]\nFmaj9 Am9 Dm9 G7sus4 Abmaj7 Abmaj9 Bb Bb\n[Build]\nGm Em7b5 A7sus4 A7:2beat A7[A2 A3 A4 A5 A6]:2beat\n[Drop +2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[Coda]\nG D/F# Em7:2beat A7:2beat Bm G D/F# Em7:2beat A7:2beat Bb C D:2bar\n[Final]\nD","voices":5,"mix":"voices","timing":{"chordSec":2,"glide":0.22,"easing":"smooth","tempo":120,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":70,"coverage":60,"stacking":25,"spacing":30,"variation":15,"spread":70,"top":72,"bassMode":"none","bassOctave":3},"motion":{"order":"low-high","stagger":20},"sound":{"tone":"saw","detune":6,"width":85,"reverb":40,"brightness":3800},"seeds":{"harmony":1,"voicing":722083045,"motion":1358565869,"sound":993611272},"locks":{"harmony":true,"voicing":true,"motion":true,"sound":true},"view":{"mode":"auto","labels":"notes","trace":{"look":"aurora","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":5,"pan":0,"width":0,"detune":6},"id":"bass","name":"Bass","pattern":"B:2 B':2\n[Bloom] ~B:32\n[Breakdown] ~B:16\n[Build] B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 | B B' B B' B B' B B' ~A2:8","from":36,"transpose":[0,0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown"]},{"id":"sub","name":"Sub","preset":"copy","of":"bass","voices":1,"delay":0,"shift":-12,"sound":{"tone":"pure","level":6,"pan":0,"width":0,"detune":0}},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"pure","level":5,"pan":0,"width":0,"detune":6},"id":"kick","name":"Kick","pattern":"B,:4\n[Bloom] ~B,:32\n[Intro] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:2 B,:2\n[Breakdown] ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:8 B,:4 B,:4\n[Build] B,:4 B,:4 B,:4 B,:4 | B,:4 B,:4 B,:2 B,:2 B,:2 B,:2 | B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 | B, B, B, B, B, B, B, B, B, B, B, B, -:4\n[Coda] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4\n[Final] B,:16","from":36,"transpose":[0,0],"drop":{"semis":36,"time":0.117},"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown","Final"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"alberti","name":"Alberti","pattern":"1 3 2 3\n[Breakdown] 1':4 2':4 3':4 4':4\n[Build] 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Breakdown"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"pump","name":"Pump","pattern":"3rd:2 3rd':2\n[Intro] -:16 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2\n[Build] 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda"]},{"preset":"pattern","step":"1/16","portamento":0,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"whistle","name":"Whistles","pattern":"[A B] 3rd:2 3rd':2\n[A2] ~C7:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~E6:16 ~F6:16 ~E6:16\n[Drop] ~D7:16 ~C#7:16 ~B6:16 ~A6:16 ~G6:16 ~F#6:16 ~G6:16 ~F#6:16\n[Breakdown] ~G5:4 ~C6:4 ~E6:4 ~G6:4 ~C7:6 ~B6:2 ~C7:4 ~G6:4 ~D7:6 ~C7:2 ~B6:4 ~A6:4 ~G6:8 ~D6:8 ~C6:4 ~Eb6:4 ~Ab6:4 ~C7:4 ~Bb6:6 ~Ab6:2 ~G6:4 ~Ab6:4 ~D7:6 ~C7:2 ~Bb6:4 ~F6:4 ~F6:16\n[Coda] ~G6:16 ~F#6:16 ~G6:16 ~F#6:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~G6:16 ~A6:16 ~A6:16\n[Final] ~D7:16","from":52,"transpose":[0,0],"vibrato":{"cents":22,"rate":6,"delay":0.15}},{"id":"melody","name":"Melody","preset":"line","line":"[A A2 Drop] G4:2 C5:2 E5:2 G5:2 C6:3 B5:1 C6:2 G5:2 | D6:3 C6:1 B5:2 A5:2 G5:4 D5:4 | E5:2 A5:2 C6:2 E6:2 D6:3 C6:1 B5:2 C6:2 | B5:3 A5:1 G5:2 E5:2 B4:2 C5:2 D5:2 E5:2 | F5:2 A5:2 C6:2 F6:2 E6:3 D6:1 C6:2 A5:2 | G5:3 F5:1 E5:2 C5:2 E5:4 G5:4 | F5:2 A5:2 D6:2 C6:2 B5:3 A5:1 G5:2 F5:2 | E5:4 G5:2 E5:2 C5:8\n[B] C6:6 E5:2 A5:2 E6:3 D6:1 C6:2 | C6:6 D6:2 F5:2 A5:2 D6:2 C6:2 | B5:6 D5:2 G5:2 D6:3 C6:1 B5:2 | B5:6 C6:2 E5:2 G5:2 C6:2 B5:2 | A5:6 C5:2 F5:2 C6:3 B5:1 A5:2 | A5:6 B5:2 D5:2 F5:2 B5:2 A5:2 | G#5:6 B4:2 E5:2 B5:3 A5:1 G#5:2 | A5:6 E5:2 A5:2 C6:2 E6:4\n[Build] D5:2 G5:2 Bb5:2 D6:2 D5:2 G5:2 Bb5:2 D6:2 | E5:2 G5:2 Bb5:2 D6:2 E5:2 G5:2 Bb5:2 D6:2 | E5:2 A5:2 D6:2 E6:2 E5:2 A5:2 D6:2 E6:2 | E5:2 A5:2 C#6:2 E6:2 E6:8\n[Coda] G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | F#5:4 A5:2 F#5:2 D5:8 | G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | D6:6 F6:2 D6:2 Bb5:2 C6:2 D6:2 | E6:6 G6:2 E6:2 C6:2 D6:2 E6:2 | F#6:6 A6:2 F#6:2 D6:2 E6:2 F#6:2 | A6:3 F#6:1 D6:2 A5:2 B5:3 C#6:1 D6:2 E6:2 | D6:16","step":"1/16","transpose":[0,0,0,0,0,-12],"portamento":0.017,"glideShape":"straight","nonstop":true,"vibrato":{"cents":12,"rate":6,"delay":0.25},"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6}},{"id":"echo-1","name":"Echo","preset":"copy","of":"melody","voices":1,"delay":0.75,"shift":0,"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"echo-2","name":"Echo 2","preset":"copy","of":"melody","voices":1,"delay":1.5,"shift":0,"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}},{"id":"whistle-echo-1","name":"Whistle echo","preset":"copy","of":"whistle","voices":1,"delay":1,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"whistle-echo-2","name":"Whistle echo 2","preset":"copy","of":"whistle","voices":1,"delay":2,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}}]}];
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.2.2';
+const APP_VERSION = '4.2.3';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -3484,7 +3491,18 @@ const HOST = (typeof window.CHORD_GLIDE_HOST === 'object' && window.CHORD_GLIDE_
 
 /* ---------- Library (this browser's storage, or the host's store) ---------- */
 const lib = { mode: 'loading', items: [], store: null };
-let confirmDelete = null;
+let confirmDelete = null, confirmAt = 0;
+let lastDeleted = null; // the piece deleted last (this visit), which Undo in the Open window brings back
+async function undoDelete() {
+  const d = lastDeleted; if (!d) return;
+  const it = d.item, name = it.name || 'Untitled piece';
+  try {
+    if (lib.mode === 'host') { const id = await lib.store.put(null, { name: it.name, modified: it.modified, piece: it.piece, meta: it.meta }); if (d.wasOpen) currentLibId = id; }
+    else { await putLocal(it); if (d.wasOpen && !currentLibId) { currentLibId = it.id; savedJSON = d.savedJSON; } }
+    lastDeleted = null; libView.sel = it.id;
+    setStatus('Brought back “' + name + '”'); updateStatus(); renderLibrary();
+  } catch (e) { setStatus('Couldn\'t bring back “' + name + '” (' + (e && e.code || 'error') + ').', true); }
+}
 async function initLibrary() {
   let store = null;
   try { if (HOST && typeof HOST.library === 'function') store = await HOST.library(); } catch (e) { store = null; }
@@ -3631,6 +3649,7 @@ function renderLibrary() {
       ? 'This browser won\'t keep saved pieces for a page opened straight from a file, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again. (Another browser, or serving the folder from a local web server, may allow saving here.)'
       : 'This browser isn\'t keeping saved pieces for this page, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again.')
     : lib.mode === 'local' ? ((HOST && HOST.localLibraryNote) || 'Saved in this browser on this computer. Download piece files to back them up or move them.') : 'Loading your pieces…';
+  $('lib-undo').hidden = !(saved && lastDeleted); if (lastDeleted) $('lib-undo-text').textContent = 'Deleted “' + (lastDeleted.item.name || 'Untitled piece') + '”.';
   const list = openEntries(), ul = $('lib-list'); ul.textContent = '';
   if (libView.sel && !list.some(e => e.key === libView.sel)) libView.sel = null;
   if (!libView.sel && !narrowOpen.matches && list.length) libView.sel = (saved && list.find(e => e.key === currentLibId) || list[0]).key;
@@ -3754,12 +3773,16 @@ function openFromLibrary(it) {
   renderLibrary();
 }
 async function deleteFromLibrary(it) {
-  if (confirmDelete !== it.id) { confirmDelete = it.id; renderLibrary(); setTimeout(() => { if (confirmDelete === it.id) { confirmDelete = null; renderLibrary(); } }, 4000); return; }
+  // two separate presses: the first asks, and only a second press at least half a second later deletes (a double-click doesn't)
+  if (confirmDelete !== it.id) { confirmDelete = it.id; confirmAt = Date.now(); renderLibrary(); setTimeout(() => { if (confirmDelete === it.id) { confirmDelete = null; renderLibrary(); } }, 4000); return; }
+  if (Date.now() - confirmAt < 500) return;
   confirmDelete = null;
   try {
     if (lib.mode === 'host') await lib.store.remove(it.id);
     else await removeLocal(it.id);
-    if (currentLibId === it.id) { currentLibId = null; savedJSON = null; }
+    const wasOpen = currentLibId === it.id;
+    lastDeleted = { item: JSON.parse(JSON.stringify(it)), wasOpen, savedJSON: wasOpen ? savedJSON : null }; // so Undo can bring it back as it was
+    if (wasOpen) { currentLibId = null; savedJSON = null; }
     setStatus('Deleted “' + (it.name || 'Untitled piece') + '”'); renderLibrary();
   } catch (e) { setStatus('Couldn\'t delete that piece (' + (e && e.code || 'error') + ').', true); }
 }
@@ -5400,14 +5423,14 @@ openDlg.addEventListener('close', () => { confirmDelete = null; facts.forEach(f 
   }); }
 $('libsearch').addEventListener('input', () => { libView.q = $('libsearch').value; libView.sel = null; renderLibrary(); });
 $('libsearch').addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); $('lib-list').focus(); } else if (e.key === 'Enter') { const x = openEntries().find(y => y.key === libView.sel); if (x) openEntry(x); } });
+$('lib-undo-btn').addEventListener('click', undoDelete);
 $('libsort').addEventListener('change', () => { libView.sort = $('libsort').value; lsSet('cge.libsort', libView.sort); renderLibrary(); });
-// the list: arrows move through it, Enter opens, Delete asks to delete (then confirms)
+// the list: arrows move through it and Enter opens. Deleting is only ever the Delete button, pressed twice: no key deletes a piece
 $('lib-list').addEventListener('keydown', e => {
   const list = openEntries(); if (!list.length) return;
   const i = Math.max(0, list.findIndex(x => x.key === libView.sel)), d = { ArrowDown: 1, ArrowUp: -1, Home: -1e9, End: 1e9 }[e.key];
   if (d) { e.preventDefault(); selectEntry(list[Math.max(0, Math.min(list.length - 1, i + d))].key, false); }
-  else if (e.key === 'Enter') { e.preventDefault(); openEntry(list[i]); }
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && list[i].it) { e.preventDefault(); deleteFromLibrary(list[i].it); }
+  else if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); openEntry(list[i]); }
 });
 $('newpiece').addEventListener('click', () => replaceWork('A new piece replaces it.', () => {
   setPlaying(false);

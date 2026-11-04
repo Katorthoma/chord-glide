@@ -119,7 +119,7 @@ dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh,
 .open-nav .nav-foot button { width: 100%; justify-content: center; text-align: center; border: 1px solid var(--rule); background: var(--stage); color: var(--ink); font-weight: 500; }
 .open-nav .nav-foot button:hover { border-color: var(--accent); }
 .open-nav .short { display: none; }
-.open-panel { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.open-panel { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); }
 .open-tools { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
 .open-tools[hidden] { display: none; }
 .open-tools input[type=search] { flex: 1; min-width: 0; padding: 6px 10px; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; }
@@ -127,6 +127,9 @@ dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh,
 .sortby select { padding: 5px 8px; font-size: 13px; }
 .lib-note { margin: 0; padding: 8px 14px 0; font-size: 12.5px; color: var(--muted); }
 .lib-note:empty { display: none; }
+.lib-undo { display: flex; align-items: center; gap: 10px; margin: 8px 14px 0; padding: 6px 6px 6px 12px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); font-size: 13px; }
+.lib-undo[hidden] { display: none; }
+.lib-undo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-split { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
 .lib-list { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; border-right: 1px solid var(--rule); outline: none; }
 .lib-list li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 5px; cursor: pointer; }
@@ -456,7 +459,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.2.2 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.2.3 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -795,6 +798,7 @@ figure.vl circle { fill: var(--ink); }
           <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label>
         </div>
         <p id="lib-note" class="hint lib-note"></p>
+        <div id="lib-undo" class="lib-undo" role="status" hidden><span id="lib-undo-text"></span><button type="button" id="lib-undo-btn" class="small">Undo</button></div>
         <div class="open-split" id="open-split">
           <ul id="lib-list" class="lib-list" role="listbox" aria-label="Pieces" tabindex="0"></ul>
           <div id="lib-detail" class="lib-detail"></div>
@@ -1091,6 +1095,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.2.3</span>Safer deleting<span class="when">4 Nov 2026</span></h4>
+          <p>In the Open window, no key deletes a saved piece any more (Backspace and Delete in the list used to), a double-click on <b>Delete</b> only asks, and a deleted piece can be brought back with <b>Undo</b>.</p>
 
           <h4><span class="step ver">4.2.2</span>A quieter sidebar<span class="when">4 Nov 2026</span></h4>
           <p>The long explanations under the controls now wait behind a <b>?</b> beside each control's name (Chords, Tuning, Pattern, Line, Balance, Echo, the seeds and more) and open in place when you press it, so the sidebar shows the controls themselves. What you open stays open as you move between parts and tabs. <b>Settings → Interface → Help text</b> can show them all, as before. What's changing with the piece, such as which part the tabs edit or when Auto view zooms, stays in view. With a mouse, hovering a <b>?</b> previews its first sentence. Settings has more room between its sections.</p>

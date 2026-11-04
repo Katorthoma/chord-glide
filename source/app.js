@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.2.2';
+const APP_VERSION = '4.2.3';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -309,7 +309,18 @@ const HOST = (typeof window.CHORD_GLIDE_HOST === 'object' && window.CHORD_GLIDE_
 
 /* ---------- Library (this browser's storage, or the host's store) ---------- */
 const lib = { mode: 'loading', items: [], store: null };
-let confirmDelete = null;
+let confirmDelete = null, confirmAt = 0;
+let lastDeleted = null; // the piece deleted last (this visit), which Undo in the Open window brings back
+async function undoDelete() {
+  const d = lastDeleted; if (!d) return;
+  const it = d.item, name = it.name || 'Untitled piece';
+  try {
+    if (lib.mode === 'host') { const id = await lib.store.put(null, { name: it.name, modified: it.modified, piece: it.piece, meta: it.meta }); if (d.wasOpen) currentLibId = id; }
+    else { await putLocal(it); if (d.wasOpen && !currentLibId) { currentLibId = it.id; savedJSON = d.savedJSON; } }
+    lastDeleted = null; libView.sel = it.id;
+    setStatus('Brought back “' + name + '”'); updateStatus(); renderLibrary();
+  } catch (e) { setStatus('Couldn\'t bring back “' + name + '” (' + (e && e.code || 'error') + ').', true); }
+}
 async function initLibrary() {
   let store = null;
   try { if (HOST && typeof HOST.library === 'function') store = await HOST.library(); } catch (e) { store = null; }
@@ -456,6 +467,7 @@ function renderLibrary() {
       ? 'This browser won\'t keep saved pieces for a page opened straight from a file, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again. (Another browser, or serving the folder from a local web server, may allow saving here.)'
       : 'This browser isn\'t keeping saved pieces for this page, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again.')
     : lib.mode === 'local' ? ((HOST && HOST.localLibraryNote) || 'Saved in this browser on this computer. Download piece files to back them up or move them.') : 'Loading your pieces…';
+  $('lib-undo').hidden = !(saved && lastDeleted); if (lastDeleted) $('lib-undo-text').textContent = 'Deleted “' + (lastDeleted.item.name || 'Untitled piece') + '”.';
   const list = openEntries(), ul = $('lib-list'); ul.textContent = '';
   if (libView.sel && !list.some(e => e.key === libView.sel)) libView.sel = null;
   if (!libView.sel && !narrowOpen.matches && list.length) libView.sel = (saved && list.find(e => e.key === currentLibId) || list[0]).key;
@@ -579,12 +591,16 @@ function openFromLibrary(it) {
   renderLibrary();
 }
 async function deleteFromLibrary(it) {
-  if (confirmDelete !== it.id) { confirmDelete = it.id; renderLibrary(); setTimeout(() => { if (confirmDelete === it.id) { confirmDelete = null; renderLibrary(); } }, 4000); return; }
+  // two separate presses: the first asks, and only a second press at least half a second later deletes (a double-click doesn't)
+  if (confirmDelete !== it.id) { confirmDelete = it.id; confirmAt = Date.now(); renderLibrary(); setTimeout(() => { if (confirmDelete === it.id) { confirmDelete = null; renderLibrary(); } }, 4000); return; }
+  if (Date.now() - confirmAt < 500) return;
   confirmDelete = null;
   try {
     if (lib.mode === 'host') await lib.store.remove(it.id);
     else await removeLocal(it.id);
-    if (currentLibId === it.id) { currentLibId = null; savedJSON = null; }
+    const wasOpen = currentLibId === it.id;
+    lastDeleted = { item: JSON.parse(JSON.stringify(it)), wasOpen, savedJSON: wasOpen ? savedJSON : null }; // so Undo can bring it back as it was
+    if (wasOpen) { currentLibId = null; savedJSON = null; }
     setStatus('Deleted “' + (it.name || 'Untitled piece') + '”'); renderLibrary();
   } catch (e) { setStatus('Couldn\'t delete that piece (' + (e && e.code || 'error') + ').', true); }
 }
@@ -2225,14 +2241,14 @@ openDlg.addEventListener('close', () => { confirmDelete = null; facts.forEach(f 
   }); }
 $('libsearch').addEventListener('input', () => { libView.q = $('libsearch').value; libView.sel = null; renderLibrary(); });
 $('libsearch').addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); $('lib-list').focus(); } else if (e.key === 'Enter') { const x = openEntries().find(y => y.key === libView.sel); if (x) openEntry(x); } });
+$('lib-undo-btn').addEventListener('click', undoDelete);
 $('libsort').addEventListener('change', () => { libView.sort = $('libsort').value; lsSet('cge.libsort', libView.sort); renderLibrary(); });
-// the list: arrows move through it, Enter opens, Delete asks to delete (then confirms)
+// the list: arrows move through it and Enter opens. Deleting is only ever the Delete button, pressed twice: no key deletes a piece
 $('lib-list').addEventListener('keydown', e => {
   const list = openEntries(); if (!list.length) return;
   const i = Math.max(0, list.findIndex(x => x.key === libView.sel)), d = { ArrowDown: 1, ArrowUp: -1, Home: -1e9, End: 1e9 }[e.key];
   if (d) { e.preventDefault(); selectEntry(list[Math.max(0, Math.min(list.length - 1, i + d))].key, false); }
-  else if (e.key === 'Enter') { e.preventDefault(); openEntry(list[i]); }
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && list[i].it) { e.preventDefault(); deleteFromLibrary(list[i].it); }
+  else if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); openEntry(list[i]); }
 });
 $('newpiece').addEventListener('click', () => replaceWork('A new piece replaces it.', () => {
   setPlaying(false);
