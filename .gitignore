@@ -14,6 +14,8 @@
 # piece files are your compositions; keep them out of the public repo
 *.json
 !source/site.json
+# except the Library's examples, which the build puts into the app
+!source/examples/*.json
 
 # website build output (recreated by node source/build.js)
 dist/

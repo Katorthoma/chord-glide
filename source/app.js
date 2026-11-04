@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.1.3';
+const APP_VERSION = '4.2';
 const EXAMPLES = [
   { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
     chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
@@ -23,7 +23,9 @@ const EXAMPLES = [
       { name: 'Melody', preset: 'line', step: '1/8', transpose: [0, -12], portamento: 0.04, sound: { tone: 'triangle', level: -1, pan: 0.15, width: 30, detune: 4 },
         envelope: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.2 }, vibrato: { cents: 18, rate: 5.5, delay: 0.35 },
         line: 'E5:2 G5:2 C6:3 B5:1 | D6:2 B5:2 G5:4 | C6:2 A5:2 E5:2 A5:2 | B5:3 A5:1 G5:4 | A5:2 C6:2 F6:3 E6:1 | E6:2 C6:2 G5:4 | F5:2 A5:2 D6:2 C6:2 | C6:3 B5:1 -:2 G5:2 | D6:2 B5:2 F5:2 D5:2 | E5:8 -:8' }
-    ] }
+    ] },
+  // pieces kept whole in source/examples/ (sections, parts that never stop, their own look), after the ones above
+  ...(typeof EXAMPLE_PIECES !== 'undefined' ? EXAMPLE_PIECES : []).map(p => ({ name: p.name, piece: p }))
 ];
 const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
 
@@ -78,6 +80,7 @@ let artistTyped = null; // what was typed this session, in case this browser can
 const artistName = () => String(artistTyped !== null ? artistTyped : (lsGet('cge.artist') || '')).trim().slice(0, 80);
 function defaultLook() { try { const v = JSON.parse(lsGet('cge.look') || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
 function examplePiece(ex) {
+  if (ex.piece) { const p = Object.assign(defaultPiece(), JSON.parse(JSON.stringify(ex.piece))); p.created = new Date().toISOString(); delete p.modified; return normalizePiece(p); } // with its own look
   const p = defaultPiece();
   const dl = defaultLook(); if (dl) p.view.trace = dl;
   p.name = ex.name; p.voices = ex.voices; p.chords = ex.chords; p.seeds = Object.assign({}, ex.seeds);
@@ -100,15 +103,18 @@ const screenCam = { slo: 50, shi: 80, snap: true };
 /* ---------- Controls ---------- */
 const pct = v => Math.round(v) + '%';
 const SLIDERS = [
-  ['chordsec', 'timing.chordSec', v => (+v).toFixed(1) + ' s'], ['voices', 'voices', v => String(v)],
+  ['chordsec', 'timing.chordSec', v => (+v).toFixed(1) + ' s'], ['chordbars', 'timing.chordBars', v => (+v) + (+v === 1 ? ' bar' : ' bars')], ['voices', 'voices', v => String(v)],
   ['continuity', 'voicing.continuity', pct], ['coverage', 'voicing.coverage', pct], ['stacking', 'voicing.stacking', pct],
   ['spacing', 'voicing.spacing', pct], ['variation', 'voicing.variation', pct], ['spread', 'voicing.spread', pct],
   ['glide', 'timing.glide', v => (+v).toFixed(1) + ' s'], ['stagger', 'motion.stagger', pct],
   ['detune', 'sound.detune', v => (+v).toFixed(1) + ' ¢'], ['width', 'sound.width', pct], ['reverb', 'sound.reverb', pct],
-  ['brightness', 'sound.brightness', v => (v / 1000).toFixed(1) + ' kHz'], ['tempo', 'timing.tempo', v => v + ' BPM']
+  ['brightness', 'sound.brightness', v => (v / 1000).toFixed(1) + ' kHz'], ['tempo', 'timing.tempo', v => v + ' BPM'],
+  ['breathedepth', 'breathe.depth', v => +v ? '−' + Math.round(-20 * Math.log10(1 - v) * 10) / 10 + ' dB' : 'off'], ['breathetime', 'breathe.time', v => (+v).toFixed(2) + ' s'],
+  ['echomix', 'echo.mix', v => +v ? Math.round(v * 100) + '%' : 'off'], ['echofb', 'echo.feedback', v => Math.round(v * 100) + '%'],
+  ['duckdepth', 'duck.depth', v => +v ? '−' + Math.round(-20 * Math.log10(1 - v) * 10) / 10 + ' dB' : 'off'], ['ducktime', 'duck.time', v => Math.round(v * 1000) + ' ms']
 ];
 const SELECTS = [['top', 'voicing.top', Number], ['bassoct', 'voicing.bassOctave', Number], ['bassmode', 'voicing.bassMode', String],
-  ['easing', 'timing.easing', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String]];
+  ['easing', 'timing.easing', String], ['mix', 'mix', String], ['tuning', 'tuning', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String], ['meter', 'timing.meter', Number], ['duckunder', 'duck.under', String], ['echopan', 'echo.pingpong', v => v === 'true']];
 (() => { const sel = $('top'); for (let m = 96; m >= 67; m--) { const o = document.createElement('option'); o.value = m; o.textContent = noteName(m); sel.appendChild(o); } })();
 
 function syncUI() {
@@ -117,7 +123,13 @@ function syncUI() {
   if (typeof applyPartView === 'function') applyPartView(); // which part the tabs edit
   const pn = typeof selNorm === 'function' ? selNorm() : null, src = id => pn && PART_CTRL[id] && applies(id, pn) ? pn : piece;
   for (const [id, path, fmt] of SLIDERS) { const v = getPath(src(id), path); $(id).value = v; $('o-' + id).textContent = fmt(v); }
+  { const self = pn ? pn.id : 'main', others = [['', 'Nothing']].concat([['main', 'Main']], (piece.parts || []).map(x => [x.id, x.name || x.id])).filter(([v]) => v !== self), dk = $('duckunder');
+    if ([...dk.options].map(o => o.value + o.textContent).join() !== others.map(([v, t]) => v + t).join()) { dk.textContent = ''; for (const [v, t] of others) { const o = document.createElement('option'); o.value = v; o.textContent = t; dk.appendChild(o); } } }
   for (const [id, path] of SELECTS) $(id).value = String(getPath(src(id), path));
+  { const e = getPath(src('echotime'), 'echo'), on = !!(e && e.mix > 0); $('echotime').value = on ? e.time : 'off';
+    for (const id of ['echomix', 'echofb', 'echopan']) $(id).closest('.slider, .group').hidden = !on; } // the echo's level and repeats, once it's on
+  $('mix').value = piece.mix === 'voices' ? 'voices' : 'parts'; $('tuning').value = piece.tuning === 'just' ? 'just' : 'equal'; // (neither saved at its default)
+  { const bars = piece.timing.unit === 'bar'; $(bars ? 'tu-bar' : 'tu-sec').checked = true; $('row-chordsec').hidden = bars; $('row-chordbars').hidden = !bars; }
   for (const L of LAYERS) {
     if (document.activeElement !== $('seed-' + L)) $('seed-' + L).value = fmtSeed(piece.seeds[L]);
     const lk = piece.locks[L]; $('lock-' + L).setAttribute('aria-pressed', String(lk)); $('lock-' + L).textContent = lk ? 'Locked' : 'Unlocked';
@@ -137,20 +149,24 @@ function syncUI() {
 function rebuild(keepTime = true, restartAudio = true) {
   const { items, errors } = parseProgression(piece.chords);
   const msgs = [];
-  if (errors.length) msgs.push('Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6' + (errors.some(x => /^(=|->|→)|\[/.test(x)) ? '; notes go from C-1 to G9 (MIDI 0–127), cents included.' : '.'));
+  if (errors.length) msgs.push(['error', 'Couldn\'t read ' + errors.slice(0, 4).join(', ') + (errors.length > 4 ? '…' : '') + '. Try spellings like Emaj9, C#m11, Amaj7/B or =G#6' + (errors.some(x => /^(=|->|→)|\[/.test(x)) ? '; notes go from C-1 to G9 (MIDI 0–127), cents included.' : '.')]);
   if (!items.length) { // nothing valid to play: drop the old build so nothing plays or exports a piece that isn't on screen
-    msgs.push('Add at least one chord to hear something.'); showErr(msgs);
+    msgs.push(['info', 'Add at least one chord to hear something.']); showErr(msgs);
     if (playing) { stopAudio(0.05); playing = false; setPlayIcon(); }
     built = null; marks = null; offset = 0; $('revoice').hidden = true; updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate(); return;
   }
   const t = currentT();
   built = buildScore(isFrozen() ? builtFromRealization(piece.realization, piece) : buildPiece(items, piece), items); // the main part, then any others
-  marks = zoomMarks(); syncZoomUI();
+  marks = zoomMarks(); syncZoomUI(); syncPlays();
   $('revoice').hidden = !isFrozen() && !frozenPads().length;
-  if (isFrozen()) msgs.unshift((piece.realization.engine === 'custom' ? 'Playing the notes written into this piece, exactly as they are.' : 'Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were.') + ' Changing the chords, voicing or motion re-voices the piece with engine ' + ENGINE_VERSION + '.');
-  if (!isFrozen() && frozenPads().length) msgs.unshift('Pad parts ' + frozenPads().map(x => x.name).join(', ') + ' play the notes saved by engine ' + frozenPads()[0].realization.engine + ', exactly as they were.');
-  if (built.cut && built.cut.length) msgs.push('Stopped ' + built.cut.join(', ') + ' at ' + LINE_LIMITS.notes.toLocaleString('en-US') + ' notes (' + LINE_LIMITS.total.toLocaleString('en-US') + ' for all lines together), the most a piece can have.');
-  if (built.warnings.length) msgs.push('The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.');
+  if (isFrozen()) { // what a change would re-voice: only the main part; parts of written notes keep them
+    const others = piece.parts || [], written = others.filter(x => x && x.preset === 'notes').length;
+    const what = !others.length ? 'the piece' : 'the main part', keep = !written ? '' : written === others.length ? '; the other parts keep their written notes' : '; parts of written notes keep them';
+    msgs.unshift(['info', (piece.realization.engine === 'custom' ? 'Playing the notes written into this piece, exactly as they are.' : 'Playing the notes saved by engine ' + piece.realization.engine + ', exactly as they were.') + ' Changing the chords, voicing or motion re-voices ' + what + ' with engine ' + ENGINE_VERSION + keep + '.']);
+  }
+  if (!isFrozen() && frozenPads().length) msgs.unshift(['info', 'Pad parts ' + frozenPads().map(x => x.name).join(', ') + ' play the notes saved by engine ' + frozenPads()[0].realization.engine + ', exactly as they were.']);
+  if (built.cut && built.cut.length) msgs.push(['warning', 'Stopped ' + built.cut.join(', ') + ' at ' + LINE_LIMITS.notes.toLocaleString('en-US') + ' notes (' + LINE_LIMITS.total.toLocaleString('en-US') + ' for all lines together), the most a piece can have.']);
+  if (built.warnings.length) msgs.push(['warning', 'The voicing rules couldn\'t place ' + built.warnings.join(', ') + ', so those chords use nearest notes.']);
   showErr(msgs);
   offset = keepTime ? Math.min(t, built.total + TAIL) : 0;
   screenCam.snap = true;
@@ -186,7 +202,14 @@ function unfreeze() {
   for (const pt of piece.parts || []) if (pt.realization && pt.preset === 'pad') { delete pt.realization; any = true; }
   if (any) setStatus('Re-voiced with engine ' + ENGINE_VERSION);
 }
-function showErr(msgs) { $('err').hidden = !msgs.length; $('err').textContent = msgs.join(' '); }
+/* Notices under the chords, each [kind, text]: 'info' (how the piece works), 'warning' (something was limited or adjusted) or
+   'error' (something couldn't be read, or there's nothing to play). A screen reader hears the kind first. */
+function showErr(msgs) {
+  const box = $('err'); box.textContent = ''; box.hidden = !msgs.length;
+  for (const [kind, text] of msgs) { const p = document.createElement('p'); p.className = 'notice ' + kind;
+    const k = document.createElement('span'); k.className = 'vh'; k.textContent = ({ info: 'Note: ', warning: 'Warning: ', error: 'Error: ' })[kind];
+    p.append(k, text); box.appendChild(p); }
+}
 let rebuildTimer = null;
 const rebuildSoon = () => { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(() => rebuild(true), 180); };
 
@@ -386,7 +409,7 @@ function reroll(layer) {
   if (piece.locks[layer]) return;
   if (layer !== 'sound') unfreeze();
   piece.seeds[layer] = randSeed();
-  if (layer === 'harmony') piece.chords = composeFromSeed(piece.seeds.harmony, piece.timing.chordSec);
+  if (layer === 'harmony') piece.chords = composeFromSeed(piece.seeds.harmony, defaultChordSec(piece));
 }
 function afterChange({ keepTime = true } = {}) { syncUI(); rebuild(keepTime); commit(); }
 
@@ -430,6 +453,16 @@ function softClipCurve() {
   for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 4 - 2, a = Math.abs(x); c[i] = Math.sign(x) * (a <= k ? a : k + (1 - k) * Math.tanh((a - k) / (1 - k))); }
   return (clipCurve = c);
 }
+/* A part's echo: its sound again ECHO_BEATS[time] beats later, at `mix`, each repeat `feedback` of the one before and a little
+   darker; with pingpong the repeats alternate hard left and right (left first). Delays are capped at 4 seconds. */
+function addEcho(ctx, inp, out, ec, beat) {
+  // (panning a repeat hard to one side folds both channels into it, 1.8 dB more in all than a repeat in place: 0.81 evens that out)
+  const dt = Math.min(4, ECHO_BEATS[ec.time] * beat), send = ctx.createGain(); send.gain.value = ec.mix * (ec.pingpong ? 0.81 : 1); inp.connect(send);
+  const tap = panTo => { const d = ctx.createDelay(4.5); d.delayTime.value = dt; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 5000; f.Q.value = 0.3; d.connect(f);
+    let o = f; if (panTo !== null && ctx.createStereoPanner) { o = ctx.createStereoPanner(); o.pan.value = panTo; f.connect(o); } o.connect(out); const fb = ctx.createGain(); fb.gain.value = ec.feedback; f.connect(fb); return { d, fb }; };
+  if (ec.pingpong) { const L = tap(-0.8), R = tap(0.8); send.connect(L.d); L.fb.connect(R.d); R.fb.connect(L.d); }
+  else { const C = tap(null); send.connect(C.d); C.fb.connect(C.d); }
+}
 function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const P = b.piece, S = P.sound, N = b.N, T = b.total;
   const span = Math.max(0.05, T - from);
@@ -449,7 +482,12 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
      tone, level (dB), pan and width, and, if its voices rest, an envelope on each voice and an optional vibrato. Each part is
      balanced by its own voice count, so a part at 0 dB is about as loud as the main part. */
   const waves = new Map(), waveOf = tone => { if (!waves.has(tone)) waves.set(tone, periodicWave(ctx, tone)); return waves.get(tone); };
-  const parts = b.parts, levelN = parts[0].sub.N; // the main part's level, exactly as before
+  /* Balance 'voices' (as one sound): every voice of every part at the same level, as if the piece were one part of all its voices, so a
+     part of six voices is six times as strong as a part of one; each part's level is then a change from that. */
+  const equal = P.mix === 'voices';
+  const silent = pt => !!(pt.sub.gates && pt.sub.gates.every(g => g && !g.length)); // a part that plays in no section
+  const eqN = b.parts.reduce((a, pt) => a + (silent(pt) ? 0 : pt.sub.N), 0) || 1; // the voices that sound
+  const parts = b.parts, levelN = equal ? eqN : parts[0].sub.N; // the main part's level, exactly as before (balanced by part)
   const oscs = [], gains = [], moves = [], envs = [], vibs = [], lfos = [];
   const hasBass = P.voicing.bassMode !== 'none';
   /* With other parts, the mix is given headroom: every voice is scaled by one over the sum of the parts' levels (as amplitudes;
@@ -459,12 +497,15 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
      compressor isn't used as a limiter: it adds make-up gain, and reacts too slowly to catch every peak.) A piece with only
      its main part has neither, so it plays exactly as before. */
   const multi = parts.length > 1;
-  const headroom = multi ? 1 / parts.reduce((a, pt) => a + Math.pow(10, (pt.main ? 0 : pt.sound.level) / 20), 0) : 1;
+  const headroom = !multi ? 1 : 1 / (parts.reduce((a, pt) => a + (silent(pt) ? 0 : (equal ? pt.sub.N / eqN : 1) * Math.pow(10, (pt.main ? 0 : pt.sound.level) / 20)), 0) || 1);
   for (const pt of parts) {
     const snd = pt.main ? S : pt.sound;
+    // its echo, if it has one: the part's voices reach each destination through one input that also feeds the echo
+    const ec = pt.main ? P.echo : pt.echo, vias = new Map();
+    const via = to => { if (!ec || !(ec.mix > 0)) return to; if (!vias.has(to)) { const inp = ctx.createGain(); inp.connect(to); addEcho(ctx, inp, to, ec, 60 / P.timing.tempo); vias.set(to, inp); } return vias.get(to); };
     const r = mulberry32(pt.main ? (P.seeds.sound ^ 0xA5A5A5A5) >>> 0 : partSeed(P.seeds.sound, pt.id, 'voices'));
     // each part balanced by its own voice count, then its level: adding a part (or doubling a line) leaves the others as they are
-    const lvl = voiceLevel(pt.sub.N, snd.tone) * (pt.main ? 1 : Math.pow(10, snd.level / 20)) * headroom;
+    const lvl = voiceLevel(equal ? eqN : pt.sub.N, snd.tone) * (pt.main ? 1 : Math.pow(10, snd.level / 20)) * headroom;
     let lfo = null;
     if (pt.sub.vibrato) { lfo = ctx.createOscillator(); lfo.frequency.value = pt.sub.vibrato.rate; lfos.push(lfo); }
     for (let lv = 0; lv < pt.sub.N; lv++) {
@@ -481,9 +522,9 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
       let depth = null;
       if (vm) { depth = ctx.createGain(); depth.gain.value = vm.moves[0].g; lfo.connect(depth); depth.connect(osc.detune); }
       const pan = pt.main ? ((hasBass && lv === 0) ? 0 : pz * (S.width / 100)) : Math.max(-1, Math.min(1, snd.pan + pz * (snd.width / 100) * (1 - Math.abs(snd.pan))));
-      const to = em ? bus : held; // a voice that sounds throughout fades with the piece; one with notes ends by its own envelope
-      if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(to); }
-      else g.connect(to);
+      const to = em && !pt.sub.held && !(pt.sub.heldV && pt.sub.heldV[lv]) ? bus : held; // a voice that sounds throughout fades with the piece (also one gated to sections, or an echo's that enters late); one with notes ends by its own envelope
+      if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(via(to)); }
+      else g.connect(via(to));
       oscs.push(osc); gains.push(g); moves.push(mv); envs.push(env ? { p: env.gain, m: em } : null); vibs.push(depth ? { p: depth.gain, m: vm.moves } : null);
     }
   }
@@ -527,7 +568,10 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
       const m = mv[k];
       if (m.kind === 'set') f.setValueAtTime(hz(m.p), at(m.t));
       else if (m.kind === 'ramp') f.exponentialRampToValueAtTime(hz(m.p), at(m.t)); // linear in pitch
-      else f.setValueCurveAtTime(Float32Array.from(m.ps, hz), at(m.t), m.d);
+      else { // a curve ends a hair early, so rounding never makes it overlap the move after it (which throws, and stops the voice there)
+        const s = at(m.t), nx = mv[k + 1], d = Math.min(m.d, nx ? at(nx.t) - s : m.d) - 1e-6;
+        if (d > 1e-4) f.setValueCurveAtTime(Float32Array.from(m.ps, hz), s, d); else f.setValueAtTime(hz(m.ps[m.ps.length - 1]), s);
+      }
     }
     done[v] = k;
     if (envs[v]) doneE[v] = lines(envs[v], doneE[v], until);
@@ -787,6 +831,7 @@ function makeRuns(b, v) {
     else { add(m.t, last()); const n = m.ps.length; m.ps.forEach((p, k) => add(m.t + m.d * k / (n - 1), p)); }
   }
   add(Math.max(E, P[P.length - 2]), last());
+  addVibrato(P, vibratoMoves(b, v, 0));
   // where the voice sounds
   const gm = gainMoves(b, v, 0), spans = [];
   if (!gm) spans.push([-Infinity, Infinity]);
@@ -809,6 +854,32 @@ function makeRuns(b, v) {
     runs.push(run);
   }
   return runs;
+}
+/* A part's vibrato, drawn as it sounds: its depth (in cents, fading in after each note's delay, from vibratoMoves()) times a
+   sine at its rate, sampled 12 times a cycle into the line where the depth isn't zero. In place; P is the flat [t, p, …] line. */
+function addVibrato(P, vm) {
+  if (!vm) return;
+  const pts = vm.moves, spans = [];
+  for (let i = 1; i < pts.length; i++) if (pts[i - 1].g > 0 || pts[i].g > 0) {
+    const last = spans[spans.length - 1];
+    if (last && pts[i - 1].t <= last[1] + 1e-9) last[1] = pts[i].t; else spans.push([pts[i - 1].t, pts[i].t]);
+  }
+  if (!spans.length) return;
+  const w = 2 * Math.PI * vm.rate, dt = 1 / (vm.rate * 12), vib = t => polyAt(pts, t) / 100 * Math.sin(w * t);
+  const out = []; let s = 0;
+  for (let k = 0; k < P.length; k += 2) {
+    const t = P[k], p = P[k + 1];
+    if (k) { // samples between this point and the one before, inside a span
+      const t0 = P[k - 2], p0 = P[k - 1];
+      while (s < spans.length && spans[s][1] <= t0) s++;
+      for (let j = s; j < spans.length && spans[j][0] < t; j++) {
+        const a = Math.max(t0, spans[j][0]), z = Math.min(t, spans[j][1]);
+        for (let g = Math.floor(a / dt) * dt + dt; g < z; g += dt) if (g > t0) out.push(g, p0 + (p - p0) * (g - t0) / (t - t0) + vib(g));
+      }
+    }
+    out.push(t, p + (spans.some(([a, z]) => t > a && t < z) ? vib(t) : 0));
+  }
+  P.length = 0; for (const x of out) P.push(x);
 }
 // the index (even) of the first point after t (strictly), or P.length
 function firstAfter(P, t) { let lo = 0, hi = P.length / 2; while (lo < hi) { const m = (lo + hi) >> 1; if (P[2 * m] <= t) lo = m + 1; else hi = m; } return 2 * lo; }
@@ -1097,6 +1168,11 @@ function frame() {
   if (!built) { drawEmptyStage(); return; }
   if (colorTick++ % 30 === 0) readColors();
   let t = currentT();
+  { const has = !!(built.sections && built.sections.length); if ($('secwrap').hidden === has) { $('secwrap').hidden = !has; if (!has && loopOn) $('secloop').click(); } }
+  if (playing && loopOn && !recording) { // looping a section: back to its start at its end
+    if (!loopRun || t < loopRun.t0 - 0.05 || t > loopRun.t1 + 0.5) loopRun = sectionRunAt(t); // (after a jump or a change, the section the playhead is in)
+    if (loopRun && t >= loopRun.t1) { jumpTo(loopRun.t0); t = loopRun.t0; }
+  }
   if (playing && t >= built.total + TAIL) {
     if (recording) { finishRecording(); }
     offset = built.total + TAIL; stopAudio(0.05); playing = false; setPlayIcon(); t = offset; // the clock ends on the full length
@@ -1117,6 +1193,7 @@ function frame() {
   } else ({ cur, idx } = drawScene(g2, cv.width, cv.height, dpr, t, screenCam, false));
   const tc = Math.min(t, built.total), e = built.events[idx], nx = nextEvent(built, idx);
   setText($('r-chord'), (e.kind === 'note' && idx > 0 ? '→ ' : '') + e.label);
+  $('r-section-wrap').hidden = !e.section; if (e.section) setText($('r-section'), e.section + (sectionPasses(e.section) > 1 ? ' ' + (e.pass + 1) + '/' + sectionPasses(e.section) : ''));
   setText($('r-next'), nx ? (nx.kind === 'note' ? '→ ' : '') + nx.label : 'end');
   setText($('r-voices'), String(built.N));
   const on = cur.filter(p => p !== null), lo = Math.min(...on), hi = Math.max(...on);
@@ -1160,9 +1237,9 @@ async function saveFile(filename, data) {
 /* A copy of the piece that also carries its resolved notes, so it reopens exactly even under a later engine */
 function withRealization() {
   const p = JSON.parse(JSON.stringify(piece));
-  // the format follows what the piece uses: 4 with parts or a volume shape (older versions refuse it rather than drop them), else 3
+  // the format follows what the piece uses (formatFor()): older versions refuse what they'd play wrongly, and open the rest
   if (p.parts && !p.parts.length) delete p.parts; if (p.volume && !p.volume.length) delete p.volume;
-  p.formatVersion = p.parts || p.volume ? 4 : 3;
+  p.formatVersion = formatFor(p);
   if (isFrozen()) p.realization = piece.realization; else if (built) p.realization = realizationOf(built); else delete p.realization; // no chords, no notes
   if (built && p.parts) { const rz = partRealizations(built); for (const pt of p.parts) if (pt.preset === 'pad' && rz[pt.id]) pt.realization = rz[pt.id]; } // and the pad parts'
   return p;
@@ -1232,7 +1309,13 @@ async function doExport(kind) {
     }
     if (kind === 'midichords' || kind === 'all') files.push({ name: name + ' (chords).mid', data: midiChords(built, opts) });
     if (kind === 'musicxml' || kind === 'all') files.push({ name: name + '.musicxml', data: musicXml(built, opts) });
-    const partsNote = built.parts.length > 1 && ['midichords', 'musicxml', 'all'].includes(kind) ? ' ' + (kind === 'all' ? 'MIDI chords and MusicXML carry' : kind === 'musicxml' ? 'MusicXML carries' : 'MIDI chords carries') + ' the main part\'s chords; ' + built.parts.slice(1).map(x => x.name).join(', ') + ' ' + (built.parts.length > 2 ? 'are' : 'is') + ' in the audio and in MIDI with glides.' : '';
+    let partsNote = ''; // which parts the notation exports leave to the audio and MIDI with glides
+    if (built.parts.length > 1 && ['midichords', 'musicxml', 'all'].includes(kind)) {
+      const rest = built.parts.filter(x => !x.main), names = a => a.map(x => x.name).join(', '), many = a => a.length > 1;
+      const silent = rest.filter(mutedPart), pads = rest.filter(x => !mutedPart(x) && !['line', 'pattern', 'copy'].includes(x.preset));
+      if (kind !== 'midichords' && pads.length) partsNote += ' MusicXML has a staff for each line, pattern and echo; ' + names(pads) + (many(pads) ? ' follow the chords, so they are' : ' follows the chords, so it is') + ' in the audio and both MIDI files.';
+      if (silent.length) partsNote += ' ' + names(silent) + (many(silent) ? ' are' : ' is') + ' silent, so ' + (kind === 'all' ? 'MIDI chords and MusicXML leave' : kind === 'musicxml' ? 'MusicXML leaves' : 'MIDI chords leaves') + (many(silent) ? ' them' : ' it') + ' out.';
+    }
     const label = { wav: 'WAV', mp3: 'MP3', midi: 'MIDI glides', midichords: 'MIDI chords', musicxml: 'MusicXML', all: 'all files' }[kind];
     let ok;
     if (saveMode === 'browser' && files.length === 1) ok = await saveFile(files[0].name, new Blob([files[0].data]));
@@ -1551,7 +1634,13 @@ const STARTS = {
     sound: { tone: 'triangle', level: -1, pan: 0.15, width: 20, detune: 3 }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.2 } },
   bass: { name: 'Bass', preset: 'line', step: '1/4', transpose: [0], portamento: 0,
     sound: { tone: 'saw', level: -5, pan: 0, width: 0, detune: 3 }, envelope: { attack: 0.005, decay: 0.25, sustain: 0.55, release: 0.08 } },
-  pad: { name: 'Pad', preset: 'pad', voices: 4, sound: { tone: 'bowed', level: -6, pan: 0, width: 70 } }
+  pad: { name: 'Pad', preset: 'pad', voices: 4, sound: { tone: 'bowed', level: -6, pan: 0, width: 70 } },
+  basspattern: { name: 'Bass pattern', preset: 'pattern', pattern: "R R'", step: '1/8', from: 36, transpose: [0], portamento: 0,
+    sound: { tone: 'saw', level: -6, pan: 0, width: 0, detune: 3 }, envelope: { attack: 0.004, decay: 0.18, sustain: 0.45, release: 0.05, curve: 'exp' } },
+  kick: { name: 'Kick', preset: 'pattern', pattern: 'C1', step: '1/4', from: 24, transpose: [0], portamento: 0, drop: { semis: 36, time: 0.12 },
+    sound: { tone: 'pure', level: -2, pan: 0, width: 0, detune: 0 }, envelope: { attack: 0.002, decay: 0.3, sustain: 0, release: 0.05, curve: 'exp' } },
+  arpeggio: { name: 'Arpeggio', preset: 'pattern', pattern: '1 2 3 4 3 2', step: '1/16', from: 60, transpose: [0], portamento: 0,
+    sound: { tone: 'square', level: -9, pan: -0.25, width: 30, detune: 3 }, envelope: { attack: 0.003, decay: 0.12, sustain: 0.35, release: 0.05, curve: 'exp' } }
 };
 const STEP_NAMES = [['1/1', 'Whole notes'], ['1/2', 'Half notes'], ['1/4', 'Quarter notes'], ['1/8', 'Eighth notes'], ['1/16', 'Sixteenth notes'], ['1/32', 'Thirty-second notes'],
   ['1/4t', 'Quarter-note triplets'], ['1/8t', 'Eighth-note triplets'], ['1/16t', 'Sixteenth-note triplets']];
@@ -1574,7 +1663,7 @@ function starterLine(kind) {
   const ev = built && built.main.events.length === items.length ? built.main.events : null;
   let used = 0; // steps so far: the last note takes exactly what's left, so the line ends with the chords
   return items.map((it, k) => {
-    const len = ev ? (k + 1 < ev.length ? ev[k + 1].t : built.main.total) - ev[k].t : (it.dur || piece.timing.chordSec);
+    const len = ev ? (k + 1 < ev.length ? ev[k + 1].t : built.main.total) - ev[k].t : (itemSeconds(it, piece) || defaultChordSec(piece));
     const last = ev && k === items.length - 1;
     const steps = last ? Math.max(0.01, Math.round((built.main.total / beat / stepBeats - used) * 100) / 100) : Math.max(0.25, Math.round(len / beat / stepBeats * 4) / 4);
     used += steps;
@@ -1583,9 +1672,9 @@ function starterLine(kind) {
   }).join(' | ');
 }
 /* The tabs' controls that belong to a part, and which kinds of part have them */
-const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all' };
+const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
 const applies = (id, n) => PART_CTRL[id] === 'all' || (PART_CTRL[id] === 'pad' && n.preset === 'pad');
-['chords', 'seed-harmony', 'chordsec', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'vshape']
+['chords', 'seed-harmony', 'tu-sec', 'chordsec', 'chordbars', 'tempo', 'meter', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'mix', 'tuning', 'vshape']
   .forEach(id => { const w = $(id).closest('.tabpanel > *'); if (w) w.dataset.whole = ''; }); // shared by every part
 const selRaw = () => selPart === 'main' ? null : (piece.parts || []).find(x => x.id === selPart) || null;
 // the chosen part with every setting filled in (only it is normalized, so a large piece of saved notes isn't copied each time)
@@ -1593,19 +1682,75 @@ const selNorm = () => { const raw = selRaw(); if (!raw) return null; try { retur
 const partTarget = id => (PART_CTRL[id] && selRaw()) || piece; // where a tab control writes
 const setDeep = (o, path, v) => { const ks = path.split('.'), last = ks.pop(); ks.reduce((a, k) => (a[k] && typeof a[k] === 'object') ? a[k] : (a[k] = {}), o)[last] = v; };
 function addPart(kind) {
+  if (kind === 'echo') { // a copy of the chosen part, or of the first line or pattern
+    const src = selRaw() && selRaw().preset !== 'copy' ? selRaw() : (piece.parts || []).find(x => x.preset === 'line' || x.preset === 'pattern');
+    if (!src) return;
+    const sn = (built && built.parts.find(x => x.id === src.id)) || src, part = { name: (src.name || src.id) + ' echo', preset: 'copy', of: src.id, delay: 0.75, shift: 0,
+      sound: { tone: (sn.sound && sn.sound.tone) || piece.sound.tone, level: ((sn.sound && sn.sound.level) || 0) - 7, pan: -0.5, width: 20, detune: 3 } };
+    part.id = uniquePartId(part.name); partsList().push(part); selPart = part.id; closePops(); rebuild(true); commit(); syncUI(); return;
+  }
   const part = JSON.parse(JSON.stringify(STARTS[kind]));
   if (part.preset === 'line') part.line = starterLine(kind);
   part.id = uniquePartId(part.name);
+  const firstRhythm = part.preset === 'pattern' && !(piece.parts || []).some(x => x.preset === 'pattern'); // (a kick is a pattern too)
   partsList().push(part); selPart = part.id;
   closePops(); rebuild(true); commit(); syncUI();
+  if (firstRhythm && piece.timing.unit !== 'bar') offerBars();
 }
+/* The first rhythm part in a piece kept in seconds: offer to keep time in bars instead, so chords change on the beat. The chord
+   length converts at the current tempo, as the Time switch does, so nothing you hear changes until you set a whole number of bars. */
+function offerBars() {
+  const T = piece.timing, bars = T.chordSec / (60 / T.tempo * T.meter);
+  $('barsoffer-text').textContent = 'Patterns follow the beat. This piece keeps time in seconds (' + T.chordSec.toFixed(1) + ' s a chord, ' + (Math.round(bars * 100) / 100) + ' bars at ' + T.tempo + ' BPM), so chords can change between beats. Keep time in bars instead?';
+  $('barsoffer').hidden = false;
+}
+$('barsoffer-yes').addEventListener('click', () => { $('barsoffer').hidden = true; $('tu-bar').checked = true; $('tu-bar').dispatchEvent(new Event('change')); });
+$('barsoffer-no').addEventListener('click', () => { $('barsoffer').hidden = true; });
 // short, so the menu fits a phone: the name and the kind of part
 function partLabel(n, raw) {
   if (!n) return (raw.name || raw.id) + ' (left out)';
-  if (n.preset === 'line' && parseLine(n.line, n.transpose).errors.length) return n.name + ' (line: check it)';
-  return n.name + ' (' + { pad: 'pad', line: 'line', notes: 'saved notes' }[n.preset] + ')';
+  if (n.preset === 'line' && parseLine(n.line, n.transpose, fallOf(n)).errors.length) return n.name + ' (line: check it)';
+  if (n.preset === 'pattern' && parsePattern(n.pattern).errors.length) return n.name + ' (pattern: check it)';
+  // an echo's source, looked up in the piece itself (the last build can be a step behind: the menu is drawn before a rebuild)
+  const pid = x => String(x.id || x.name || x.preset || 'line').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'part';
+  if (n.preset === 'copy' && !(piece.parts || []).some(x => x && x.preset !== 'copy' && pid(x) === n.of)) return n.name + ' (echo: no source)';
+  return n.name + ' (' + { pad: 'pad', line: 'line', notes: 'saved notes', pattern: 'pattern', copy: 'echo' }[n.preset] + ')';
 }
 /* The part bar: the menu of parts, and what can be done to the chosen one */
+/* Plays in: the sections the chosen part (or the main part) plays in. All sections is the default (no list saved). */
+/* Sections on the player bar: jump to any stretch of a section as it falls in time, or loop the one that's playing. For
+   listening only: neither is saved with the piece. */
+let loopOn = false, loopRun = null;
+const sectionRunAt = t => (built && built.sections || []).find(r => t >= r.t0 - 1e-6 && t < r.t1 - 1e-6) || null;
+function jumpTo(t) { offset = t; screenCam.snap = true; if (playing) startAudio(offset); }
+function fillSections() {
+  const list = $('seclist'), runs = built && built.sections || [], here = sectionRunAt(currentT());
+  list.textContent = '';
+  const item = (label, t, on) => { const b = document.createElement('button'); b.type = 'button'; if (on) b.classList.add('on');
+    const n = document.createElement('span'); n.textContent = label; const w = document.createElement('span'); w.className = 'when'; w.textContent = fmtClock(t);
+    b.append(n, w); b.addEventListener('click', () => { jumpTo(t); loopRun = sectionRunAt(t); setPop(secPop, secBtn, false); }); list.appendChild(b); };
+  if (runs.length && runs[0].t0 > 0.01) item('Start', 0, !here && currentT() < runs[0].t0);
+  for (const r of runs) item(r.name + (sectionPasses(r.name) > 1 ? ' ' + (r.pass + 1) + '/' + sectionPasses(r.name) : ''), r.t0, here === r);
+}
+$('secloop').addEventListener('change', () => { loopOn = $('secloop').checked; loopRun = loopOn ? sectionRunAt(currentT()) : null; $('secbtn').classList.toggle('looping', loopOn); });
+const sectionPasses = name => { const s = built && built.sections ? built.sections.filter(r => r.name === name) : []; return s.length ? Math.max(...s.map(r => r.pass)) + 1 : 1; };
+function syncPlays() {
+  const names = built && built.sections ? [...new Set(built.sections.map(r => r.name))] : [];
+  $('plays-box').hidden = !names.length; if (!names.length) return;
+  const tgt = selRaw() || piece, pl = Array.isArray(tgt.plays) ? tgt.plays : null, box = $('plays');
+  $('plays-lbl').textContent = (selRaw() ? (selRaw().name || selRaw().id) : 'Main part') + ' plays in';
+  box.replaceChildren();
+  const chip = (text, on, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = text; b.setAttribute('aria-pressed', String(on)); b.addEventListener('click', fn); box.appendChild(b); };
+  chip('All sections', !pl, () => { delete tgt.plays; playsChanged(tgt); });
+  for (const n of names) chip(n, !pl || pl.includes(n), () => {
+    const cur = Array.isArray(tgt.plays) ? tgt.plays.slice() : names.slice(), k = cur.indexOf(n);
+    if (k >= 0) cur.splice(k, 1); else cur.push(n);
+    if (names.every(x => cur.includes(x))) delete tgt.plays; else tgt.plays = names.filter(x => cur.includes(x)).concat(cur.filter(x => !names.includes(x))); // in the piece's order (keeping names not in it now)
+    playsChanged(tgt); });
+  const missing = pl ? pl.filter(x => !names.includes(x)) : [];
+  $('plays-hint').textContent = (pl && !pl.some(x => names.includes(x)) ? 'This part plays in none of these sections, so it is silent. ' : '') + 'Which sections this part plays in. Outside them it rests, coming in and out by its envelope.' + (missing.length ? ' Also kept for sections not in the chords now: ' + missing.join(', ') + '.' : '');
+}
+function playsChanged(tgt) { rebuild(true); syncPlays(); if (tgt !== piece) refreshPartBar(); commit(); }
 function refreshPartBar() {
   const sel = $('partsel'), raws = piece.parts || [];
   let norm = []; try { norm = raws.length ? (normalizePiece(Object.assign({}, piece, { realization: undefined })).parts || []) : []; } catch (e) { norm = []; }
@@ -1619,22 +1764,26 @@ function refreshPartBar() {
   if (raw && document.activeElement !== $('partname')) $('partname').value = raw.name || raw.id;
   $('partup').disabled = k <= 0; $('partdown').disabled = k < 0 || k >= raws.length - 1;
   const n = raw && norm.find(x => x.id === raw.id);
-  $('partdup').disabled = !n || room.parts <= 0 || room.voices < partVoices(n);
-  document.querySelectorAll('[data-addpart]').forEach(b => { const need = b.dataset.addpart === 'pad' ? STARTS.pad.voices : 1; b.disabled = room.parts <= 0 || room.voices < need; });
+  $('partdup').disabled = !n || room.parts <= 0 || room.voices < partVoices(n, norm);
+  // an echo copies the chosen part (or the first line or pattern), and needs as many voices as it has
+  const echoSrc = raw && raw.preset !== 'copy' ? n : norm.find(x => x.preset === 'line' || x.preset === 'pattern');
+  document.querySelectorAll('[data-addpart]').forEach(b => { const kind = b.dataset.addpart, need = kind === 'pad' ? STARTS.pad.voices : kind === 'echo' ? (echoSrc ? partVoices(echoSrc, norm) : Infinity) : 1; b.disabled = room.parts <= 0 || room.voices < need; });
+  $('addecho').querySelector('small').textContent = echoSrc ? (echoSrc.name || echoSrc.id) + ' again, later and moved' : 'add a melody or pattern first, then echo it';
   $('parts-room').hidden = !(room.parts <= 0 || room.voices < 4);
   $('parts-room').textContent = room.parts <= 0 ? 'A piece can have up to ' + MAX_PARTS + ' parts besides the main one.' : 'Room for ' + room.voices + ' more voice' + (room.voices === 1 ? '' : 's') + ' (' + REALIZATION_LIMITS.voices + ' in all).';
 }
 /* Show the tabs for the chosen part: which controls apply, what the tabs are called, and the part's own settings */
 function applyPartView() {
   if (selPart !== 'main' && !selRaw()) selPart = 'main'; // gone: another piece opened, or undone
+  if (built) syncPlays();
   const n = selNorm(), on = !!n;
   document.querySelector('.rack').classList.toggle('on-part', on);
   document.querySelectorAll('.sect.whole').forEach(x => { x.hidden = !on; });
   for (const id of Object.keys(PART_CTRL)) $(id).closest('.tabpanel > *').hidden = on && !applies(id, n);
-  const line = on && n.preset === 'line', notes = on && n.preset === 'notes';
-  $('t-harmony').textContent = line ? 'Line' : notes ? 'Notes' : 'Harmony';
-  $('t-voicing').textContent = line ? 'Voices' : 'Voicing';
-  $('t-voicing').classList.toggle('dim', notes); $('t-motion').classList.toggle('dim', notes);
+  const line = on && n.preset === 'line', pat = on && n.preset === 'pattern', notes = on && n.preset === 'notes', echo = on && n.preset === 'copy';
+  $('t-harmony').textContent = line ? 'Line' : pat ? 'Pattern' : notes ? 'Notes' : echo ? 'Echo' : 'Harmony';
+  $('t-voicing').textContent = line || pat ? 'Voices' : 'Voicing';
+  $('t-voicing').classList.toggle('dim', notes || echo); $('t-motion').classList.toggle('dim', notes || echo);
   $('partsel-hint').textContent = on ? 'The tabs below edit ' + n.name + '. Settings shared by every part are under Whole piece.' : 'The tabs below edit the main part.';
   renderPartBlocks(n);
   refreshPartBar();
@@ -1665,23 +1814,53 @@ function renderPartBlocks(n) {
   const opts = list => list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
   const sect = t => mk('p', { className: 'sect', textContent: t });
   const put = (key, ...els) => { if (els.length) { blocks[key].append(...els); blocks[key].hidden = false; } };
-  if (n.preset === 'line') {
+  if (n.preset === 'pattern') {
+    const ta = mk('textarea', { value: raw.pattern !== undefined ? raw.pattern : n.pattern, spellcheck: false }), err = mk('p', { className: 'err' });
+    const showErr = () => { const e = parsePattern(ta.value).errors; err.hidden = !e.length; err.textContent = e.length ? 'Can\'t read ' + e.slice(0, 4).join(', ') + (e.length > 4 ? '…' : '') + '. Steps are R, B or a number, with \' or , for octaves, . to hold, - to rest, and a length after a colon (R:2).' : ''; };
+    ta.addEventListener('input', () => { raw.pattern = ta.value; showErr(); changed(); }); ta.addEventListener('change', commit); showErr();
+    const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
+    start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
+    const lows = []; for (let m = 24; m <= 84; m++) lows.push([m, noteName(m)]);
+    put('harmony', field('Pattern', ta, [err, mk('p', { className: 'hint', innerHTML: 'Each step takes its note from the chord playing as it starts. <code>R</code> is the root and <code>B</code> the bass note, and <code>3rd</code>, <code>5th</code>, <code>7th</code> are the chord\'s third, fifth and seventh; <code>1</code>, <code>2</code>, <code>3</code>… are chord tones counting up from the lowest note below, on into the next octave. <code>\'</code> raises a step an octave and <code>,</code> lowers one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long; <code>~</code> before a step slides into it and <code>@0.6</code> after it strikes it softer. A note name like <code>C1</code> is that note whatever the chord. It loops until the music ends. Try <code>R R\'</code> for an octave bass, or <code>1 2 3 4 3 2</code> for an arpeggio. In a piece with sections, <code>[B]</code> starts the steps for section B, and <code>[A A2]</code> steps for both; steps before any marker play everywhere else.' })]),
+      mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), select('Lowest note', opts(lows), n.from, v => { raw.from = +v; })]),
+      mk('div', { className: 'two' }, [field('Start (beats)', start), mk('div', { className: 'checks' }, [check('Legato (join notes)', n.legato, v => { raw.legato = v; }), check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; })])]), mk('p', { className: 'hint', textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
+  }
+  if (n.preset === 'line' || n.preset === 'pattern') {
+    if (n.preset === 'line') {
     const ta = mk('textarea', { value: raw.line || '', spellcheck: false }), err = mk('p', { className: 'err' });
-    const showErr = () => { const e = parseLine(ta.value, raw.transpose || n.transpose).errors; err.hidden = !e.length; err.textContent = e.length ? 'Can\'t read ' + e.slice(0, 4).join(', ') + (e.length > 4 ? '…' : '') + '. Notes look like C4, F#3 or D3+33, with a length in steps after a colon (G4:2); a rest is - (or -:4). Notes out of range (MIDI 0–127, after the doubling on the Voices tab) play as rests.' : ''; };
+    const showErr = () => { const e = parseLine(ta.value, raw.transpose || n.transpose, fallOf(n)).errors; err.hidden = !e.length; err.textContent = e.length ? 'Can\'t read ' + e.slice(0, 4).join(', ') + (e.length > 4 ? '…' : '') + '. Notes look like C4, F#3 or D3+33, with a length in steps after a colon (G4:2); a rest is - (or -:4). Notes out of range (MIDI 0–127, after the doubling on the Voices tab, and from the top of a pitch drop) play as rests.' : ''; };
     ta.addEventListener('input', () => { raw.line = ta.value; showErr(); changed(); }); ta.addEventListener('change', commit); showErr();
     const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
     start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
-    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. The chords it plays over are under Whole piece.' })]),
+    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. The chords it plays over are under Whole piece.' })]),
       mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), field('Start (beats)', start)]),
-      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; })]));
+      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; }), check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; })]), mk('p', { className: 'hint', textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
+    }
     const tr = mk('input', { type: 'text', value: n.transpose.join(', '), autocomplete: 'off', spellcheck: false });
     tr.addEventListener('input', () => { const v = tr.value.split(/[\s,]+/).filter(Boolean).map(Number).filter(Number.isFinite).slice(0, 8); raw.transpose = v.length ? v : [0]; changed(); }); tr.addEventListener('change', commit);
     put('voicing', field('Voices at (semitones)', tr, [mk('p', { className: 'hint', innerHTML: 'One voice per number, all singing the line: <code>0</code> is one voice, <code>0,&nbsp;-12</code> adds an octave below, <code>0,&nbsp;7</code> a fifth above.' })]));
-    put('motion', slider('Portamento', 0, 0.3, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }),
+    put('motion', slider('Portamento', 0, 4, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }),
+      select('Glide shape', opts([['smooth', 'Smooth'], ['straight', 'Straight'], ['arc', 'Arc: out, then in (curves and circles)']]), n.glideShape, v => { raw.glideShape = v; }),
+      mk('p', { className: 'hint', innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
       sect('Vibrato'),
       slider('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }),
       slider('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }),
-      slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }));
+      slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }),
+      sect('Pitch drop'),
+      slider('Drop', -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? 'from ' + v + ' st above' : 'from ' + -v + ' st below') : 'off', v => { own('drop').semis = v; }),
+      slider('Fall time', 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }),
+      mk('p', { className: 'hint', textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
+  } else if (n.preset === 'copy') {
+    const srcs = (piece.parts || []).filter(x => x.preset !== 'copy' && x.id !== n.id).map(x => [x.id, x.name || x.id]);
+    const delay = mk('input', { type: 'number', min: 0, max: 64, step: 0.25, value: n.delay }), shift = mk('input', { type: 'number', min: -48, max: 48, step: 1, value: n.shift });
+    delay.addEventListener('input', () => { raw.delay = Math.max(0, Math.min(64, +delay.value || 0)); changed(); }); delay.addEventListener('change', commit);
+    shift.addEventListener('input', () => { raw.shift = Math.round(Math.max(-48, Math.min(48, +shift.value || 0))); changed(); }); shift.addEventListener('change', commit);
+    const srcN = (() => { const s0 = (piece.parts || []).find(x => x.id === n.of); try { return s0 ? partVoices(normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [s0] })).parts[0]) : 1; } catch (e) { return 1; } })();
+    const vopts = [['0', 'All (' + srcN + ')']]; for (let k = 1; k < srcN; k++) vopts.push([String(k), 'The first ' + (k === 1 ? 'one' : k)]);
+    put('harmony', select('Copy of', opts(srcs.length ? srcs : [['', '(no other parts)']]), n.of, v => { raw.of = v; }),
+      mk('div', { className: 'two' }, [field('Delay (beats)', delay), field('Shift (semitones)', shift)]),
+      select('Voices', opts(vopts), String(n.voices || 0), v => { if (+v > 0) raw.voices = +v; else delete raw.voices; }),
+      mk('p', { className: 'hint', textContent: 'Plays the other part\'s notes again, later and moved, with its own tone, level and pan: 0.75 beats is a dotted eighth, 12 semitones an octave. It uses the other part\'s envelope, glides and vibrato.' }));
   } else if (n.preset === 'notes') {
     put('harmony', mk('p', { className: 'hint', textContent: 'Saved notes for ' + n.realization.N + ' voices, written into the piece file, played exactly as written.' }));
   } else {
@@ -1689,11 +1868,12 @@ function renderPartBlocks(n) {
   }
   put('sound', slider('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }),
     slider('Pan', -1, 1, 0.05, n.sound.pan, fmtPan, v => { own('sound').pan = v; }));
-  if (n.preset !== 'pad') put('sound', sect('Envelope'),
+  if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
     slider('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }),
     slider('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }),
     slider('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }),
-    slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }));
+    slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }),
+    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }));
 }
 /* The part bar's menus */
 function closePops() { for (const [pop, btn] of [['addpop', 'partadd'], ['morepop', 'partmore']]) { $(pop).hidden = true; $(btn).setAttribute('aria-expanded', 'false'); } }
@@ -1734,28 +1914,40 @@ $('vshape').addEventListener('change', () => {
   rebuild(true); commit(); syncVolumeShape();
 });
 
-const STRUCTURAL = new Set(['chordsec', 'voices', 'continuity', 'coverage', 'stacking', 'spacing', 'variation', 'spread', 'glide', 'stagger', 'top', 'bassoct', 'bassmode', 'easing', 'order']);
+const STRUCTURAL = new Set(['tuning', 'chordsec', 'chordbars', 'voices', 'continuity', 'coverage', 'stacking', 'spacing', 'variation', 'spread', 'glide', 'stagger', 'top', 'bassoct', 'bassmode', 'easing', 'order']);
 for (const [id, path, fmt] of SLIDERS) {
   const el = $(id);
   el.addEventListener('input', () => {
     const tgt = partTarget(id); // the chosen part, for a control that belongs to a part
-    if (STRUCTURAL.has(id)) { if (tgt === piece) unfreeze(); else delete tgt.realization; }
+    if (STRUCTURAL.has(id) || (id === 'tempo' && usesMusicalTime(piece))) { if (tgt === piece) unfreeze(); else delete tgt.realization; }
     const v = id === 'voices' ? parseInt(el.value, 10) : parseFloat(el.value);
     setDeep(tgt, path, v);
     $('o-' + id).textContent = fmt(v);
-    // tempo was only for exports; now it also times written lines
-    if (id !== 'tempo' || (piece.parts || []).some(x => x.preset === 'line')) rebuildSoon(); updateStatus(); if (tgt !== piece) refreshPartBar();
+    rebuildSoon(); updateStatus(); if (tgt !== piece) refreshPartBar();
   });
   el.addEventListener('change', commit);
 }
+// Echo: Off, or a note length; turning it on starts at 35% with a few repeats
+$('echotime').addEventListener('change', () => {
+  const tgt = partTarget('echotime'), v = $('echotime').value, cur = getPath(tgt === piece ? piece : (selNorm() || {}), 'echo') || {};
+  if (v === 'off') setDeep(tgt, 'echo.mix', 0); else { setDeep(tgt, 'echo.time', v); if (!(cur.mix > 0)) setDeep(tgt, 'echo.mix', 0.35); }
+  rebuild(true); syncUI(); if (tgt !== piece) refreshPartBar(); commit();
+});
 for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => {
   const tgt = partTarget(id);
-  if (STRUCTURAL.has(id)) { if (tgt === piece) unfreeze(); else delete tgt.realization; } setDeep(tgt, path, conv($(id).value));
+  if (STRUCTURAL.has(id) || (id === 'meter' && usesMusicalTime(piece))) { if (tgt === piece) unfreeze(); else delete tgt.realization; } setDeep(tgt, path, conv($(id).value));
   if (tgt !== piece) { rebuild(true); refreshPartBar(); commit(); return; }
   const swap = id === 'tone' && playing && !recording && live; // tone doesn't change any pitch, so the running voices can just change waveform
   rebuild(true, !swap); if (swap) swapToneLive(piece.sound.tone);
   commit();
 });
+/* Time: chords without a length of their own last chordSec seconds, or chordBars bars. Switching converts the length at the
+   current tempo, so what you hear doesn't change (lengths outside the slider's range are brought into it). */
+document.querySelectorAll('input[name=timeunit]').forEach(r => r.addEventListener('change', () => {
+  const T = piece.timing, bar = 60 / T.tempo * T.meter;
+  if (r.value === 'bar') T.chordBars = Math.min(32, Math.max(0.25, T.chordSec / bar)); else T.chordSec = Math.min(12, Math.max(1.5, T.chordBars * bar));
+  T.unit = r.value; unfreeze(); syncUI(); rebuild(true); commit();
+}));
 $('chords').addEventListener('input', () => { unfreeze(); piece.chords = $('chords').value; rebuildSoon(); updateStatus(); saveDraftSoon(); });
 $('chords').addEventListener('change', commit);
 $('name').addEventListener('input', () => { piece.name = $('name').value; updateStatus(); saveDraftSoon(); });
@@ -1812,7 +2004,7 @@ $('newpiece').addEventListener('click', () => {
   const p = defaultPiece();
   const dl = defaultLook(); if (dl) p.view.trace = dl;
   for (const L of LAYERS) p.seeds[L] = randSeed();
-  p.chords = composeFromSeed(p.seeds.harmony, p.timing.chordSec);
+  p.chords = composeFromSeed(p.seeds.harmony, defaultChordSec(normalizePiece(p)));
   p.created = new Date().toISOString();
   currentLibId = null; savedJSON = null;
   applyPiece(p, { fresh: true }); setStatus('New piece written from a fresh harmony seed');
@@ -1893,8 +2085,8 @@ async function setFull(on) {
 }
 function updateFull() { const b = $('fullscreen'), on = isFull(); b.classList.toggle('on', on); b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); b.title = (on ? 'Exit full screen' : 'Full screen') + ' (F)'; screenCam.snap = true; }
 /* view options popup */
-const viewPop = $('viewpop'), viewBtn = $('viewbtn'), volPop = $('volpop'), volBtn = $('volbtn');
-const POPS = [[viewPop, viewBtn], [volPop, volBtn]];
+const viewPop = $('viewpop'), viewBtn = $('viewbtn'), volPop = $('volpop'), volBtn = $('volbtn'), secPop = $('secpop'), secBtn = $('secbtn');
+const POPS = [[viewPop, viewBtn], [volPop, volBtn], [secPop, secBtn]];
 function setPop(pop, btn, open) {
   if (open) POPS.forEach(([p, b]) => { if (p !== pop && !p.hidden) setPop(p, b, false); });
   pop.hidden = !open; btn.setAttribute('aria-expanded', String(open));
@@ -1904,6 +2096,15 @@ function setPop(pop, btn, open) {
     const lo = Math.max(m, st.left + m), hi = Math.min(innerWidth - m, st.right - m);
     const dx = r.width > hi - lo ? lo - r.left : r.left < lo ? lo - r.left : r.right > hi ? hi - r.right : 0;
     if (dx) pop.style.transform = 'translateX(calc(-50% + ' + dx + 'px))';
+    // a long list (Sections) shortens to fit above its button on a short screen, then the page scrolls to show the rest
+    const list = pop.querySelector('.seclist');
+    if (list) {
+      list.style.maxHeight = '';
+      const over = m - pop.getBoundingClientRect().top;
+      if (over > 0) list.style.maxHeight = Math.max(96, list.clientHeight - over) + 'px';
+      const top = pop.getBoundingClientRect().top;
+      if (top < m) scrollBy(0, top - m);
+    }
   }
 }
 const setViewPop = open => setPop(viewPop, viewBtn, open);
@@ -1911,6 +2112,7 @@ for (const [pop, btn] of POPS) {
   btn.addEventListener('click', e => {
     e.stopPropagation();
     if (pop === volPop && hoverUI.matches) { toggleMute(); return; } // with a mouse, the speaker mutes; hovering shows the slider
+    if (pop === secPop && pop.hidden) fillSections();
     setPop(pop, btn, pop.hidden); if (!pop.hidden && pop === volPop) $('vol').focus();
   });
   document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) setPop(pop, btn, false); });

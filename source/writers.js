@@ -125,13 +125,26 @@ function conductorTrack(built, tempo, title, extra = [], artist = '') {
     { tick: 0, ord: 0, data: metaText(0x03, title) },
     ...(String(artist || '').trim() ? [{ tick: 0, ord: 0.5, data: metaText(0x02, String(artist).trim().slice(0, 200)) }] : []), // copyright notice: the artist
     { tick: 0, ord: 1, data: [0xFF, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255] },
-    { tick: 0, ord: 2, data: [0xFF, 0x58, 4, 4, 2, 24, 8] },
+    { tick: 0, ord: 2, data: [0xFF, 0x58, 4, Math.max(1, Math.min(32, (built.piece && built.piece.timing && built.piece.timing.meter) || 4)), 2, 24, 8] }, // the piece's beats per bar, in quarter notes
     ...extra
   ];
+  // markers: each section as it starts ("Groove", "Groove 2/2"), then each chord
+  const secs = built.sections || [], passes = name => secs.filter(r => r.name === name).length;
+  secs.forEach((r, i) => ev.push({ tick: tick(r.t0), ord: 9 + i / (secs.length + 1), data: metaText(0x06, '[' + r.name + (passes(r.name) > 1 ? ' ' + (r.pass + 1) + '/' + passes(r.name) : '') + ']') }));
   built.events.forEach((e, i) => ev.push({ tick: tick(e.t), ord: 10 + i, data: metaText(0x06, (e.kind === 'note' ? '→ ' : '') + e.label) }));
   return trackChunk(ev);
 }
 const clampMidi = m => Math.max(0, Math.min(127, Math.round(m)));
+/* A General MIDI instrument for a part, from its tone (so a player or DAW opens the file with something close): a part with a
+   pitch drop is a synth drum, and a low saw, square or pulse part a synth bass */
+const GM_PROGRAM = { pure: 79, soft: 88, warm: 89, air: 73, glass: 98, reed: 71, triangle: 82, square: 80, pulse: 80, saw: 81, organ: 16, brass: 61, harp: 46, bowed: 48, cello: 42, chime: 14, octaves: 90 };
+function gmProgram(pt) {
+  if (!pt) return 88;
+  if (pt.drop && pt.drop.semis) return 118;
+  const tone = pt.sound && pt.sound.tone, low = pt.sub && pt.sub.max < 55;
+  if (low && ['saw', 'square', 'pulse'].includes(tone)) return tone === 'saw' ? 38 : 39;
+  return GM_PROGRAM[tone] !== undefined ? GM_PROGRAM[tone] : 88;
+}
 
 /* MIDI with glides holds 15 voices (one MPE member channel each). A larger piece goes into several files of up to 15 voices:
    returns [{ voices: [first, last] (1-based), data }], one entry when it all fits. */
@@ -166,7 +179,10 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
     const add = (t, data) => ev.push({ tick: tick(Math.max(0, Math.min(t, built.total))), ord: ord++, data }); // nothing after the end
     add(0, [0xB0 | ch, 101, 0]); add(0, [0xB0 | ch, 100, 0]); add(0, [0xB0 | ch, 6, bendRange]); add(0, [0xB0 | ch, 38, 0]);
     add(0, [0xB0 | ch, 101, 127]); add(0, [0xB0 | ch, 100, 127]);
-    add(0, metaText(0x03, 'Voice ' + (v + 1)));
+    const pt = built.parts && refs[v].p !== undefined ? built.parts[refs[v].p] : null, nth = pt ? refs[v].v + 1 : v + 1;
+    add(0, metaText(0x03, (pt ? pt.name : 'Voice') + (pt && pt.sub && pt.sub.N === 1 ? '' : ' ' + nth))); // the part's name, and which of its voices
+    add(0, metaText(0x04, (pt ? pt.name : 'Voice') + ' (' + ((pt && pt.sound && pt.sound.tone) || 'soft') + ')')); // instrument name: the part and its tone
+    add(0, [0xC0 | ch, gmProgram(pt)]);
     let note = clampMidi(evs[0].targets[lv]), lastBend = 8192;
     const bend = (t, semis) => { const b = bendVal(semis); if (b !== lastBend) { add(t, [0xE0 | ch, b & 0x7F, (b >> 7) & 0x7F]); lastBend = b; } };
     // one change of pitch (event i), written up to `stop` (the end of a note, for a voice that rests)
@@ -214,7 +230,29 @@ function midiWithGlides(built, { tempo = 60, title = 'Piece', artist = '', bendR
 }
 
 /* Settled chords only: one channel, notes start at each change */
+/* A voice's notes, as { on, off, p, v }: each event starts a note (the last of several at the same moment, which is where a pitch
+   drop lands), held until the next one or until its gate closes; a voice that always sounds holds to the next event. Notes that
+   touch at the same pitch within one gate are one note (a pad's voice holding through chord changes). */
+// a part kept silent (at the bottom of the level range, −60 dB), such as one that only frames the picture: left out of MIDI chords and MusicXML
+const mutedPart = pt => !!(pt.sound && +pt.sound.level <= -59.5);
+function voiceNotes(sub, v) {
+  const ev = sub.events, gates = sub.gates ? sub.gates[v] : null, out = [];
+  const starts = ev.filter((e, i) => !(i + 1 < ev.length && Math.abs(ev[i + 1].t - e.t) < 1e-9));
+  starts.forEach((e, k) => {
+    const next = k + 1 < starts.length ? starts[k + 1].t : sub.total, p = clampMidi(e.targets[v]);
+    let off = next, vel = 1, gi = -1;
+    if (gates) { gi = gates.findIndex(g => g.on <= e.t + 1e-6 && g.off > e.t + 1e-6); if (gi < 0) return; off = Math.min(next, gates[gi].off); if (gates[gi].v !== undefined) vel = gates[gi].v; }
+    const last = out[out.length - 1];
+    if (last && last.p === p && Math.abs(last.off - e.t) < 1e-6 && last.gi === gi) { last.off = off; return; }
+    if (off > e.t + 1e-6) out.push({ on: e.t, off, p, v: vel, gi });
+  });
+  return out.map(({ on, off, p, v }) => ({ on, off, p, v }));
+}
+/* MIDI chords: the main part's settled chords on one track, as since app 3; then each other part on a track of its own, named after
+   it, with a General MIDI instrument for its tone, its real notes and how loud each is struck. A part with a pitch drop (a kick or
+   a tick) goes on the drum channel as a bass drum. */
 function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
+  const score = built.main ? built : null;
   if (built.main) built = built.main; // the chords are the main part's
   const tick = t => Math.round(t * tempo / 60 * PPQ);
   const ev = []; let ord = 0;
@@ -225,12 +263,27 @@ function midiChords(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
       ev.push({ tick: Math.max(tick(e.t) + 1, tick(end)) - 1, ord: ord++, data: [0x80, m, 0] });
     }
   });
-  return smf([conductorTrack(built, tempo, title, [], artist), trackChunk(ev)]);
+  const tracks = [conductorTrack(built, tempo, title, [], artist), trackChunk(ev)];
+  let ch = 0;
+  for (const pt of score ? score.parts.filter(x => !x.main && !mutedPart(x)) : []) {
+    const drum = !!(pt.drop && pt.drop.semis), c = drum ? 9 : (ch = ch + 1 === 9 ? 10 : ch + 1) % 16, tev = []; let o = 0;
+    const name = Array.from(new TextEncoder().encode(String(pt.name || pt.id).slice(0, 60)));
+    tev.push({ tick: 0, ord: o++, data: [0xFF, 0x03, ...vlq(name.length), ...name] });
+    if (!drum) tev.push({ tick: 0, ord: o++, data: [0xC0 | c, gmProgram(pt)] });
+    for (let v = 0; v < pt.sub.N; v++) for (const n of voiceNotes(pt.sub, v)) {
+      const key = drum ? 36 : n.p, vel = Math.max(1, Math.min(127, Math.round(100 * n.v)));
+      tev.push({ tick: tick(n.on), ord: o++, data: [0x90 | c, key, vel] });
+      tev.push({ tick: Math.max(tick(n.on) + 1, tick(n.off)) - 1, ord: o++, data: [0x80 | c, key, 0] });
+    }
+    tracks.push(trackChunk(tev));
+  }
+  return smf(tracks);
 }
 
 /* ---- MusicXML: the settled chords on a grand staff (glides are not notated) ---- */
 const xmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function musicXml(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
+  const score = built.main ? built : null;
   if (built.main) built = built.main; // the harmonic score is the main part's
   const evs = built.events;
   const flatCount = evs.filter(e => /^[A-G]b/.test(e.label)).length, sharpCount = evs.filter(e => /^[A-G]#/.test(e.label)).length;
@@ -290,9 +343,38 @@ function musicXml(built, { tempo = 60, title = 'Piece', artist = '' } = {}) {
     body += staffXml(1) + `<backup><duration>${MEAS}</duration></backup>` + staffXml(2);
     measures.push(`<measure number="${mi + 1}">${body}</measure>`);
   }
+  /* Then a staff for each part that reads as notation: a written line, a pattern or an echo, its first voice (doublings are the same
+     line), in sixteenths, a treble or bass clef by its register, with ties across bar lines. Pads and saved notes stay out: they
+     are chords and continuous pitch, which the harmonic staff and MIDI carry. */
+  const D = 4, BAR = 16, T16 = { 1: ['16th', 0], 2: ['eighth', 0], 3: ['eighth', 1], 4: ['quarter', 0], 6: ['quarter', 1], 8: ['half', 0], 12: ['half', 1], 16: ['whole', 0] };
+  const split16 = n => { const out = []; for (const s of [16, 12, 8, 6, 4, 3, 2, 1]) while (n >= s) { out.push(s); n -= s; } return out; };
+  const to16 = t => Math.round(t * tempo / 60 * 4), spell = pieceFlats ? SPELL_F : SPELL_S;
+  const extra = (score ? score.parts : []).filter(pt => !pt.main && !mutedPart(pt) && ['line', 'pattern', 'copy'].includes(pt.preset) && pt.sub && pt.sub.N).map((pt, k) => {
+    const notes = voiceNotes(pt.sub, 0).map(n => { const a = to16(n.on); return { a, b: Math.max(a + 1, to16(n.off)), p: n.p }; }); // a short tick is still a sixteenth
+    for (let i = 1; i < notes.length; i++) if (notes[i].a < notes[i - 1].b) notes[i - 1].b = notes[i].a; // one line: a note ends where the next begins
+    const kept = notes.filter(n => n.b > n.a), ps = kept.map(n => n.p).sort((x, y) => x - y), mid = ps.length ? ps[ps.length >> 1] : 60, bass = mid < 55;
+    const bars = [];
+    for (let mi = 0; mi < nMeas; mi++) {
+      const m0 = mi * BAR, m1 = m0 + BAR; let x = '', pos = m0;
+      const rest = n => { for (const len of split16(n)) { const [ty, dot] = T16[len]; x += `<note><rest/><duration>${len}</duration><voice>1</voice><type>${ty}</type>${dot ? '<dot/>' : ''}</note>`; } };
+      for (const n of kept) {
+        const a = Math.max(n.a, m0), b = Math.min(n.b, m1); if (b <= a) continue;
+        if (a > pos) rest(a - pos);
+        const pieces = split16(b - a);
+        pieces.forEach((len, j) => { const [ty, dot] = T16[len], first = a === n.a && j === 0, last = b === n.b && j === pieces.length - 1;
+          const ties = (first ? '' : '<tie type="stop"/>') + (last ? '' : '<tie type="start"/>'), tied = (first ? '' : '<tied type="stop"/>') + (last ? '' : '<tied type="start"/>');
+          x += `<note>${pitchXml(n.p, spell)}<duration>${len}</duration>${ties}<voice>1</voice><type>${ty}</type>${dot ? '<dot/>' : ''}${tied ? `<notations>${tied}</notations>` : ''}</note>`; });
+        pos = b;
+      }
+      if (m1 > pos) rest(m1 - pos);
+      const attrs = mi === 0 ? `<attributes><divisions>${D}</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef>${bass ? '<sign>F</sign><line>4</line>' : '<sign>G</sign><line>2</line>'}</clef></attributes>` : '';
+      bars.push(`<measure number="${mi + 1}">${attrs}${x}</measure>`);
+    }
+    return { id: 'P' + (k + 2), name: pt.name || pt.id, bars };
+  });
   return utf8(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
-<score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification>${String(artist || '').trim() ? `<creator type="composer">${xmlEsc(String(artist).trim().slice(0, 200))}</creator>` : ''}<encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part></part-list><part id="P1">${measures.join('')}</part></score-partwise>`);
+<score-partwise version="4.0"><work><work-title>${xmlEsc(title)}</work-title></work><identification>${String(artist || '').trim() ? `<creator type="composer">${xmlEsc(String(artist).trim().slice(0, 200))}</creator>` : ''}<encoding><software>Chord Glide ${ENGINE_VERSION}</software></encoding></identification><part-list><score-part id="P1"><part-name>Voices</part-name></score-part>${extra.map(x => `<score-part id="${x.id}"><part-name>${xmlEsc(x.name)}</part-name></score-part>`).join('')}</part-list><part id="P1">${measures.join('')}</part>${extra.map(x => `<part id="${x.id}">${x.bars.join('')}</part>`).join('')}</score-partwise>`);
 }
 
 /* ---- Video containers ----

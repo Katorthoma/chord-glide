@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.1
+# Chord Glide 4.2
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -12,7 +12,7 @@ Chord Glide is a single web page. Run it from a file on your computer or host it
 
 1. Keep **`lame.min.js` in the same folder** as the HTML file.
 2. Open **`Chord Glide.html`** in Chrome, Edge, Firefox or Safari. Double-clicking it works.
-3. Every export downloads straight to your computer: piece file (.json), WAV, MP3, MIDI with glides, MIDI chords, MusicXML and video.
+3. Every export downloads straight to your computer: piece file (.json), WAV, MP3, MIDI with glides, MIDI chords and notes, MusicXML and video.
 
 **Notes:**
 
@@ -50,11 +50,11 @@ node cli/chord-glide-export.js "My piece.json" --musicxml --tempo 72
 node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the artist to the MIDI and MusicXML files
 ```
 
-**What it writes:** `(glides).mid` (one MPE channel per voice, with pitch bend), `(chords).mid` (settled chords only) and `.musicxml` (a harmonic score).
+**What it writes:** `(glides).mid` (one MPE channel per voice, with pitch bend), `(chords).mid` (the settled chords, then each part's notes on a track of its own) and `.musicxml` (the chords on a grand staff, then a staff for each line, pattern or echo part).
 
 **Saved notes.** Saved notes marked `"engine": "custom"` (written by hand or by another program) always play exactly as written, in the app and here. Files asking for more than 64 voices, more than an hour of saved notes or notes outside MIDI's range are refused. If a piece was saved by an older engine, the exporter uses that engine's saved notes so the result matches what you heard. Add `--revoice` to voice the piece again with the current engine.
 
-**Parts (file format 4).** Besides its main part (the piece's own voices, Voicing, Motion and Sound settings), a piece can have more parts in `parts`, each with its own voices, sound and envelope. Add them with the **Part** menu above the tabs (the tabs then edit the part you choose), or try the **Three Parts** example. The piece file holds them like this:
+**Parts (file format 4).** Besides its main part (the piece's own voices, Voicing, Motion and Sound settings), a piece can have more parts in `parts`, each with its own voices, sound and envelope. Add them with the **Part** menu above the tabs (the tabs then edit the part you choose), or try the **Three Parts** example (or **Bounce of the Spheres** and **Fold**, which use 4.2's sections, patterns and echoes). The piece file holds them like this:
 
 ```json
 "parts": [
@@ -71,7 +71,18 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 - **Mixing:** each part is balanced by its own voice count, so a part at 0 dB is about as loud as the main part, and a part's voice count doesn't change the balance. With several parts, the mix shares out headroom: every voice is scaled by one over the sum of the parts' levels (as amplitudes, the main part counting as 1), so adding a part at 0 dB brings everything down about 6 dB while a part at −60 dB changes nothing, and a soft clip rounds off anything above −3 dBFS. A piece with only its main part has neither.
 - **Limits:** notes in a line are from 1/64 to 1024 steps long and at least 5 ms; a line makes at most 20,000 notes and all lines together 100,000. Notes outside MIDI 0–127 (after a line's doubling) are refused, with a message. A pad part saves its resolved notes in `realization`, like the main part, and plays them exactly when they come from another engine.
 - `volume` is a shape over the whole piece: points in seconds and dB, joined by straight lines in dB.
-- All parts together can have up to 64 voices. MIDI chords and MusicXML carry the main part's chords; the audio, video and MIDI with glides carry every part. A piece without parts or a volume shape is still saved as format 3, so older versions open it.
+- All parts together can have up to 64 voices. The audio, video and MIDI with glides carry every part. MIDI chords carries the main part's chords and then each part on a track of its own (its name, a General MIDI instrument for its tone, its notes and how loud each is struck; a part with a pitch drop on the drum channel). MusicXML has the chords on a grand staff and then a staff for each line, pattern or echo part (its first voice, in sixteenths, treble or bass clef by its register). Parts at −60 dB are left out of both. A piece without parts or a volume shape is still saved as format 3, so older versions open it.
+
+**Format 5 (app 4.2).** A piece that uses any of these is saved as `"formatVersion": 5`, which app 4.1 and older refuse:
+
+- Time in bars: `timing.unit: "bar"`, or a chord length like `Am:2bar` / `Am:3beat`. (`timing.meter` and `timing.chordBars` alone don't need it: a piece in seconds plays the same whatever they are.)
+- Sections: header lines in the chords (`[Groove x2 +2]`), `plays` (a list of section names) on the piece or a part, or `[B]` markers in a line's or pattern's text.
+- More than 12 parts (up to 32), or a line over 20,000 characters (up to 400,000).
+- Parts: `"preset": "pattern"` (with `pattern`, `from`), `"preset": "copy"` (an echo: `of`, `delay` in beats, `shift`, optional `voices`), `nonstop: true`, `drop: { semis, time }`, `glideShape` (`"straight"`, `"arc"`), `portamento` over 2 s.
+- Notes: `~` (slide), `@0.6` (loudness) and `/0.4` (glide time, `l` or `s` for its shape) in lines; `envelope.curve: "exp"`; `vel` and `ease` in saved notes, the main part's or a part's.
+- Shaping and sound: `breathe: { depth, time }`, `duck: { under, depth, time }`, `"mix": "voices"`, `"tuning": "just"`.
+
+The app works out the version from what a piece uses (`formatFor()` in the engine) every time it saves. Programs that write piece files should do the same: a file that uses these fields but says `4` opens in app 4.1, which plays it without them.
 
 **Audio and video** come from the HTML page, because rendering them needs a browser's audio engine.
 
@@ -92,7 +103,7 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 | `LICENSE` | MIT License for Chord Glide's own code |
 | `LICENSES/` | The lamejs notice, plus the full LGPL-3.0 and GPL-3.0 texts that its license requires alongside it |
 | `cli/` | Command-line exporter, plus the engine and file writers it uses |
-| `source/` | Source files, build and release scripts, tests, the logo (`logo.svg`, `apple-touch-icon.png`), the link-preview image (`og-image.jpg`) and `site.json` |
+| `source/` | Source files, build and release scripts, tests, the logo (`logo.svg`, `apple-touch-icon.png`), the link-preview image (`og-image.jpg`), `site.json`, and `examples/` (piece files the build puts into the Library) |
 | `tools/` | Developer tools, not needed to use or build the app (not in releases) |
 | `dist/` | The website folder the build writes (not in git) |
 | `CHANGES.md` | What changed in each version |

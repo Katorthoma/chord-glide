@@ -5,6 +5,7 @@
  *   engine.js  — chord parser, voicing, motion, timeline
  *   writers.js — ZIP, WAV, MIDI and MusicXML writers
  *   app.js     — the interface, audio, drawing and exports
+ *   examples/  — example pieces kept whole (piece files, listed in the Library after the built-in examples, in file-name order)
  *
  *   node source/build.js
  *
@@ -43,10 +44,14 @@ const social = meta('og:type', 'website', 'property') + meta('og:site_name', SIT
     + meta('twitter:card', 'summary_large_image') + meta('twitter:image', siteUrl + '/og-image.jpg') + meta('twitter:image:alt', SITE.imageAlt)
     : meta('twitter:card', 'summary'))
   + meta('twitter:title', SITE.name) + meta('twitter:description', SITE.description);
+// example pieces kept whole: every examples/*.json, checked as JSON and written compactly
+const exDir = path.join(here, 'examples');
+const exFiles = fs.existsSync(exDir) ? fs.readdirSync(exDir).filter(f => f.endsWith('.json')).sort() : [];
+const examples = 'const EXAMPLE_PIECES = [' + exFiles.map(f => { try { return JSON.stringify(JSON.parse(read('examples/' + f))); } catch (e) { console.error('examples/' + f + ' is not valid JSON: ' + e.message); process.exit(1); } }).join(',\n') + '];\n';
 const page = extraHead => '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
   + headTags + extraHead
   + '<style>html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}</style>\n'
-  + '</head>\n<body>\n' + head.slice(headTags.length) + '<script>\n' + read('engine.js') + read('writers.js') + read('app.js') + '</script>\n</body>\n</html>\n';
+  + '</head>\n<body>\n' + head.slice(headTags.length) + '<script>\n' + read('engine.js') + read('writers.js') + examples + read('app.js') + '</script>\n</body>\n</html>\n';
 const html = page(about);
 const out = path.join(here, '..', 'Chord Glide.html');
 fs.writeFileSync(out, html);

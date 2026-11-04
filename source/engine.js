@@ -19,6 +19,9 @@ function mulberry32(a) {
 // A note with its octave, and optional cents after the octave: C4, F#2, C-1 (octave -1), D3+33, B3-14, A4+12.5¢
 const NOTE_OCT = '[A-G][#b]?-?\\d(?:[+-]\\d{1,2}(?:\\.\\d+)?¢?)?';
 const PLAYABLE = p => p >= 0 && p <= 127; // MIDI's range, which saved notes must keep to
+// a line's or pattern's note at every doubling, and, if it falls (a pitch drop, unless it slides in), from the top of its fall
+const fitsRange = (p, tr, fall = 0) => tr.every(d => PLAYABLE(p + d) && PLAYABLE(p + d + fall));
+const fallOf = (part, slide) => !slide && part && part.drop && part.drop.semis ? part.drop.semis : 0;
 function parseNoteOct(s) {
   const m = s.match(/^([A-G][#b]?)(-?\d)(?:([+-]\d{1,2}(?:\.\d+)?)¢?)?$/);
   return m ? pcOf(m[1]) + 12 * (parseInt(m[2], 10) + 1) + (m[3] ? parseFloat(m[3]) / 100 : 0) : null;
@@ -28,9 +31,9 @@ function parseNoteOct(s) {
 function parseItem(raw) {
   let t = raw.replace(/♯/g, '#').replace(/♭/g, 'b').replace(/ø7?/g, 'm7b5').replace(/Δ/g, 'maj7').trim();
   if (!t) return null;
-  let dur = null;
-  const dm = t.match(/:(\d+(?:\.\d+)?)s?$/);
-  if (dm) { dur = parseFloat(dm[1]); t = t.slice(0, dm.index); }
+  let dur = null, unit = null; // a length in seconds (:6 or :6s), bars (:2bar) or beats (:3beat); turned into seconds by itemSeconds()
+  const dm = t.match(/:(\d+(?:\.\d+)?)(s|bars?|beats?)?$/);
+  if (dm) { dur = parseFloat(dm[1]); unit = /^bar/.test(dm[2] || '') ? 'bar' : /^beat/.test(dm[2] || '') ? 'beat' : null; t = t.slice(0, dm.index); }
   let pin = null;
   const pm = t.match(/\[([^\]]*)\]$/);
   if (pm) {
@@ -39,7 +42,7 @@ function parseItem(raw) {
     t = t.slice(0, pm.index);
   }
   const um = t.match(new RegExp('^(?:=|->|→)(' + NOTE_OCT + ')$'));
-  if (um) { const m = parseNoteOct(um[1]); return PLAYABLE(m) ? { kind: 'note', midi: m, label: um[1], dur } : { kind: 'error', label: raw.trim() }; }
+  if (um) { const m = parseNoteOct(um[1]); return PLAYABLE(m) ? { kind: 'note', midi: m, label: um[1], dur, unit } : { kind: 'error', label: raw.trim() }; }
   const m = t.match(/^([A-G][#b]?)(.*)$/);
   if (!m) return { kind: 'error', label: raw.trim() };
   const root = pcOf(m[1]);
@@ -82,22 +85,78 @@ function parseItem(raw) {
   if (sus2) add(2); else if (sus4) add(5); else add(minor || dim ? 3 : 4);
   if (!no5) add(dim || flat5 ? 6 : (aug || sharp5) ? 8 : 7);
   const pcs = [...new Set([...iv].map(i => (root + i) % 12))];
-  return { kind: 'chord', label: t, root, bass, pcs, dur, pin };
+  return { kind: 'chord', label: t, root, bass, pcs, dur, unit, pin };
 }
+/* ---- Musical time ----
+   The tempo (beats a minute) and the meter (beats a bar) set a beat grid from the start of the piece. A chord's own length can
+   be in seconds, bars or beats, and an explicit unit never changes meaning on its own. A chord without a length lasts the piece's
+   chord length: timing.chordSec seconds, or timing.chordBars bars when the piece keeps its time in bars (timing.unit 'bar'). */
+const beatSec = P => 60 / P.timing.tempo, barSec = P => beatSec(P) * P.timing.meter;
+const defaultChordSec = P => P.timing.unit === 'bar' ? P.timing.chordBars * barSec(P) : P.timing.chordSec;
+function itemSeconds(it, P) { return it.dur == null ? null : it.unit === 'bar' ? it.dur * barSec(P) : it.unit === 'beat' ? it.dur * beatSec(P) : it.dur; }
+// whether a piece needs file format 5: it keeps time in bars, or a chord's length is in bars or beats
+const usesMusicalTime = p => !!(p && ((p.timing && p.timing.unit === 'bar') || /:\d+(?:\.\d+)?(?:bars?|beats?)(?=[\s,|\]]|$)/m.test(String(p.chords || ''))));
+/* The file format a piece needs: 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
+   play and refuse what they'd get wrong */
+const shaped = x => !!x && ((x.breathe && +x.breathe.depth > 0) || (x.duck && +x.duck.depth > 0 && x.duck.under));
+const accented = r => !!(r && Array.isArray(r.events) && r.events.some(e => e && (e.vel || e.ease))); // saved notes with loudness or glide shapes
+const echoing = x => !!(x && x.echo && +x.echo.mix > 0);
+function formatFor(p) { return echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
 
+/* ---- Sections ----
+   A line that is only a header in brackets starts a section: its name, then optionally a repeat (x2) and a key change in
+   semitones (+2, -3), in any order: [Groove x2], [Lift x2 +2]. Chords before the first header are a section with no name.
+   The progression is expanded: each section's chords, transposed, as many times as it repeats. Every item says which section
+   it's in (`section`, its name) and which time through (`pass`); parts can play in chosen sections only (see sectionSpans()). */
+const SECTION_LIMITS = { repeat: 64, transpose: 24, items: 20000 };
+function parseHeader(inner) {
+  let name = [], repeat = 1, transpose = 0, ok = true;
+  for (const w of inner.trim().split(/\s+/).filter(Boolean)) {
+    let m;
+    if ((m = w.match(/^[x×](\d+)$/i))) repeat = +m[1];
+    else if ((m = w.match(/^([+-]\d+)(?:st)?$/))) transpose = +m[1];
+    else name.push(w);
+  }
+  name = name.join(' ').slice(0, 40);
+  if (!name || repeat < 1 || repeat > SECTION_LIMITS.repeat || Math.abs(transpose) > SECTION_LIMITS.transpose) ok = false;
+  return ok ? { name, repeat, transpose } : null;
+}
+// a chord or note moved by k semitones, with its name respelled (flats stay flats, sharps stay sharps)
+function transposeItem(it, k) {
+  if (!k) return Object.assign({}, it);
+  if (it.kind === 'note') { const m = it.midi + k; return PLAYABLE(m) ? Object.assign({}, it, { midi: m, label: noteName(Math.round(m)) }) : null; }
+  const spell = (name, pc) => (/b/.test(name.slice(1)) ? FLAT : SHARP)[pc];
+  const label = it.label.replace(/^([A-G][#b]?)/, r => spell(r, (pcOf(r) + k + 120) % 12)).replace(/\/([A-G][#b]?)$/, (_, r) => '/' + spell(r, (pcOf(r) + k + 120) % 12));
+  const pin = it.pin ? it.pin.map(p => p + k) : null;
+  if (pin && pin.some(p => !PLAYABLE(p))) return null;
+  return Object.assign({}, it, { label, root: (it.root + k + 120) % 12, bass: (it.bass + k + 120) % 12, pcs: it.pcs.map(p => (p + k + 120) % 12), pin });
+}
 function parseProgression(text) {
-  const prepared = text
+  const prep = line => line
     .replace(/\[([^\]]*)\]/g, (_, inner) => '[' + inner.trim().split(/[\s,]+/).join('_') + ']')
     .replace(/\(\s*(no|omit)\s*5\s*\)/gi, '(no5)');
-  const items = [], errors = [];
-  for (const tok of prepared.split(/[\s,|]+/)) {
-    if (!tok) continue;
-    const it = parseItem(tok);
-    if (!it) continue;
-    if (it.kind === 'error') errors.push(it.label); else items.push(it);
+  const errors = [], sections = [{ name: '', repeat: 1, transpose: 0, items: [] }];
+  for (const line of String(text).split(/\r?\n/)) {
+    const hm = line.match(/^\s*\[([^\]]*)\]\s*$/);
+    if (hm) { const h = parseHeader(hm[1]); if (h) sections.push(Object.assign(h, { items: [] })); else errors.push(line.trim()); continue; }
+    for (const tok of prep(line).split(/[\s,|]+/)) {
+      if (!tok) continue;
+      const it = parseItem(tok);
+      if (!it) continue;
+      if (it.kind === 'error') errors.push(it.label); else sections[sections.length - 1].items.push(it);
+    }
   }
-  return { items, errors };
+  const items = [];
+  for (const s of sections) for (let r = 0; r < s.repeat; r++) for (const it of s.items) {
+    if (items.length >= SECTION_LIMITS.items) break;
+    const x = transposeItem(it, s.transpose);
+    if (!x) { if (r === 0) errors.push(it.label + ' ' + (s.transpose > 0 ? '+' : '') + s.transpose); continue; }
+    x.section = s.name; x.pass = r; x.key = s.transpose; items.push(x);
+  }
+  return { items, errors, sections: sections.filter(s => s.name).map(s => ({ name: s.name, repeat: s.repeat, transpose: s.transpose, chords: s.items.length })) };
 }
+// whether the chords have section headers
+const hasSections = text => /^\s*\[[^\]]*\]\s*$/m.test(String(text || '')) && parseProgression(text).sections.length > 0;
 
 const ORDERS = ['together', 'low-high', 'high-low', 'largest', 'smallest', 'random'];
 const LOOKS = ['theme', 'phosphor', 'laserred', 'laserblue', 'amber', 'aurora', 'spectrum', 'neon', 'custom'];
@@ -143,7 +202,7 @@ const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ:
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
-const PIECE_FORMAT_VERSION = 4; // 4 adds parts and a volume shape; pieces without them are still written as 3
+const PIECE_FORMAT_VERSION = 5; // 4 adds parts and a volume shape, 5 musical time (bars and beats); a piece is written as the oldest format that holds it (formatFor())
 function defaultPiece() {
   return {
     format: PIECE_FORMAT, formatVersion: PIECE_FORMAT_VERSION, engine: ENGINE_VERSION,
@@ -152,7 +211,8 @@ function defaultPiece() {
     seeds: { harmony: 1, voicing: 1, motion: 1, sound: 1 },
     locks: { harmony: true, voicing: false, motion: false, sound: false },
     voices: 11,
-    timing: { chordSec: 4.5, glide: 1.6, easing: 'smooth', tempo: 60 },
+    timing: { chordSec: 4.5, glide: 1.6, easing: 'smooth', tempo: 60, meter: 4, unit: 'sec', chordBars: 1 },
+    breathe: { depth: 0, time: 0.6 }, duck: { under: '', depth: 0, time: 0.25 },
     voicing: { continuity: 50, coverage: 50, stacking: 25, spacing: 25, variation: 25, spread: 100, top: 88, bassMode: 'root', bassOctave: 2 },
     motion: { order: 'together', stagger: 0 },
     sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200 },
@@ -182,6 +242,7 @@ function normalizePiece(p) {
   out.name = String(out.name || 'Untitled piece').slice(0, 80);
   out.timing.easing = pickFrom(out.timing.easing, ['smooth', 'smoother', 'cosine', 'linear'], 'smooth');
   out.timing.chordSec = num(out.timing.chordSec, 1.5, 12, 4.5); out.timing.glide = num(out.timing.glide, 0, 12, 1.6); out.timing.tempo = Math.round(num(out.timing.tempo, 30, 180, 60));
+  out.timing.meter = Math.round(num(out.timing.meter, 1, 12, 4)); out.timing.unit = pickFrom(out.timing.unit, ['sec', 'bar'], 'sec'); out.timing.chordBars = num(out.timing.chordBars, 0.25, 32, 1);
   for (const k of ['continuity', 'coverage', 'stacking', 'spacing', 'variation', 'spread']) out.voicing[k] = num(out.voicing[k], 0, 100, d.voicing[k]);
   out.voicing.top = Math.round(num(out.voicing.top, 67, 96, 88));
   out.voicing.bassOctave = Math.round(num(out.voicing.bassOctave, 1, 3, 2));
@@ -212,7 +273,7 @@ function normalizePiece(p) {
     out.parts = [];
     (Array.isArray(p.parts) ? p.parts : []).slice(0, MAX_PARTS).forEach((q, i) => {
       const part = normalizePart(q, out, i, used); if (!part) return;
-      const n = partVoices(part); if (n > room) return;
+      const n = partVoices(part, out.parts); if (n > room) return;
       room -= n; out.parts.push(part);
     });
     if (!out.parts.length) delete out.parts;
@@ -222,7 +283,12 @@ function normalizePiece(p) {
       .map(x => ({ t: num(x.t, 0, 3600, 0), db: num(x.db, -60, 12, 0) })).sort((a, b) => a.t - b.t);
     if (pts.length) out.volume = pts; else delete out.volume;
   }
-  out.formatVersion = out.parts || out.volume ? 4 : 3; // other pieces still open in older versions
+  { const obj = x => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {}; out.breathe = (o => ({ depth: num(o.depth, 0, 0.9, 0), time: num(o.time, 0.05, 4, 0.6) }))(obj(p.breathe)); out.duck = (o => ({ under: String(o.under || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24), depth: num(o.depth, 0, 0.95, 0), time: num(o.time, 0.05, 2, 0.25) }))(obj(p.duck)); } // the main part's shape over time
+  out.echo = normalizeEcho(p.echo); // the main part's echo
+  if (p.mix === 'voices') out.mix = 'voices'; else delete out.mix;
+  if (p.tuning === 'just') out.tuning = 'just'; else delete out.tuning; // pure chords that may drift (equal temperament if not set) // balance every voice equally rather than every part
+  { const PL = p.plays, v = Array.isArray(PL) ? [...new Set(PL.map(x => String(x).slice(0, 40)).filter(Boolean))].slice(0, 64) : undefined; if (v) out.plays = v; else delete out.plays; } // the sections the main part plays in (all if none)
+  out.formatVersion = formatFor(out); // other pieces still open in older versions
   return out;
 }
 
@@ -397,26 +463,34 @@ function partRealizations(built) {
 function realizationOf(built) {
   if (built.main) built = built.main; // the main part's; other pad parts' come from partRealizations()
   return { engine: ENGINE_VERSION, easing: built.piece.timing.easing, N: built.N, total: built.total,
-    events: built.events.map(e => ({ t: e.t, g: e.g, label: e.label, kind: e.kind, targets: e.targets.slice(), off: e.off.slice(), dur: e.dur.slice() })) };
+    events: built.events.map(e => Object.assign({ t: e.t, g: e.g, label: e.label, kind: e.kind, targets: e.targets.slice(), off: e.off.slice(), dur: e.dur.slice() }, e.section ? { section: e.section, pass: e.pass || 0, key: e.key || 0 } : {})) };
 }
 function builtFromRealization(r, piece, normalized = false) {
   const P = normalized ? piece : normalizePiece(piece);
   const events = r.events.map(e => ({ t: e.t, g: e.g, label: e.label == null ? '' : String(e.label), kind: e.kind === 'note' ? 'note' : 'chord', targets: e.targets.slice(),
-    off: e.off ? e.off.slice() : new Array(r.N).fill(0), dur: e.dur ? e.dur.slice() : new Array(r.N).fill(e.g), fallback: false }));
-  // rests (null, allowed in parts): the voice holds its last pitch silently, then jumps to its next note as it sounds again
+    off: e.off ? e.off.slice() : new Array(r.N).fill(0), dur: e.dur ? e.dur.slice() : new Array(r.N).fill(e.g), fallback: false,
+    section: typeof e.section === 'string' ? e.section.slice(0, 40) : '', pass: Math.max(0, Math.floor(+e.pass) || 0), key: Math.max(-24, Math.min(24, Math.round(+e.key) || 0)), ...(EASE[e.ease] ? { ease: e.ease } : {}) })); // a glide shape of its own, if it names one
+  // rests (null, allowed in parts): the voice holds its last pitch silently, then jumps to its next note as it sounds again.
+  // A loudness for a voice in an event (vel, 0 to 1) strikes that note afresh at that loudness, even straight after another.
+  const vels = r.events.map(e => Array.isArray(e.vel) && e.vel.length === r.N ? e.vel.map(x => x === null || x === undefined ? null : Math.max(0, Math.min(1, +x || 0))) : null);
   let gates = null;
-  if (events.some(e => e.targets.some(x => x === null))) {
+  if (events.some(e => e.targets.some(x => x === null)) || vels.some(Boolean)) {
     gates = [];
     for (let v = 0; v < r.N; v++) {
       const firstP = events.map(e => e.targets[v]).find(x => x !== null);
-      let held = firstP === undefined ? 60 : firstP, on = null; const gs = [];
+      let held = firstP === undefined ? 60 : firstP, on = null, gate = null; const gs = [];
       events.forEach((e, i) => {
         const x = e.targets[v];
-        if (x === null) { e.targets[v] = held; e.dur[v] = 0; if (on !== null) { gs.push({ on, off: e.t }); on = null; } }
-        else { if (on === null) { on = e.t; if (i > 0) e.dur[v] = 0; } held = x; }
+        const vv = vels[i] ? vels[i][v] : null;
+        if (x === null) { e.targets[v] = held; e.dur[v] = 0; if (on !== null) { gs.push(gate); on = null; } }
+        else {
+          const fromRest = on === null;
+          if (!fromRest && vv !== null) { gs.push(gate); on = null; } // struck afresh (keeping any glide into it)
+          if (on === null) { on = e.t; gate = { on, off: Infinity }; if (vv !== null && vv !== 1) gate.v = vv; if (i > 0 && fromRest) e.dur[v] = 0; } held = x; }
+        if (gs.length && gs[gs.length - 1].off === Infinity) gs[gs.length - 1].off = e.t;
       });
-      if (on !== null) gs.push({ on, off: r.total });
-      gates.push(gs.length === 1 && gs[0].on === 0 && gs[0].off === r.total ? null : gs);
+      if (on !== null) { gate.off = r.total; gs.push(gate); }
+      gates.push(gs.length === 1 && gs[0].on === 0 && gs[0].off === r.total && gs[0].v === undefined ? null : gs);
     }
     if (gates.every(x => x === null)) gates = null;
   }
@@ -437,13 +511,24 @@ function builtFromRealization(r, piece, normalized = false) {
 /* After the music's end: the tail (the closing fade and the reverb, which the clock and every render include), and the
    closing fade of the parts that sound throughout (the main part and pads) inside it */
 const TAIL = 3.0, FADE = 2.8;
-const PRESETS = ['pad', 'line', 'notes'];
-const MAX_PARTS = 12;
+const PRESETS = ['pad', 'line', 'notes', 'pattern', 'copy'];
+const MAX_PARTS = 32;
+/* An echo as a sound setting: the part again, a note-length later at the tempo, quieter with each repeat (heard, not drawn).
+   time: the note length; mix: the first repeat's level (0 is off); feedback: each repeat's share of the one before;
+   pingpong: repeats alternate left and right. */
+const ECHO_BEATS = { '1/16': 0.25, '1/8': 0.5, '3/16': 0.75, '1/4': 1, '3/8': 1.5, '1/2': 2 };
+function normalizeEcho(o) {
+  o = o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  const num = (v, lo, hi, d) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+  return { time: ECHO_BEATS[o.time] ? o.time : '3/16', mix: num(o.mix, 0, 1, 0), feedback: num(o.feedback, 0, 0.9, 0.35), pingpong: o.pingpong !== false };
+}
 const STEPS = { '1/1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125, '1/4t': 2 / 3, '1/8t': 1 / 3, '1/16t': 1 / 6 }; // in beats
 const ENVELOPES = { // attack, decay and release in seconds; sustain as a fraction of full level
   pad: { attack: 0.4, decay: 0, sustain: 1, release: 1 },
   line: { attack: 0.01, decay: 0.15, sustain: 0.75, release: 0.12 },
-  notes: { attack: 0.005, decay: 0, sustain: 1, release: 0.03 }
+  notes: { attack: 0.005, decay: 0, sustain: 1, release: 0.03 },
+  pattern: { attack: 0.005, decay: 0.15, sustain: 0.6, release: 0.06 },
+  copy: { attack: 0.01, decay: 0.15, sustain: 0.75, release: 0.12 } // (a copy uses its source's envelope)
 };
 /* A stable seed for one part and one purpose: adding, removing or reordering parts never changes another part's seeds */
 function partSeed(seed, id, salt) {
@@ -461,23 +546,37 @@ function normalizePart(q, P, i, used) {
   for (let k = 2, base = id; used.has(id); k++) id = base + '-' + k;
   used.add(id);
   const s = obj(q.sound), e = obj(q.envelope), E0 = ENVELOPES[preset];
+  const PL = q.plays, plays = Array.isArray(PL) ? [...new Set(PL.map(x => String(x).slice(0, 40)).filter(Boolean))].slice(0, 64) : undefined; // the sections it plays in (all if none)
   const part = { id, name: String(q.name || id).slice(0, 40), preset,
     sound: { tone: TONES[s.tone] ? s.tone : P.sound.tone, level: num(s.level, -60, 12, 0), pan: num(s.pan, -1, 1, 0),
       width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune) },
-    envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release) } };
+    envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release), curve: e.curve === 'exp' ? 'exp' : 'linear' } };
+  if (plays) part.plays = plays;
+  part.echo = normalizeEcho(q.echo);
+  part.duck = (o => ({ under: String(o.under || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24), depth: num(o.depth, 0, 0.95, 0), time: num(o.time, 0.05, 2, 0.25) }))(obj(q.duck)); // dips when another part strikes a note
+  if (preset === 'pad') part.breathe = (o => ({ depth: num(o.depth, 0, 0.9, 0), time: num(o.time, 0.05, 4, 0.6) }))(obj(q.breathe)); // dips at each chord change
   if (preset === 'pad') {
     part.voices = Math.round(num(q.voices, 3, MAX_VOICES, 5)); // like the main part: a bass and at least two above it
     part.voicing = Object.assign({}, P.voicing, obj(q.voicing)); part.motion = Object.assign({}, P.motion, obj(q.motion)); // limited when it's voiced
     // its resolved notes, saved with the piece like the main part's, so a later engine plays it exactly as it was
     const big = realizationTooLarge(q.realization); if (big) throw new Error('This piece can\'t be opened safely: part ' + (i + 1) + ' ' + big + '.');
     if (validRealization(q.realization) && q.realization.N === part.voices) part.realization = JSON.parse(JSON.stringify(q.realization));
-  } else if (preset === 'line') {
-    part.line = typeof q.line === 'string' ? q.line.slice(0, 20000) : '';
+  } else if (preset === 'copy') { // another part, later and moved: an echo
+    part.of = String(q.of || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+    part.delay = num(q.delay, 0, 64, 0.75); // in beats
+    part.shift = Math.round(num(q.shift, -48, 48, 0)); // in semitones
+    if (+q.voices > 0) part.voices = Math.round(num(q.voices, 1, MAX_VOICES, 1)); // only its source's first voices (all if not set)
+  } else if (preset === 'line' || preset === 'pattern') {
+    if (preset === 'line') part.line = typeof q.line === 'string' ? q.line.slice(0, 400000) : '';
+    else { part.pattern = typeof q.pattern === 'string' ? q.pattern.slice(0, 4000) : 'R'; part.from = Math.round(num(q.from, 0, 115, 36)); } // its lowest note (MIDI)
     part.step = STEPS[q.step] ? q.step : '1/8';
     part.start = num(q.start, 0, 100000, 0); // in beats
     part.repeat = !!q.repeat; part.legato = !!q.legato;
+    if (q.nonstop) part.nonstop = true; // its voices never stop: rests hold, and outside its sections they join the chords
     part.transpose = (Array.isArray(q.transpose) && q.transpose.length ? q.transpose : [0]).slice(0, 8).map(x => num(x, -48, 48, 0));
-    part.portamento = num(q.portamento, 0, 2, 0.03);
+    part.portamento = num(q.portamento, 0, 4, 0.03);
+    part.glideShape = ['smooth', 'straight', 'arc'].includes(q.glideShape) ? q.glideShape : 'smooth';
+    const dr = obj(q.drop); part.drop = { semis: num(dr.semis, -48, 48, 0), time: num(dr.time, 0.005, 2, 0.12) }; // each note starts this far above and falls onto its pitch
     const vb = obj(q.vibrato);
     part.vibrato = { cents: num(vb.cents, 0, 100, 0), rate: num(vb.rate, 0.5, 12, 5.5), delay: num(vb.delay, 0, 5, 0.3) };
   } else {
@@ -487,63 +586,268 @@ function normalizePart(q, P, i, used) {
   }
   return part;
 }
-const partVoices = part => part.preset === 'pad' ? part.voices : part.preset === 'line' ? part.transpose.length : part.realization.N;
+const partVoices = (part, others = []) => part.preset === 'copy' ? (s => s && s.preset !== 'copy' ? (part.voices ? Math.min(part.voices, partVoices(s)) : partVoices(s)) : 0)(others.find(x => x.id === part.of)) : part.preset === 'pad' ? part.voices : part.preset === 'line' || part.preset === 'pattern' ? part.transpose.length : part.realization.N;
 /* A written line: notes like the chord box's (C4, F#3, D3+33) with a length in steps (`G4:2`), and rests (`-` or `r`).
    Bar lines `|` and commas are ignored. */
 /* A line can be written out of range only by its notes (with `transpose`, the intervals it's doubled at): a note that would
    go outside MIDI 0–127 is reported and kept as a rest of the same length, so the timing holds. Lengths must be finite, from
    1/64 to 1024 steps. */
-function parseLine(text, transpose = [0]) {
-  const notes = [], errors = [], re = new RegExp('^(-|r|' + NOTE_OCT + ')(?::(\\d+(?:\\.\\d+)?))?$');
-  for (const tok of String(text || '').split(/[\s|,]+/).filter(Boolean)) {
-    const m = tok.match(re), steps = m ? (m[2] === undefined ? 1 : parseFloat(m[2])) : 0;
-    if (!m || !Number.isFinite(steps) || steps < 1 / 64 || steps > 1024) { errors.push(tok); continue; }
-    const p = m[1] === '-' || m[1] === 'r' ? null : parseNoteOct(m[1].replace(/¢$/, ''));
-    if (p !== null && !transpose.every(d => PLAYABLE(p + d))) { errors.push(tok + ' (out of range)'); notes.push({ p: null, steps }); continue; }
-    notes.push({ p, steps });
+/* A line's or pattern's text can differ by section: [Name] starts the text for that section, [A A2] for both; text before any
+   marker is used everywhere else. { base, by: Map name → text, sectioned } */
+function splitBySection(text) {
+  const by = new Map(), bits = String(text || '').split(/\[([^\]]*)\]/);
+  for (let i = 1; i < bits.length; i += 2) for (const n of bits[i].split(/[\s,]+/).filter(Boolean)) by.set(n, (by.get(n) || '') + ' ' + bits[i + 1]);
+  return { base: bits[0], by, sectioned: bits.length > 1 };
+}
+const textFor = (sp, name) => sp.by.has(name) ? sp.by.get(name) : sp.base;
+const withoutMarkers = text => String(text || '').replace(/\[[^\]]*\]/g, ' ');
+/* A note's loudness after @: 0 to 1 (@0.6) or a percentage (@60%); undefined if there's none, NaN if it can't be read */
+function parseLoud(s) { if (s === undefined) return undefined; const pc = /%$/.test(s), v = parseFloat(s) / (pc ? 100 : 1); return v >= 0 && v <= 1 ? v : NaN; }
+// a note: ~ to slide in, a name (or - or r for a rest), :steps, /seconds to glide in over (l straight, s smooth), @loudness
+const LINE_NOTE = new RegExp('^(~)?(-|r|' + NOTE_OCT + ')(?::(\\d+(?:\\.\\d+)?))?(?:\\/(\\d*\\.?\\d+)([ls])?)?(?:@(\\d*\\.?\\d+%?))?$');
+/* A written line: notes like G4 or D3+33 with a length in steps after a colon (G4:2), - or r for a rest; ~ before a note slides
+   into it from the note before without a new attack; @ after it sets how loud it's struck (@0.6, @60%) */
+function parseLine(text, transpose = [0], drop = 0) {
+  const notes = [], errors = [];
+  for (const tok of withoutMarkers(text).split(/[\s|,]+/).filter(Boolean)) {
+    const m = tok.match(LINE_NOTE), steps = m ? (m[3] === undefined ? 1 : parseFloat(m[3])) : 0, v = m ? parseLoud(m[6]) : undefined;
+    const rest = m && (m[2] === '-' || m[2] === 'r'), glide = m && m[4] !== undefined ? parseFloat(m[4]) : undefined;
+    if (!m || !Number.isFinite(steps) || steps < 1 / 64 || steps > 1024 || Number.isNaN(v) || (glide !== undefined && !(glide <= 3600)) || (rest && (m[1] || v !== undefined || glide !== undefined))) { errors.push(tok); continue; }
+    const p = rest ? null : parseNoteOct(m[2].replace(/¢$/, ''));
+    const slide = !!m[1] || glide !== undefined;
+    if (p !== null && !fitsRange(p, transpose, slide ? 0 : drop)) { errors.push(tok + ' (out of range)'); notes.push({ p: null, steps }); continue; }
+    const n = { p, steps, slide, v: v === undefined ? 1 : v };
+    if (glide !== undefined) { n.glide = glide; if (m[5]) n.shape = m[5] === 'l' ? 'linear' : 'smooth'; } // its own glide, without a new attack
+    notes.push(n);
   }
   return { notes, errors };
 }
 const LINE_LIMITS = { notes: 20000, total: 100000, shortest: 0.005 }; // notes per part and in the whole piece; shortest note (s)
+/* ---- Patterns ----
+   A pattern part plays a cycle of steps that take their notes from the chord sounding when each step starts:
+     R  the chord's root, B its bass note (they differ in a slash chord), in the octave from the part's lowest note (`from`) up;
+     3rd, 5th, 7th  the chord's third, fifth and seventh, the same way (a sus chord's 3rd is its sus note);
+     1, 2, 3 …  chord tones in a close voicing from `from` up (past the chord's last tone, the next octave: in a triad, 4 is 1 an
+       octave up);
+     a note name (C1, F#2) is that note whatever the chord, as for a kick;
+     ~ before a note slides into it without a new attack, and @ after it sets how loud it's struck (R@0.5, ~3@70%), as in lines;
+     ' after a step raises it an octave, , lowers it (R' R, 3'');  . holds the note before;  - or r is a rest;
+     :2 after any of them makes it two steps long (R:2, .:4, -:0.5).
+   The cycle starts with the piece (or with each stretch of sections the part plays in) and loops until the music ends. */
+const PATTERN_STEP = new RegExp('^(~)?(R|B|3rd|5th|7th|[1-9]\\d?|\\.|-|r|' + NOTE_OCT + ')([\'’,]*)(?::(\\d+(?:\\.\\d+)?))?(?:@(\\d*\\.?\\d+%?))?$');
+function parsePattern(text) {
+  const steps = [], errors = [];
+  for (const tok of withoutMarkers(text).split(/[\s|]+/).filter(Boolean)) { // (a comma is an octave down, not a separator)
+    const m = tok.match(PATTERN_STEP), len = m ? (m[4] === undefined ? 1 : parseFloat(m[4])) : 0, v = m ? parseLoud(m[5]) : undefined;
+    const plain = m && ['.', '-', 'r'].includes(m[2]); // holds and rests take no slide, loudness or octave
+    if (!m || !(len >= 1 / 64 && len <= 1024) || Number.isNaN(v) || (plain && (m[1] || m[3] || v !== undefined))) { errors.push(tok); continue; }
+    const oct = [...m[3]].reduce((a, c) => a + (c === ',' ? -1 : 1), 0), fixed = /\d/.test(m[2]) && /^[A-G]/.test(m[2]); // a note name: the same note whatever the chord
+    const extra = { slide: !!m[1], v: v === undefined ? 1 : v };
+    steps.push(m[2] === '.' ? { kind: 'hold', steps: len } : m[2] === '-' || m[2] === 'r' ? { kind: 'rest', steps: len }
+      : fixed ? Object.assign({ kind: 'note', what: 'fixed', p: parseNoteOct(m[2].replace(/¢$/, '')), oct, steps: len }, extra) : Object.assign({ kind: 'note', what: m[2], oct, steps: len }, extra));
+  }
+  return { steps, errors };
+}
+// the note a step picks from a chord (or from a unison note), counting up from `from`
+function patternNote(it, s, from) {
+  const pc = x => ((x % 12) + 12) % 12, up = c => from + pc(c - from); // the first note at or above `from` with pitch class c
+  const root = it.kind === 'note' ? pc(Math.round(it.midi)) : it.root, bass = it.kind === 'note' ? root : it.bass;
+  let p;
+  const deg = (...ivs) => { const rel = (it.kind === 'note' ? [0] : it.pcs).map(q => pc(q - root)); const iv = ivs.find(x => rel.includes(x)); return iv === undefined ? root : pc(root + iv); };
+  if (s.what === 'fixed') p = s.p; else if (s.what === 'R') p = up(root);
+  // a sus chord's 3rd is its sus note; a chord without a 7th gives its 6th, or its root
+  else if (s.what === '3rd') p = up(deg(4, 3, 5, 2)); else if (s.what === '5th') p = up(deg(7, 6, 8)); else if (s.what === '7th') p = up(deg(10, 11, 9, 0));
+  else if (s.what === 'B') p = up(bass);
+  else { const pcs = it.kind === 'note' ? [root] : it.pcs, tones = pcs.map(up).sort((a, b) => a - b), n = +s.what - 1; p = tones[n % tones.length] + 12 * Math.floor(n / tones.length); }
+  return p + 12 * s.oct;
+}
+// which chord sounds at time t: { t, it } entries in order
+/* ---- Just intonation ----
+   With `tuning: 'just'`, each chord's notes are tuned as pure ratios from its root (a major third 5/4, a fifth 3/2, a minor
+   third 6/5; a 7th over a major third is the harmonic 7/4, and the tritone 11/8, so a pinned harmonic-series voicing rings as
+   the harmonics do), and the root itself is placed so that a note the chord shares with the one before stays exactly where it
+   was (its root if shared, else its fifth, a third, a sixth or its fourth; with none of those, the root moves by a pure interval
+   from the root before). So a progression that comes round can drift: C Am Dm G C lands
+   a syntonic comma (21.5 cents) lower each time, and C G Dm Am C as much higher. A single note keeps the tuning before it.
+   justTuning() gives each item a tuning: off(pc) is the cents from equal temperament of that pitch class in that chord. */
+const JUST = [0, 11.73, 3.91, 15.64, -13.69, -1.96, -9.78, 1.96, 13.69, -15.64, 17.6, -11.73]; // 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8
+function justTuning(items) {
+  const pc = x => ((Math.round(x) % 12) + 12) % 12;
+  let prev = null;
+  return items.map(it => {
+    if (it.kind !== 'chord') return prev || { off: () => 0, pcs: [pc(it.midi)] };
+    const major = it.pcs.includes((it.root + 4) % 12);
+    const J = q => { const i = ((q - it.root) % 12 + 12) % 12; return i === 10 && major ? -31.17 : i === 6 && major ? -48.68 : JUST[i]; };
+    let rootOff = 0;
+    if (prev) {
+      // a consonant note held in common: the root, fifth, a third, a sixth or the fourth (not a 7th, 9th or tritone, whose pure
+      // tunings are far from equal temperament); with none, the root moves by a pure interval from the root before (F to G7: 9/8)
+      const prefs = [0, 7, 4, 3, 8, 9, 5].map(i => (it.root + i) % 12).filter(q => it.pcs.includes(q));
+      const shared = prefs.find(q => prev.pcs.includes(q));
+      rootOff = shared !== undefined ? prev.off(shared) - J(shared) : prev.root === undefined ? prev.off(it.root) : prev.off(prev.root) + JUST[((it.root - prev.root) % 12 + 12) % 12];
+    }
+    return prev = { off: q => rootOff + J(q), pcs: it.pcs, root: it.root };
+  });
+}
+// a pitch tuned by a tuning (none: as it is); a pitch written with cents keeps them on top
+const tunedBy = (tu, p) => tu ? p + tu.off(((Math.round(p) % 12) + 12) % 12) / 100 : p;
+// the timeline entry sounding at time t
+function entryAt(timeline, t) { let lo = 0, hi = timeline.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (timeline[m].t <= t + 1e-9) lo = m; else hi = m - 1; } return timeline[lo]; }
+function chordAt(timeline, t) { let lo = 0, hi = timeline.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (timeline[m].t <= t + 1e-9) lo = m; else hi = m - 1; } return timeline[lo].it; }
+function buildPattern(part, P, timeline, lay, budget = LINE_LIMITS.notes, end = 0) {
+  const tr = part.transpose;
+  if (!timeline || !timeline.length) return null;
+  const beat = 60 / P.timing.tempo, stepSec = STEPS[part.step] * beat;
+  const maxNotes = Math.min(budget, LINE_LIMITS.notes), seq = []; let cut = false;
+  for (const run of lay) {
+    const { steps } = parsePattern(run.text);
+    if (!steps.some(s => s.kind === 'note')) continue;
+    if (steps.some(s => s.steps * stepSec < LINE_LIMITS.shortest)) return null;
+    const stop = Math.min(run.t1, REALIZATION_LIMITS.seconds); let t = run.t0 + part.start * beat;
+    while (t < stop - 1e-9 && !cut) for (const s of steps) {
+      if (t >= stop - 1e-9) break;
+      if (seq.length >= maxNotes) { cut = true; break; }
+      const t1 = Math.min(t + s.steps * stepSec, stop), last = seq[seq.length - 1];
+      if (s.kind === 'hold') { if (last && Math.abs(last.t1 - t) < 1e-9) last.t1 = t1; else seq.push({ t0: t, t1, p: null }); }
+      else if (s.kind === 'rest') seq.push({ t0: t, t1, p: null });
+      else { const e = entryAt(timeline, t), p = tunedBy(e.tu, patternNote(e.it, s, part.from)); seq.push({ t0: t, t1, p: fitsRange(p, tr, fallOf(part, s.slide)) ? p : null, slide: s.slide, v: s.v }); } // out of range: a rest
+      t = t1;
+    }
+  }
+  return lineFromSeq(part.nonstop ? nonstopSeq(seq, part, P, timeline, end) : seq, part, P, cut);
+}
 /* A line part's timeline: one event per note, a glide of `portamento` seconds from a note straight before it (a jump after
    a rest), and a gate per note. Notes that follow each other end a moment early so the next one is heard as a new note,
    unless the part is legato, which joins them into one gate. A repeating line fills `until`. */
-function buildLine(part, P, until, budget = LINE_LIMITS.notes) {
-  const tr = part.transpose, { notes } = parseLine(part.line, tr), N = tr.length;
-  const beat = 60 / P.timing.tempo, stepSec = STEPS[part.step] * beat;
-  if (notes.some(n => n.steps * stepSec < LINE_LIMITS.shortest)) return null; // too short to hear, and the way to millions of notes
-  // stops at the note budget or the longest a piece can be, whichever comes first
-  const maxNotes = Math.min(budget, LINE_LIMITS.notes), end = Math.min(part.repeat ? until : Infinity, REALIZATION_LIMITS.seconds);
-  const seq = []; let t = part.start * beat, cut = false;
-  while (notes.length && t < end - 1e-9) {
-    for (const n of notes) {
-      if (t >= end - 1e-9) break;
-      if (seq.length >= maxNotes) { cut = true; break; }
-      const t1 = t + n.steps * stepSec; seq.push({ t0: t, t1: Math.min(t1, end), p: n.p }); t = t1;
-    }
-    if (cut || !part.repeat) break;
+/* Where a line or pattern is laid, and with which text: [{ t0, t1, text }].
+   Text that differs by section: each stretch of the piece, section by section, with that section's text (a stretch outside any
+   section, or a section without its own, takes the text before the markers), restarting at each.
+   Otherwise: for a part that plays in chosen sections, each run of them; else the whole piece, to `end`. */
+function layoutFor(text, plays, runs, total, end) {
+  const sp = splitBySection(text);
+  if (sp.sectioned && runs.length) {
+    const all = []; let t = 0;
+    for (const r of runs) { if (r.t0 > t + 1e-9) all.push({ name: '', t0: t, t1: r.t0 }); all.push(r); t = r.t1; }
+    if (t < total - 1e-9) all.push({ name: '', t0: t, t1: total });
+    return all.filter(r => !plays || plays.includes(r.name)).map(r => ({ t0: r.t0, t1: r.t1, text: textFor(sp, r.name) })).filter(r => r.text.trim());
   }
-  const sounding = seq.filter(x => x.p !== null);
+  const spans = plays && runs.length ? playSpans(runs, plays) : null;
+  return spans ? spans.map(([a, b]) => ({ t0: a, t1: b, text: sp.base })) : [{ t0: 0, t1: end, text: sp.base }];
+}
+// the key change in force at time t (a section's +2), 0 outside sections
+const keyAtFrom = runs => t => { for (const r of runs) if (t >= r.t0 - 1e-9 && t < r.t1 - 1e-9) return r.key || 0; return 0; };
+function buildLine(part, P, lay, budget = LINE_LIMITS.notes, keyAt = () => 0, timeline = null, end = 0) {
+  const tr = part.transpose, N = tr.length;
+  const beat = 60 / P.timing.tempo, stepSec = STEPS[part.step] * beat;
+  const maxNotes = Math.min(budget, LINE_LIMITS.notes), seq = []; let cut = false;
+  for (const run of lay) {
+    const { notes } = parseLine(run.text, tr, fallOf(part));
+    if (notes.some(n => n.steps * stepSec < LINE_LIMITS.shortest)) return null; // too short to hear, and the way to millions of notes
+    // stops at the note budget or the longest a piece can be, whichever comes first
+    const stop = Math.min(run.t1, REALIZATION_LIMITS.seconds); let t = run.t0 + part.start * beat;
+    while (notes.length && t < stop - 1e-9 && !cut) {
+      for (const n of notes) {
+        if (t >= stop - 1e-9) break;
+        if (seq.length >= maxNotes) { cut = true; break; }
+        // a written note moves with the section's key change, as the chords do
+        const q = n.p === null ? null : timeline ? tunedBy(entryAt(timeline, t).tu, n.p + keyAt(t)) : n.p + keyAt(t), p = q !== null && fitsRange(q, tr, fallOf(part, n.slide)) ? q : null;
+        const t1 = t + n.steps * stepSec, x = { t0: t, t1: Math.min(t1, stop), p, slide: n.slide, v: n.v };
+        if (n.glide !== undefined) { x.glide = n.glide; if (n.shape) x.shape = n.shape; }
+        seq.push(x); t = t1;
+      }
+      if (!part.repeat) break;
+    }
+    if (cut) break;
+  }
+  return lineFromSeq(part.nonstop ? nonstopSeq(seq, part, P, timeline, end) : seq, part, P, cut);
+}
+/* A part that never stops: its voices sound from the first moment to the end, as one tone each. A rest holds the note before it;
+   wherever the part has nothing to play (outside its sections, before its first note, after its last) its voices join the chords:
+   each glides to a chord tone in its own register (spread over the range the part plays in, then led to the nearest tone at each
+   change, over the piece's glide time), and a single note (=G4) gathers them all onto it. The note after a stretch of chords glides in
+   too. Entries may carry their own pitch for each voice (`ps`), glide (`g`) and glide shape (`ease`); `join` marks the chord tones. */
+function nonstopSeq(seq, part, P, timeline, end) {
+  const tr = part.transpose, N = tr.length, sounding = seq.filter(x => x.p !== null);
+  const total = Math.max(end || 0, seq.length ? seq[seq.length - 1].t1 : 0);
+  if (!timeline || !timeline.length || !(total > 0)) return seq;
+  const lo = sounding.length ? Math.min(...sounding.map(x => x.p)) : 60, hi = sounding.length ? Math.max(...sounding.map(x => x.p)) : 60;
+  // where each voice sits among the chords: voices doubling the same line spread over its range
+  const home = tr.map((d, v) => { const grp = tr.map((x, i) => x === d ? i : -1).filter(i => i >= 0), j = grp.indexOf(v), m = grp.length; return lo + d + (hi - lo) * (j + 0.5) / m; });
+  const pc = x => ((x % 12) + 12) % 12;
+  const nearest = (pcs, x) => { let best = null; for (let p = Math.floor(x) - 7; p <= Math.ceil(x) + 7; p++) if (pcs.includes(pc(p)) && (best === null || Math.abs(p - x) < Math.abs(best - x))) best = p; return best !== null && PLAYABLE(best) ? best : Math.round(x); };
+  const T = P.timing, longGlide = Math.max(2.4, T.glide * 1.9), out = [];
+  let cur = null, gathered = true; // the voices' last pitches; whether they last gathered on one note (or haven't moved yet)
+  const push = x => { out.push(x); cur = x.ps || tr.map(d => x.p + d); gathered = !!x.gather; };
+  const join = (a, b) => {
+    for (let k = 0; k < timeline.length; k++) {
+      const t0 = Math.max(a, timeline[k].t), t1 = Math.min(b, k + 1 < timeline.length ? timeline[k + 1].t : Infinity);
+      if (t1 <= t0 + 1e-9) continue;
+      const it = timeline[k].it, len = t1 - t0, wasGathered = gathered, last = out[out.length - 1];
+      if (it.kind === 'note') { push({ t0, t1, p: it.midi, ps: new Array(N).fill(it.midi), join: true, gather: true, g: cur ? Math.min(longGlide, len * 0.92) : 0, ease: 'smooth' }); continue; }
+      const ps = tr.map((d, v) => tunedBy(timeline[k].tu, nearest(it.pcs, last && last.join && !wasGathered ? cur[v] : home[v])));
+      push({ t0, t1, p: ps[0], ps, join: true, g: cur ? Math.min(wasGathered ? longGlide : T.glide, len * 0.92) : 0, ease: 'smooth' });
+    }
+  };
+  let t = 0;
+  for (const x of seq) {
+    if (x.t0 > t + 1e-9) join(t, x.t0);
+    if (x.p === null) { if (out.length) out[out.length - 1].t1 = x.t1; else join(x.t0, x.t1); } // a rest holds
+    else { const prev = out[out.length - 1], y = Object.assign({}, x);
+      if (prev && prev.join) { y.g = Math.min(prev.gather ? longGlide : T.glide, (x.t1 - x.t0) * 0.5); y.ease = 'smooth'; } // in from the chords
+      push(y); }
+    t = Math.max(t, x.t1);
+  }
+  if (t < total - 1e-9) join(t, total);
+  return out;
+}
+/* A sequence of notes and rests ({ t0, t1, p }, p null for a rest) as a part's timeline: one event per note, a glide of the
+   part's portamento from a note straight before it, and a gate per note (a legato part joins notes that touch) */
+function lineFromSeq(seq, part, P, cut) {
+  const tr = part.transpose, N = tr.length, sounding = seq.filter(x => x.p !== null);
   if (!sounding.length) return null;
-  const first = sounding[0].p, zeros = () => new Array(N).fill(0);
-  const events = [{ t: 0, g: 0, label: noteName(first), kind: 'note', targets: tr.map(x => first + x), off: zeros(), dur: zeros() }];
-  const raw = [];
+  const first = sounding[0].p, zeros = () => new Array(N).fill(0), at = x => x.ps || tr.map(d => x.p + d);
+  const events = [{ t: 0, g: 0, label: noteName(first), kind: 'note', targets: at(sounding[0]), off: zeros(), dur: zeros() }];
+  const raw = [], drop = part.drop && part.drop.semis ? part.drop : null; let arcN = 0;
+  const falls = x => drop && !x.slide && !x.join; // a slide, or a part that never stops resting on the chords, doesn't fall
+  if (falls(sounding[0])) events[0].targets = tr.map(d => first + drop.semis + d); // it starts from the top of its first fall
   seq.forEach((x, k) => {
     if (x.p === null) return;
     const prev = seq[k - 1], joined = prev && prev.p !== null && Math.abs(prev.t1 - x.t0) < 1e-9;
-    const g = joined ? Math.min(part.portamento, (x.t1 - x.t0) * 0.5) : 0;
-    if (!(events.length === 1 && x.t0 === 0)) events.push({ t: x.t0, g, label: noteName(x.p), kind: 'note', targets: tr.map(d => x.p + d), off: zeros(), dur: new Array(N).fill(g) });
-    if (part.legato && joined && raw.length) raw[raw.length - 1].off = x.t1; else raw.push({ on: x.t0, off: x.t1 });
+    if (x.g !== undefined) { // its own glide (a part that never stops, joining or leaving the chords)
+      const ev = { t: x.t0, g: x.g, label: noteName(x.p), kind: 'note', targets: at(x), off: zeros(), dur: new Array(N).fill(x.g) };
+      if (x.ease) ev.ease = x.ease;
+      if (!(events.length === 1 && x.t0 === 0)) events.push(ev);
+    } else if (falls(x)) { // every note starts `semis` above its pitch and falls onto it, fast then settling (EASE.drop)
+      const g = Math.min(drop.time, x.t1 - x.t0);
+      events.push({ t: x.t0, g: 0, label: noteName(x.p), kind: 'note', targets: tr.map(d => x.p + drop.semis + d), off: zeros(), dur: zeros() },
+        { t: x.t0, g, label: noteName(x.p), kind: 'note', targets: tr.map(d => x.p + d), off: zeros(), dur: new Array(N).fill(g) });
+    } else {
+    // a slide (~) glides in over the part's portamento (or 80 ms if it has none), up to the whole note; other notes that touch, up to half
+    const g = !joined ? 0 : x.glide !== undefined ? Math.min(x.glide, x.t1 - x.t0) : Math.min(x.slide ? part.portamento || 0.08 : part.portamento, (x.t1 - x.t0) * (x.slide ? 1 : 0.5));
+    arcN = joined && g > 0 ? arcN + 1 : 0;
+    const ev1 = { t: x.t0, g, label: noteName(x.p), kind: 'note', targets: at(x), off: zeros(), dur: new Array(N).fill(g) };
+    if (x.shape && g > 0) ev1.ease = x.shape; // a note's own glide shape
+    else if (part.glideShape === 'arc' && g > 0) ev1.ease = arcN % 2 ? 'arcout' : 'arcin'; // out, in, out, in … along each run of joined notes
+    else if (drop && g > 0) ev1.ease = part.glideShape === 'straight' ? 'linear' : 'smooth'; // a slide in a part that falls
+    if (!(events.length === 1 && x.t0 === 0)) events.push(ev1);
+    }
+    // a note that slides in, or any note of a legato part, continues the note before (one gate, at the loudness it was struck)
+    if (x.join) return; // (resting on the chords: no note)
+    if ((part.legato || x.slide) && joined && raw.length && raw[raw.length - 1].off >= x.t0 - 1e-9) raw[raw.length - 1].off = x.t1; else raw.push({ on: x.t0, off: x.t1, v: x.v === undefined ? 1 : x.v });
   });
-  const gates = raw.map((gt, k) => { const next = raw[k + 1], cut = next && Math.abs(next.on - gt.off) < 1e-9 ? Math.min(0.03, (gt.off - gt.on) * 0.25) : 0; return { on: gt.on, off: gt.off - cut }; });
+  const gates = raw.map((gt, k) => { const next = raw[k + 1], cut = next && Math.abs(next.on - gt.off) < 1e-9 ? Math.min(0.03, (gt.off - gt.on) * 0.25) : 0; return gt.v === 1 ? { on: gt.on, off: gt.off - cut } : { on: gt.on, off: gt.off - cut, v: gt.v }; });
   let min = Infinity, max = -Infinity;
   for (const e of events) for (const p of e.targets) { if (p < min) min = p; if (p > max) max = p; }
-  return { events, total: seq[seq.length - 1].t1, N, min, max, warnings: [], piece: P, ease: EASE.smooth, gates: tr.map(() => gates),
-    vibrato: part.vibrato.cents > 0 ? part.vibrato : null, notes: seq.length, cut };
+  // a part that never stops has no gates (it sounds throughout, at its level); its notes are still `strikes`, for vibrato and ducking
+  const sub = { events, total: seq[seq.length - 1].t1, N, min, max, warnings: [], piece: P, ease: drop ? EASE.drop : part.glideShape === 'straight' ? EASE.linear : EASE.smooth,
+    gates: part.nonstop ? null : tr.map(() => gates), vibrato: part.vibrato.cents > 0 ? part.vibrato : null, notes: seq.length, cut };
+  if (part.nonstop) { sub.strikes = tr.map(() => gates); sub.held = true; }
+  return sub;
 }
-function buildPart(part, P, items, until, budget) {
+function buildPart(part, P, items, until, budget, lay = null, timeline = null, keyAt = () => 0) {
   let sub = null;
-  if (part.preset === 'line') sub = buildLine(part, P, until, budget);
+  if (part.preset === 'line') sub = buildLine(part, P, lay || [{ t0: 0, t1: part.repeat ? until : Infinity, text: part.line }], budget, keyAt, timeline, until);
+  else if (part.preset === 'pattern') sub = buildPattern(part, P, timeline, lay || [{ t0: 0, t1: until, text: part.pattern }], budget, until);
   else if (part.preset === 'pad' && part.realization && part.realization.engine !== ENGINE_VERSION && validRealization(part.realization))
     sub = builtFromRealization(part.realization, P, true); // saved by another engine: play it exactly as it was
   else if (part.preset === 'notes') sub = builtFromRealization(part.realization, P, true);
@@ -558,28 +862,99 @@ function buildPart(part, P, items, until, budget) {
 /* The whole score: the main part (as built by buildPiece or builtFromRealization) and the piece's other parts.
    Voices are numbered across parts, main first; `voices[v]` says which part and which of its voices. The chord
    timeline (`events`) stays the main part's, for labels, auto zoom, MIDI chords and MusicXML. */
+/* The sections as they fall in time: runs of the main part's events with the same section and time through,
+   { name, pass, t0, t1 } (none if the chords have no headers) */
+function sectionRuns(main) {
+  const out = [], ev = main.events;
+  ev.forEach((e, i) => { if (!e.section) return; const last = out[out.length - 1], t1 = i + 1 < ev.length ? ev[i + 1].t : main.total;
+    if (last && last.name === e.section && last.pass === (e.pass || 0) && Math.abs(last.t1 - e.t) < 1e-9) last.t1 = t1; else out.push({ name: e.section, pass: e.pass || 0, key: e.key || 0, t0: e.t, t1 }); });
+  return out;
+}
+// the stretches of time a part plays in: the runs of its sections, joined where they meet
+function playSpans(runs, plays) {
+  const out = [];
+  for (const r of runs) { if (!plays.includes(r.name)) continue; const last = out[out.length - 1]; if (last && Math.abs(last[1] - r.t0) < 1e-9) last[1] = r.t1; else out.push([r.t0, r.t1]); }
+  return out;
+}
+/* A part's notes later by dt seconds and moved by dp semitones (a copy: an echo). The voices hold their first pitch until the
+   copy begins; it uses its source's envelope, vibrato and glides. Null if moving it would leave MIDI's range. */
+function shiftSub(src, dt, dp, voices = 0) {
+  const n = voices > 0 ? Math.min(voices, src.N) : src.N, keep = a => a.slice(0, n); // the first `voices` of its source's voices
+  const events = src.events.map((e, i) => Object.assign({}, e, { t: i === 0 ? 0 : e.t + dt, targets: keep(e.targets).map(p => p + dp), off: e.off && keep(e.off), dur: e.dur && keep(e.dur) }));
+  /* A voice that sounds throughout (each of a pad's, of a part that never stops, or one voice of saved notes that never rests)
+     has no notes to move later. In the copy it's silent until the delay, then enters as a pad does, whatever the part's own
+     envelope, and sounds on to the end of the music, fading with it (`heldV`). A copy of a held part (a pad, also in its
+     sections, or a part that never stops, or copied voices that all sound throughout) plays on to the end of the music and fades
+     with it, so it doesn't lengthen the piece; a copy with notes ends its delay later, its held voices with it. */
+  const srcGates = keep(src.gates || new Array(src.N).fill(null)), heldV = srcGates.map(gs => !gs);
+  const held = !src.gates || !!src.held || heldV.every(Boolean), end = src.total, last = held ? end : end + dt, endAt = t => held ? Math.min(t, end + TAIL) : t;
+  const later = g => g.v === undefined ? { on: g.on + dt, off: endAt(g.off + dt) } : { on: g.on + dt, off: endAt(g.off + dt), v: g.v };
+  const gates = srcGates.map(gs => gs ? gs.map(later).filter(g => g.on < end - 1e-9 || !held) : dt < last ? [{ on: dt, off: last + TAIL }] : []);
+  const strikes = src.strikes ? keep(src.strikes).map(gs => gs ? gs.map(later) : gs) : undefined;
+  let min = Infinity, max = -Infinity; for (const e of events) for (const p of e.targets) { if (p < min) min = p; if (p > max) max = p; }
+  if (!PLAYABLE(min) || !PLAYABLE(max)) return null; // the voices it copies, moved, must keep to MIDI's range (the ones it leaves out needn't)
+  const out = Object.assign({}, src, { events, gates, N: n, total: last, min, max, envCache: null, notes: 0, cut: false });
+  if (held) { out.held = true; if (!out.env) out.env = ENVELOPES.pad; }
+  if (heldV.some(Boolean)) out.heldV = heldV;
+  if (strikes) out.strikes = strikes; return out;
+}
+/* Gate a part to the stretches it plays in: each voice sounds only where its own notes and those stretches meet, entering and
+   leaving by the part's envelope. A part that sounds throughout (`held`: pads, the main part) and plays on to the end of the
+   music keeps sounding through the closing fade, which fades it as before. */
+function maskGates(sub, spans, end, held) {
+  const out = [];
+  for (let v = 0; v < sub.N; v++) {
+    const gs = sub.gates && sub.gates[v] ? sub.gates[v] : [{ on: 0, off: sub.total }], res = [];
+    for (const g of gs) for (const [a, b] of spans) { const on = Math.max(g.on, a), off = Math.min(g.off, b); if (off > on + 1e-9) res.push({ on, off }); }
+    res.sort((x, y) => x.on - y.on);
+    if (held && res.length && res[res.length - 1].off >= end - 1e-9) res[res.length - 1].off = end + TAIL;
+    out.push(res);
+  }
+  sub.gates = out; sub.envCache = null; if (!sub.env) sub.env = ENVELOPES.pad; sub.held = !!held;
+}
 function buildScore(main, items) {
   const P = main.piece;
+  const runs = sectionRuns(main), spansFor = plays => !plays ? null : !plays.length ? [] : runs.length ? playSpans(runs, plays) : null; // in no section: silent
+  if (spansFor(P.plays)) maskGates(main, spansFor(P.plays), main.total, true);
   const list = [{ id: 'main', name: 'Main', preset: 'pad', main: true, sub: main, envelope: null,
     sound: { tone: P.sound.tone, level: 0, pan: 0, width: P.sound.width, detune: P.sound.detune } }];
   const others = P.parts || [];
   // non-repeating lines and saved notes can run past the chords; repeating lines then fill the whole length
   let budget = LINE_LIMITS.total; // notes all lines may make together
   const take = sub => { if (sub && sub.notes) budget -= sub.notes; return sub; };
-  const subs = others.map(part => part.preset === 'line' && part.repeat ? null : take(buildPart(part, P, items, main.total, budget)));
+  const sp = part => spansFor(part.plays), keyAt = keyAtFrom(runs);
+  const sectioned = part => (part.preset === 'line' || part.preset === 'pattern') && runs.length && splitBySection(part.preset === 'line' ? part.line : part.pattern).sectioned;
+  const deferred = part => part.preset === 'line' && part.repeat && !sp(part) && !sectioned(part); // a repeating line fills the whole piece, once its length is known
+  // the chords in time, for patterns: the main part's events when they match the chords one for one (as built, or saved), else timed from the chords
+  const TU = P.tuning === 'just' && items && items.length ? justTuning(items) : null;
+  const timeline = items && items.length ? (main.events.length === items.length ? items.map((it, k) => ({ t: main.events[k].t, it, tu: TU && TU[k] }))
+    : (() => { let t = 0; return items.map((it, k) => { const e = { t, it, tu: TU && TU[k] }; t += itemSeconds(it, P) || defaultChordSec(P); return e; }); })()) : null;
+  const laid = part => part.preset === 'line' || part.preset === 'pattern'; // laid out within their sections, rather than gated to them
+  const lay = (part, end) => laid(part) ? layoutFor(part.preset === 'line' ? part.line : part.pattern, part.plays, runs, main.total, end) : null;
+  const subs = others.map(part => deferred(part) || part.preset === 'copy' ? null : take(buildPart(part, P, items, main.total, budget,
+    lay(part, part.preset === 'line' && !part.repeat ? Infinity : main.total), timeline, keyAt)));
   let total = main.total; for (const s of subs) if (s) total = Math.max(total, s.total);
-  others.forEach((part, k) => { const sub = subs[k] || (part.preset === 'line' && part.repeat ? take(buildPart(part, P, items, total, budget)) : null); if (sub) list.push(Object.assign({}, part, { sub })); });
+  others.forEach((part, k) => { if (!subs[k] && deferred(part)) subs[k] = take(buildPart(part, P, items, total, budget, null, timeline, keyAt)); });
+  // each part gated to the sections it plays in (lines and patterns were laid within them) …
+  const mask = (part, sub) => { if (sp(part) && !laid(part)) maskGates(sub, sp(part), main.total, part.preset === 'pad' || (part.preset === 'copy' && !!sub.held)); };
+  others.forEach((part, k) => { if (part.preset !== 'copy' && subs[k]) mask(part, subs[k]); });
+  // … then copies: their source's notes as it plays them (in its sections), later and moved, then gated to their own sections
+  const beat = 60 / P.timing.tempo;
+  others.forEach((part, k) => { if (part.preset !== 'copy') return; const j = others.findIndex(x => x.id === part.of && x.preset !== 'copy');
+    if (j >= 0 && subs[j]) { subs[k] = shiftSub(subs[j], part.delay * beat, part.shift, part.voices); if (subs[k]) { total = Math.max(total, subs[k].total); mask(part, subs[k]); } } });
+  others.forEach((part, k) => { if (subs[k]) list.push(Object.assign({}, part, { sub: subs[k] })); });
+  const mainPt = list[0]; mainPt.breathe = P.breathe; mainPt.duck = P.duck; shapeParts(list, main);
   /* Three ends: the music's (`total`, where the parts that sound throughout begin their closing fade); each line's last release,
      which rings on at its own level into the tail while they fade; and the end of the tail. A release only extends the music
      by what wouldn't fit in the tail (with 0.2 s to spare), so the usual releases end within it and change nothing. */
-  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env) for (const gs of pt.sub.gates) if (gs && gs.length) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release);
+  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env && !pt.sub.held) pt.sub.gates.forEach((gs, v) => { if (gs && gs.length && !(pt.sub.heldV && pt.sub.heldV[v])) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release); });
   const musicEnd = total; // where the held parts' closing fade begins, whatever the releases do
   total = Math.max(total, ring - (TAIL - 0.2));
   total = Math.min(total, REALIZATION_LIMITS.seconds);
   const voices = [];
   list.forEach((pt, k) => { pt.first = voices.length; for (let v = 0; v < pt.sub.N; v++) voices.push({ p: k, b: pt.sub, v }); });
   let min = Infinity, max = -Infinity; for (const pt of list) { min = Math.min(min, pt.sub.min); max = Math.max(max, pt.sub.max); }
-  return { events: main.events, total, musicEnd, N: voices.length, min, max, warnings: main.warnings, piece: P, ease: main.ease, frozen: main.frozen, main, parts: list, voices,
+  return { events: main.events, total, musicEnd, N: voices.length, min, max, warnings: main.warnings, piece: P, ease: main.ease, frozen: main.frozen, main, parts: list, voices, sections: runs,
     cut: list.filter(pt => pt.sub.cut).map(pt => pt.name) };
 }
 /* ---- Gain over time ----
@@ -594,13 +969,22 @@ function polyAt(pts, t) {
   return b.t > a.t ? a.g + (b.g - a.g) * (t - a.t) / (b.t - a.t) : b.g;
 }
 function cutPoly(pts, T) { const out = pts.filter(p => p.t < T); if (out.length < pts.length) out.push({ t: T, g: polyAt(pts, T) }); return out; }
+/* An envelope as points: for each gate, attack to its loudness (gate.v, 1 if none), decay to the sustain level times that,
+   hold until the gate closes, then release to silence. Straight lines, or with curve 'exp', a decay and release that fall away
+   as real strings and bells do: exponentially, fast at first and then slower, sampled at 16 points a segment (the release reaches
+   −60 dB at its end, then silence). */
+const CURVE_POINTS = 16;
 function envelopePoints(gates, env) {
-  const { attack: A, decay: D, sustain: S, release: R } = env, pts = [{ t: 0, g: 0 }];
+  const { attack: A, decay: D, sustain: S, release: R } = env, curved = env.curve === 'exp', pts = [{ t: 0, g: 0 }];
+  // from (t0, g0) toward g1 over T: straight, or exponential (reaching within 0.7% of g1 at T, or −60 dB of g0 when g1 is silence)
+  const seg = (t0, g0, g1, T) => { if (!curved || T <= 0) return [{ t: t0 + T, g: g1 }];
+    const out = [], k = g1 === 0 ? Math.log(1000) : 5; for (let i = 1; i <= CURVE_POINTS; i++) { const x = i / CURVE_POINTS; out.push({ t: t0 + T * x, g: i === CURVE_POINTS ? g1 : g1 + (g0 - g1) * Math.exp(-k * x) }); } return out; };
   gates.forEach((gt, k) => {
-    const nextOn = k + 1 < gates.length ? gates[k + 1].on : Infinity;
-    let loc = cutPoly([{ t: gt.on, g: polyAt(pts, gt.on) }, { t: gt.on + A, g: 1 }, { t: gt.on + A + D, g: S }], Math.max(gt.on, gt.off));
+    const nextOn = k + 1 < gates.length ? gates[k + 1].on : Infinity, V = gt.v === undefined ? 1 : gt.v;
+    const top = { t: gt.on + A, g: V };
+    let loc = cutPoly([{ t: gt.on, g: polyAt(pts, gt.on) }, top, ...seg(top.t, V, S * V, D)], Math.max(gt.on, gt.off));
     if (gt.off > loc[loc.length - 1].t) loc.push({ t: gt.off, g: loc[loc.length - 1].g });
-    loc.push({ t: Math.max(gt.on, gt.off) + R, g: 0 });
+    const end = loc[loc.length - 1]; loc.push(...seg(Math.max(gt.on, gt.off), end.g, 0, R));
     pts.push(...cutPoly(loc, nextOn));
   });
   return pts;
@@ -608,24 +992,56 @@ function envelopePoints(gates, env) {
 function voiceEnvelope(sub, v) {
   if (!sub.gates || !sub.gates[v]) return null; // always sounding
   if (!sub.envCache) sub.envCache = [];
-  return sub.envCache[v] || (sub.envCache[v] = envelopePoints(sub.gates[v], sub.env || ENVELOPES.notes));
+  return sub.envCache[v] || (sub.envCache[v] = envelopePoints(sub.gates[v], sub.heldV && sub.heldV[v] ? ENVELOPES.pad : sub.env || ENVELOPES.notes));
 }
 function gainAt(built, v, t) {
   if (built.voices) { const r = built.voices[v]; return gainAt(r.b, r.v, t); }
-  const pts = voiceEnvelope(built, v); return pts ? polyAt(pts, t) : 1;
+  const pts = voiceEnvelope(built, v); return (pts ? polyAt(pts, t) : 1) * (built.mod ? polyAt(built.mod, t) : 1);
 }
-/* Moves for a gain AudioParam from `from` on (straight lines), or null for a voice that always sounds */
+/* Moves for a gain AudioParam from `from` on (straight lines), or null for a voice that always sounds: its envelope, times
+   its part's shape over time (breathing, ducking) if it has one */
 function gainMoves(built, v, from = 0) {
   if (built.voices) { const r = built.voices[v]; return gainMoves(r.b, r.v, from); }
-  const pts = voiceEnvelope(built, v); if (!pts) return null;
+  const env = voiceEnvelope(built, v); if (!env && !built.mod) return null;
+  const pts = !built.mod ? env : mulPoly(env || [{ t: 0, g: 1 }], built.mod);
   return [{ t: from, g: polyAt(pts, from) }, ...pts.filter(p => p.t > from)];
+}
+// two polylines multiplied, at every point of either
+function mulPoly(a, b) {
+  const ts = [...new Set([...a.map(p => p.t), ...b.map(p => p.t)])].sort((x, y) => x - y);
+  return ts.map(t => ({ t, g: polyAt(a, t) * polyAt(b, t) }));
+}
+/* ---- A part's shape over time ----
+   Dips in a part's level, on top of its envelope: at each of `times` it falls to 1 − depth over `down` seconds (20 ms for a duck) and rises back
+   over the rest of `time`; a dip that starts before the last has recovered starts from wherever that had got to. */
+function dipPoly(times, depth, time, down = Math.min(0.02, time * 0.25)) {
+  const pts = [{ t: 0, g: 1 }];
+  times.forEach((t, k) => { const next = k + 1 < times.length ? times[k + 1] : Infinity;
+    pts.push(...cutPoly([{ t, g: polyAt(pts, t) }, { t: t + down, g: 1 - depth }, { t: t + time, g: 1 }], next)); });
+  return pts.filter((p, i) => i === 0 || p.t > pts[i - 1].t - 1e-12);
+}
+/* Breathe: a part that sounds throughout dips at each chord change and swells back, as strings re-bow (the dip is centred on the
+   change). Duck: a part dips each time another part strikes a note (pads pumping under a kick), and recovers over `time`. */
+function shapeParts(list, main) {
+  const changes = main.events.filter((e, i) => i > 0 && e.kind === 'chord').map(e => e.t);
+  for (const pt of list) {
+    const br = pt.breathe, dk = pt.duck; let mod = null;
+    if (br && br.depth > 0 && changes.length) mod = dipPoly(changes.map(t => Math.max(0, t - br.time * 0.35)), br.depth, br.time, br.time * 0.35); // lowest at the change
+    if (dk && dk.depth > 0 && dk.under) {
+      const src = list.find(x => x.id === dk.under && x !== pt);
+      const strikes = src && (src.sub.gates || src.sub.strikes);
+      const ons = strikes ? [...new Set(strikes.flatMap(gs => gs ? gs.map(g => g.on) : []))].sort((a, b) => a - b) : [];
+      if (ons.length) { const d = dipPoly(ons, dk.depth, dk.time); mod = mod ? mulPoly(mod, d) : d; }
+    }
+    if (mod) { pt.sub.mod = mod; if (!pt.sub.gates) pt.sub.held = true; } // a part that sounds throughout still fades with the piece
+  }
 }
 /* Vibrato depth (in cents) over time for a line part: it blooms after `delay` into each note long enough to hold it */
 function vibratoMoves(built, v, from = 0) {
   if (built.voices) { const r = built.voices[v]; return vibratoMoves(r.b, r.v, from); }
-  const vb = built.vibrato; if (!vb || !built.gates || !built.gates[v]) return null;
+  const vb = built.vibrato, gates = built.gates || built.strikes; if (!vb || !gates || !gates[v]) return null;
   const pts = [{ t: 0, g: 0 }];
-  for (const gt of built.gates[v]) { const s = gt.on + vb.delay; if (gt.off - s < 0.12) continue; pts.push({ t: s, g: 0 }, { t: Math.min(s + 0.25, gt.off), g: vb.cents }, { t: gt.off, g: vb.cents }, { t: gt.off + 0.05, g: 0 }); }
+  for (const gt of gates[v]) { const s = gt.on + vb.delay; if (gt.off - s < 0.12) continue; pts.push({ t: s, g: 0 }, { t: Math.min(s + 0.25, gt.off), g: vb.cents }, { t: gt.off, g: vb.cents }, { t: gt.off + 0.05, g: 0 }); }
   return { rate: vb.rate, moves: [{ t: from, g: polyAt(pts, from) }, ...pts.filter(p => p.t > from)] };
 }
 /* The volume shape at time t, in dB (0 with no shape) */
@@ -635,7 +1051,10 @@ const EASE = {
   smooth: x => x * x * (3 - 2 * x),
   smoother: x => x * x * x * (x * (6 * x - 15) + 10),
   cosine: x => 0.5 - 0.5 * Math.cos(Math.PI * x),
-  linear: x => x
+  linear: x => x,
+  drop: x => 1 - Math.pow(1 - x, 3), // fast, then settling: a pitch drop's fall
+  arcout: x => Math.sqrt(1 - (1 - x) * (1 - x)), // a quarter circle that leaves steeply and arrives level
+  arcin: x => 1 - Math.sqrt(1 - x * x) // one that leaves level and arrives steeply: after arcout, the other half of a circle's side
 };
 
 /* Per-voice departure offsets and glide durations for one change */
@@ -663,14 +1082,14 @@ function scheduleMotion(prev, targets, g, M, rng) {
 function buildPiece(items, piece) {
   const P = normalizePiece(piece);
   const N = P.voices, T = P.timing, W = weightsFrom(P.voicing);
-  const spread = P.voicing.spread / 100;
+  const spread = P.voicing.spread / 100, TU = P.tuning === 'just' ? justTuning(items) : null;
   const longGlide = Math.max(2.4, T.glide * 1.9);
   const events = [];
   let t = 0, cur = null, prevKind = null;
   items.forEach((it, k) => {
     const last = k === items.length - 1;
-    let hold = it.dur;
-    if (hold == null) hold = it.kind === 'note' ? (k === 0 ? 1.0 : longGlide + (last ? 1.6 : 1.2)) : T.chordSec;
+    let hold = itemSeconds(it, P);
+    if (hold == null) hold = it.kind === 'note' ? (k === 0 ? 1.0 : longGlide + (last ? 1.6 : 1.2)) : defaultChordSec(P);
     const vr = eventRng(P.seeds.voicing, k, 0x5A17);
     let targets, g;
     if (it.kind === 'note') { targets = new Array(N).fill(it.midi); g = cur ? longGlide : 0; }
@@ -680,7 +1099,7 @@ function buildPiece(items, piece) {
     g = Math.min(g, hold * 0.92);
     const prev = cur || targets;
     const { off, dur } = scheduleMotion(prev, targets, g, P.motion, eventRng(P.seeds.motion, k, 0x0D1E));
-    events.push({ t, g, off, dur, targets: Array.from(targets), label: it.label, kind: it.kind, fallback: !!targets.fallback });
+    events.push({ t, g, off, dur, targets: TU && it.kind === 'chord' ? targets.map(p => tunedBy(TU[k], p)) : Array.from(targets), label: it.label, kind: it.kind, fallback: !!targets.fallback, section: it.section || '', pass: it.pass || 0, key: it.key || 0 });
     cur = targets; prevKind = it.kind; t += hold;
   });
   let min = Infinity, max = -Infinity;
@@ -707,7 +1126,7 @@ function pitchAt(built, v, t, idx) {
   const d = e.dur[v];
   if (d <= 0) return b;
   const x = Math.min(1, Math.max(0, (t - e.t - e.off[v]) / d));
-  return a + (b - a) * built.ease(x);
+  return a + (b - a) * (e.ease ? EASE[e.ease] : built.ease)(x); // an event can have its own glide shape (arcs)
 }
 /* How one voice's pitch moves from time `from` on, as a list of moves for an AudioParam, in piece time.
    Built from the glides themselves, not from a grid over the whole piece, so pitch accuracy never depends on how long
@@ -717,7 +1136,7 @@ function pitchAt(built, v, t, idx) {
 function pitchMoves(built, v, from = 0, perSec = 240) {
   if (built.voices) { const r = built.voices[v]; return pitchMoves(r.b, r.v, from, perSec); }
   const ev = built.events, ease = built.ease;
-  const linear = [0.1, 0.3, 0.5, 0.7, 0.9].every(x => Math.abs(ease(x) - x) < 1e-12);
+  const isLinear = f => [0.1, 0.3, 0.5, 0.7, 0.9].every(x => Math.abs(f(x) - x) < 1e-12), linearAll = isLinear(ease);
   const moves = [{ kind: 'set', t: from, p: pitchAt(built, v, from) }], end = Math.max(from, built.total);
   let lastP = moves[0].p, lastT = from; // where the previous move left the voice
   for (let i = 1; i < ev.length; i++) {
@@ -734,7 +1153,7 @@ function pitchMoves(built, v, from = 0, perSec = 240) {
     if (t1 <= t0) continue;
     const p0 = pitchAt(built, v, t0, i), p1 = t1 >= s + d ? b : pitchAt(built, v, t1, i);
     if (!(t0 === lastT && p0 === lastP)) moves.push({ kind: 'set', t: t0, p: p0 }); // a glide straight on from the last needs no anchor
-    if (linear) moves.push({ kind: 'ramp', t: t1, p: p1 });
+    if (e.ease ? isLinear(EASE[e.ease]) : linearAll) moves.push({ kind: 'ramp', t: t1, p: p1 });
     else {
       const n = Math.max(3, Math.ceil((t1 - t0) * perSec) + 1), ps = new Array(n);
       for (let k = 0; k < n; k++) ps[k] = k === n - 1 ? p1 : pitchAt(built, v, t0 + (t1 - t0) * k / (n - 1), i);

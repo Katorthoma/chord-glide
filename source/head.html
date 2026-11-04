@@ -131,6 +131,9 @@ input[type=range] { accent-color: var(--accent); width: 100%; }
 @media (max-width: 600px) { .canvas-box { aspect-ratio: 4 / 5; } }
 canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .readouts { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 6px 16px 12px; font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.plays .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.plays .chips button { padding: 4px 10px; font-size: 13px; border-radius: 14px; }
+.plays .chips button[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
 .readouts span b { color: var(--ink); font-weight: 500; }
 .transport { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
 .transport input[type=range] { flex: 1 1 140px; min-width: 0; width: auto; }
@@ -147,7 +150,16 @@ canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display:
 #play.playing .i-pause { display: inline; }
 #fullscreen .i-exit, #fullscreen.on .i-enter { display: none; }
 #fullscreen.on .i-exit { display: inline; }
-.viewwrap, .volwrap { position: relative; }
+.viewwrap, .volwrap, .secwrap { position: relative; }
+.pop.secpop { grid-template-columns: 1fr; gap: 8px; min-width: 230px; }
+.seclist { display: grid; gap: 2px; max-height: 280px; overflow-y: auto; }
+.seclist button { display: flex; justify-content: space-between; gap: 18px; text-align: left; padding: 6px 8px; border: 0; border-radius: 4px; background: none; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.seclist button .when { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.seclist button:hover, .seclist button:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.seclist button.on { box-shadow: inset 3px 0 0 var(--accent); }
+.secloop { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+#secbtn.looping { color: var(--accent); }
+.secpop .note { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 .pop.volpop { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; } /* after .pop in specificity, so it wins */
 .volpop input[type=range] { width: 170px; max-width: 100%; }
 .volpop output { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
@@ -173,6 +185,18 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
 .hint code { font-family: var(--font-data); font-size: 12px; color: var(--ink); }
 .err { font-size: 13px; color: var(--warn); margin: 0; }
+/* Notices under the chords, by kind: information (muted, an i), a warning (a ring with !) or an error (warning color, a filled !) */
+.notices { display: grid; gap: 5px; margin: 0; }
+.notices[hidden] { display: none; }
+.notice { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 13px; line-height: 1.4; }
+.notice::before { flex: none; box-sizing: border-box; width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; display: inline-grid; place-items: center; font: 700 10.5px/1 var(--font-body); }
+.notice.info { color: var(--muted); }
+.notice.info::before { content: 'i'; border: 1.5px solid var(--accent); color: var(--accent); font-family: Georgia, serif; font-style: italic; }
+.notice.warning { color: var(--ink); }
+.notice.warning::before { content: '!'; border: 1.5px solid var(--warn); color: var(--warn); }
+.notice.error { color: var(--warn); }
+.notice.error::before { content: '!'; background: var(--warn); color: var(--stage); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .seed { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; padding: 10px; border: 1px solid var(--rule); border-radius: 5px; }
 .seed .label { grid-column: 1 / -1; }
 .seed input { font-family: var(--font-data); font-size: 13px; }
@@ -374,7 +398,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.1.3 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.2 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -424,6 +448,7 @@ figure.vl circle { fill: var(--ink); }
     <section class="stage" aria-label="Voice trace">
       <div class="canvas-box"><canvas id="cv" class="trace" role="img" aria-label="Pitch of each voice over time"></canvas></div>
       <div class="readouts" id="readouts">
+        <span id="r-section-wrap" hidden>section <b id="r-section">–</b></span>
         <span>chord <b id="r-chord">–</b></span>
         <span>next <b id="r-next">–</b></span>
         <span>voices <b id="r-voices">–</b></span>
@@ -432,6 +457,15 @@ figure.vl circle { fill: var(--ink); }
       <div class="transport">
         <button id="play" class="icon primary" type="button" aria-label="Play" title="Play (Space)"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.5z" fill="currentColor"/><g class="i-pause" fill="currentColor"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></g></svg></button>
         <button id="restart" class="icon" type="button" aria-label="Back to the start" title="Back to the start"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="5" y="5.5" width="2.6" height="13" rx="1"/><path d="M19 5.5v13L9 12z"/></svg></button>
+        <div class="secwrap" id="secwrap" hidden>
+          <button id="secbtn" class="icon" type="button" aria-label="Sections" aria-expanded="false" aria-controls="secpop" title="Sections: jump to one, or loop the one that's playing"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10"/></svg></button>
+          <div id="secpop" class="pop secpop" role="group" aria-label="Sections" hidden>
+            <span class="lbl">Jump to</span>
+            <div id="seclist" class="seclist"></div>
+            <label class="secloop"><input type="checkbox" id="secloop"> Loop the section that's playing</label>
+            <span class="note">For listening only; not saved with the piece.</span>
+          </div>
+        </div>
         <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position in the piece">
         <span id="time" class="time">0:00 / 0:00</span>
         <div class="screen-btns">
@@ -480,10 +514,15 @@ figure.vl circle { fill: var(--ink); }
         <button type="button" class="small" id="partadd" aria-haspopup="true" aria-expanded="false">+ Add</button>
         <button type="button" class="small" id="partmore" aria-haspopup="true" aria-expanded="false" aria-label="Part actions" title="Part actions">⋯</button>
         <span class="hint" id="partsel-hint">The tabs below edit this part.</span>
+        <p class="hint barsoffer" id="barsoffer" hidden><span id="barsoffer-text"></span> <button type="button" class="small" id="barsoffer-yes">Switch to bars</button> <button type="button" class="small" id="barsoffer-no">Keep seconds</button></p>
         <div class="pop below" id="addpop" role="menu" hidden>
           <button type="button" class="small" role="menuitem" data-addpart="melody">Melody<small>a written line, started from the chords</small></button>
           <button type="button" class="small" role="menuitem" data-addpart="bass">Bass<small>a written line, low, on each chord's bass note</small></button>
           <button type="button" class="small" role="menuitem" data-addpart="pad">Pad<small>another group of voices following the chords</small></button>
+          <button type="button" class="small" role="menuitem" data-addpart="basspattern">Bass pattern<small>a looping bass taken from each chord: root, then octave</small></button>
+          <button type="button" class="small" role="menuitem" data-addpart="kick">Kick<small>a low note on every beat, falling three octaves as it hits</small></button>
+          <button type="button" class="small" role="menuitem" data-addpart="echo" id="addecho">Echo<small>the chosen part again, later and moved</small></button>
+          <button type="button" class="small" role="menuitem" data-addpart="arpeggio">Arpeggio<small>a looping run up and down each chord's tones</small></button>
           <p class="hint" id="parts-room" hidden></p>
         </div>
         <div class="pop below" id="morepop" hidden>
@@ -511,8 +550,13 @@ figure.vl circle { fill: var(--ink); }
         <div class="group">
           <label for="chords">Chords</label>
           <textarea id="chords" spellcheck="false"></textarea>
-          <p class="hint">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
-          <p id="err" class="err" hidden></p>
+          <p class="hint">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds, <code>Amaj9:2bar</code> for two bars, <code>Amaj9:3beat</code> for three beats. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. A line like <code>[Groove x2 +2]</code> starts a section: a name, then optionally how many times it plays and a key change in semitones. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
+          <div id="err" class="notices" role="status" aria-live="polite" hidden></div>
+        </div>
+        <div class="group plays" id="plays-box" hidden>
+          <span class="label" id="plays-lbl">Plays in</span>
+          <div class="chips" id="plays" role="group" aria-labelledby="plays-lbl"></div>
+          <p class="hint" id="plays-hint">Which sections this part plays in. Outside them it rests, coming in and out by its envelope.</p>
         </div>
         <div class="seed" data-layer="harmony">
           <span class="label">Harmony seed</span>
@@ -521,7 +565,18 @@ figure.vl circle { fill: var(--ink); }
           <button type="button" class="small" id="roll-harmony">Reroll</button>
           <p class="hint" style="grid-column:1/-1">Rerolling the harmony writes a new progression in place of these chords. Keep it locked while you explore voicings.</p>
         </div>
-        <div class="slider"><label for="chordsec">Chord length</label><output id="o-chordsec"></output><input id="chordsec" type="range" min="1.5" max="12" step="0.1"><span class="ends"><span>used when a chord has no :seconds</span></span></div>
+        <div class="group timebox"><span class="label" id="time-lbl">Time</span>
+          <div class="seg" role="radiogroup" aria-labelledby="time-lbl"><input type="radio" name="timeunit" id="tu-sec" value="sec"><label for="tu-sec">Seconds</label><input type="radio" name="timeunit" id="tu-bar" value="bar"><label for="tu-bar">Bars</label></div>
+          <p class="hint">How chords without a length of their own are timed. Switching keeps the length you hear. Any chord can give its own: <code>:6</code> seconds, <code>:2bar</code>, <code>:3beat</code>.</p>
+        </div>
+        <div class="slider" id="row-chordsec"><label for="chordsec">Chord length</label><output id="o-chordsec"></output><input id="chordsec" type="range" min="1.5" max="12" step="0.1"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
+        <div class="slider" id="row-chordbars" hidden><label for="chordbars">Chord length</label><output id="o-chordbars"></output><input id="chordbars" type="range" min="0.25" max="8" step="0.25"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
+        <div class="slider"><label for="tempo">Tempo</label><output id="o-tempo"></output><input id="tempo" type="range" min="30" max="180" step="1"><span class="ends"><span>times bars and beats, lines, and MIDI and MusicXML</span></span></div>
+        <div class="group"><label for="meter">Beats per bar</label><select id="meter"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="9">9</option><option value="12">12</option></select></div>
+        <div class="group" style="grid-column:1/-1"><label for="tuning">Tuning</label>
+          <select id="tuning"><option value="equal">Equal temperament</option><option value="just">Just (pure chords, can drift)</option></select>
+          <p class="hint">Just tunes each chord's notes as pure ratios from its root and keeps a note it shares with the chord before exactly where it was, so chords ring without beating. A progression that comes round can drift: C Am Dm G sinks 22 cents each time, and C G Dm Am rises as much. Every part follows the chords' tuning.</p>
+        </div>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-voicing" aria-labelledby="t-voicing" hidden>
@@ -599,14 +654,30 @@ figure.vl circle { fill: var(--ink); }
         <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
         <div class="slider"><label for="reverb">Reverb</label><output id="o-reverb"></output><input id="reverb" type="range" min="0" max="100" step="1"></div>
         <div class="slider"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
+        <div class="group"><label for="mix">Balance</label>
+          <select id="mix"><option value="parts">Each part on its own</option><option value="voices">Every voice equal (one sound)</option></select>
+          <p class="hint">Each part on its own: every part is about as loud as the main part, however many voices it has. Every voice equal: the piece plays as one instrument of all its voices, so a part of six voices is six times as strong as one of one, and doubled lines stand out. Part levels still apply either way.</p>
+        </div>
         <div class="group"><label for="vshape">Volume shape</label>
           <select id="vshape"><option value="none">None (steady)</option><option value="fadein">Fade in</option><option value="crescendo">Crescendo</option><option value="swell">Swell</option><option value="fadeout">Fade out</option><option value="custom" hidden>Custom</option></select>
           <p class="hint" id="vshape-hint">A shape over the whole piece, on top of the volume control. Set for the piece's current length.</p>
         </div>
+        <p class="sect">Over time</p>
+        <div class="slider"><label for="breathedepth">Breathe at chord changes</label><output id="o-breathedepth"></output><input id="breathedepth" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>dips and swells back at each change, like strings re-bowing</span></span></div>
+        <div class="slider"><label for="breathetime">Breath length</label><output id="o-breathetime"></output><input id="breathetime" type="range" min="0.1" max="3" step="0.05"></div>
+        <div class="group"><label for="duckunder">Duck under</label><select id="duckunder"><option value="">Nothing</option></select></div>
+        <div class="slider"><label for="duckdepth">Duck depth</label><output id="o-duckdepth"></output><input id="duckdepth" type="range" min="0" max="0.95" step="0.01"><span class="ends"><span>how far it dips each time that part strikes a note</span></span></div>
+        <div class="slider"><label for="ducktime">Duck recovery</label><output id="o-ducktime"></output><input id="ducktime" type="range" min="0.05" max="2" step="0.01"></div>
+        <div class="group"><label for="echotime">Echo</label>
+          <select id="echotime"><option value="off">Off</option><option value="1/16">Sixteenth note</option><option value="1/8">Eighth note</option><option value="3/16">Dotted eighth</option><option value="1/4">Quarter note</option><option value="3/8">Dotted quarter</option><option value="1/2">Half note</option></select>
+          <p class="hint">The part again a note-length later, at the tempo, each repeat quieter. Heard but not drawn; for an echo you can see, add an Echo part.</p>
+        </div>
+        <div class="slider"><label for="echomix">Echo level</label><output id="o-echomix"></output><input id="echomix" type="range" min="0" max="1" step="0.01"></div>
+        <div class="slider"><label for="echofb">Repeats</label><output id="o-echofb"></output><input id="echofb" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>how much of each repeat carries on to the next</span></span></div>
+        <div class="group"><label for="echopan">Repeats go</label><select id="echopan"><option value="true">Left and right, in turn</option><option value="false">Where the part is</option></select></div>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-export" aria-labelledby="t-export" hidden>
-        <div class="slider"><label for="tempo">Tempo for MIDI and MusicXML</label><output id="o-tempo"></output><input id="tempo" type="range" min="30" max="180" step="1"><span class="ends"><span>at 60 BPM, one beat is one second</span></span></div>
         <div class="xmenu">
         <button type="button" id="xopen" class="primary xopen" aria-haspopup="menu" aria-expanded="false" aria-controls="xlist">Export<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="exports" id="xlist" role="menu" aria-label="Export formats" hidden>
@@ -614,8 +685,8 @@ figure.vl circle { fill: var(--ink); }
           <button type="button" role="menuitem" data-export="wav">WAV<small>24-bit, 48 kHz</small></button>
           <button type="button" role="menuitem" data-export="mp3">MP3<small>192 kbps</small></button>
           <button type="button" role="menuitem" data-export="midi">MIDI with glides<small id="midi-note">one channel per voice (MPE)</small></button>
-          <button type="button" role="menuitem" data-export="midichords">MIDI chords<small>settled chords; stacked voices merged</small></button>
-          <button type="button" role="menuitem" data-export="musicxml">MusicXML<small>harmonic score; stacked voices merged</small></button>
+          <button type="button" role="menuitem" data-export="midichords">MIDI chords and notes<small>the chords, and each part's notes on its own track</small></button>
+          <button type="button" role="menuitem" data-export="musicxml">MusicXML<small>the chords, and a staff for each line or pattern</small></button>
           <button type="button" role="menuitem" data-export="all">Everything<small>all of the above in one .zip</small></button>
         </div>
         </div>
@@ -712,10 +783,12 @@ figure.vl circle { fill: var(--ink); }
     <div class="guide-body">
       <nav class="guide-nav" role="tablist" aria-label="Guide pages" aria-orientation="vertical">
           <button type="button" role="tab" id="gt-how" aria-controls="g-how" aria-selected="false" data-page="how">How it works</button>
+          <button type="button" role="tab" id="gt-parts" aria-controls="g-parts" aria-selected="false" data-page="parts">Parts and sections</button>
           <button type="button" role="tab" id="gt-math" aria-controls="g-math" aria-selected="false" data-page="math">The math</button>
           <button type="button" role="tab" id="gt-keys" aria-controls="g-keys" aria-selected="false" data-page="keys">Shortcuts</button>
           <button type="button" role="tab" id="gt-history" aria-controls="g-history" aria-selected="false" data-page="history">Version history</button>
           <button type="button" role="tab" id="gt-engine" aria-controls="g-engine" aria-selected="false" data-page="engine">Engine history</button>
+          <button type="button" role="tab" id="gt-files" aria-controls="g-files" aria-selected="false" data-page="files">Piece files</button>
           <button type="button" role="tab" id="gt-about" aria-controls="g-about" aria-selected="false" data-page="about">About</button>
       </nav>
       <div class="guide-pages" id="guide-pages">
@@ -757,7 +830,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness, and a <b>volume shape</b> can fade the whole piece in, build it, swell it or fade it out. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone and Air nearly so, with a faint shimmer above; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Brass follows FM synthesis; Harp has the gaps of a plucked string; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates; Octaves keeps only the octaves of the note, and Chime only its Fibonacci harmonics. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
 
           <h4><span class="step">6</span>Add parts</h4>
-          <p>A piece can have more than one part. The <b>Part</b> menu above the tabs chooses which part the tabs edit; <b>Main</b> is the chords as you've voiced them. <b>+ Add</b> adds a <b>melody</b> or <b>bass</b> line, which starts from your chords so it plays in key straight away, or another <b>pad</b>: a group of voices that follows the chords in its own register, with its own random choices. Choose a part and the tabs follow it. For a line, Harmony becomes <b>Line</b>: write it like the chord box, a note and its length in steps (<code>G4:2</code>), <code>-</code> for a rest and <code>|</code> just for reading, and pick the step (eighth notes, quarter notes and so on). Voicing becomes <b>Voices</b>, where <code>0,&nbsp;-12</code> doubles the line an octave below. Motion holds portamento and vibrato, and Sound its tone, level, pan and <b>envelope</b>: how fast each note starts, how it settles and how long it fades. A pad part gets the full Voicing and Motion controls. What every part shares (the chords, chord length, glide, reverb, brightness, volume shape and the seeds) sits under <b>Whole piece</b> at the bottom of each tab. The <b>⋯</b> menu renames, moves, duplicates or removes the chosen part. Voices in a line rest between notes, shown as gaps in their lines. MIDI with glides carries every part; MIDI chords and MusicXML carry the main part's chords. Try the <b>Three Parts</b> example.</p>
+          <p>A piece can have more than one part. The <b>Part</b> menu above the tabs chooses which part the tabs edit; <b>Main</b> is the chords as you've voiced them. <b>+ Add</b> adds a <b>melody</b> or <b>bass</b> line, which starts from your chords so it plays in key straight away, or another <b>pad</b>: a group of voices that follows the chords in its own register, with its own random choices. Choose a part and the tabs follow it. For a line, Harmony becomes <b>Line</b>: write it like the chord box, a note and its length in steps (<code>G4:2</code>), <code>-</code> for a rest and <code>|</code> just for reading, and pick the step (eighth notes, quarter notes and so on). Voicing becomes <b>Voices</b>, where <code>0,&nbsp;-12</code> doubles the line an octave below. Motion holds portamento and vibrato, and Sound its tone, level, pan and <b>envelope</b>: how fast each note starts, how it settles and how long it fades. A pad part gets the full Voicing and Motion controls. What every part shares (the chords, chord length, glide, reverb, brightness, volume shape and the seeds) sits under <b>Whole piece</b> at the bottom of each tab. The <b>⋯</b> menu renames, moves, duplicates or removes the chosen part. Voices in a line rest between notes, shown as gaps in their lines. There are patterns, echoes and a kick too, and sections to arrange them in: <b>Parts and sections</b>, the next page, has them all. Try the <b>Three Parts</b> example.</p>
 
           <h4><span class="step">7</span>Lock what you love, reroll the rest</h4>
           <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
@@ -766,10 +839,42 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">9</span>Export</h4>
-          <p>The <b>Export</b> tab's <b>Export</b> menu saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, chord-only MIDI, a <b>MusicXML</b> score, or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
+          <p>The <b>Export</b> tab's <b>Export</b> menu saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
 
           <h4><span class="step">10</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
+          <p class="guide-next"><button type="button" class="small" data-goto="parts">Next: Parts and sections →</button></p>
+        </section>
+        <section class="guide-page" id="g-parts" role="tabpanel" aria-labelledby="gt-parts" hidden>
+          <h3>Parts and sections</h3>
+          <p class="lede">Beyond the chords: patterns that follow them, a kick, echoes, sections to arrange it all in, and a tuning that lets a whole piece drift. The <b>Bounce of the Spheres</b> and <b>Fold</b> examples use most of this.</p>
+
+          <h4><span class="step">1</span>Keep time in bars</h4>
+          <p>On the Harmony tab, <b>Time</b> says how chords without a length of their own are timed: in seconds, or in <b>bars</b> at the <b>Tempo</b> and <b>Beats per bar</b> beside it. Any chord can give its own length: <code>Am:6</code> is six seconds, <code>Am:2bar</code> two bars, <code>Am:3beat</code> three beats. Switching keeps what you hear. Adding your first pattern offers to switch a piece to bars, so chords change on the beat.</p>
+
+          <h4><span class="step">2</span>Arrange it in sections</h4>
+          <p>A line in the chords that is only a name in brackets starts a section: <code>[Intro]</code>, <code>[Groove x2]</code> to play it twice, <code>[Drop +2]</code> to play it two semitones higher. Below the chords, <b>Plays in</b> chooses the sections the chosen part plays in; outside them it rests. The <b>Sections</b> button on the player bar lists every section as it falls in time: choose one to jump there, and tick <b>Loop the section that's playing</b> to hear it again and again while you work on it.</p>
+
+          <h4><span class="step">3</span>Patterns follow the chords</h4>
+          <p><b>+ Add</b> has a <b>Bass pattern</b>, an <b>Arpeggio</b> and a <b>Kick</b>. A pattern is a cycle of steps that take their notes from the chord as it plays: <code>R</code> is its root, <code>B</code> its bass note, <code>3rd</code>, <code>5th</code> and <code>7th</code> what they say, and <code>1</code>, <code>2</code>, <code>3</code>… its notes counted up from the part's lowest note. <code>'</code> takes a step up an octave and <code>,</code> down one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long. A note name like <code>C1</code> stays that note whatever the chord. <code>R R'</code> in eighths is an octave bass, and <code>1 3 2 3</code> in sixteenths an Alberti figure.</p>
+
+          <h4><span class="step">4</span>Notes that say more</h4>
+          <p>In a line or a pattern, <code>~G4</code> slides into a note without a new attack, <code>G4@0.6</code> strikes it softer, and <code>G4:2/0.4</code> glides into it over 0.4 seconds (<code>/0</code> jumps). Notes can carry cents, to a thousandth: <code>D3+33</code>. In a piece with sections, <code>[B]</code> in a part's text starts what it plays in section B, and <code>[A A2]</code> what it plays in both, so one melody part can carry the whole tune; a section's key change moves written notes too.</p>
+
+          <h4><span class="step">5</span>Echoes</h4>
+          <p>An <b>Echo</b> part plays another part again, a number of beats later and moved by some semitones, with its own sound and pan, and can copy just its first voices. Or, for an echo that needn't be drawn, set <b>Echo</b> on the Sound tab: the part again an eighth, a dotted eighth or a quarter later, at the tempo, each repeat quieter, bouncing left and right if you like.</p>
+
+          <h4><span class="step">6</span>One instrument of many voices</h4>
+          <p>Tick <b>Never stops</b> on a line or a pattern and its voices sound from start to finish like one instrument changing notes: rests hold the note before, and wherever the part has nothing to play its voices rest on the chords in their own range. An opening single note (<code>=G4</code>) gathers every such voice onto it, to bloom out from. With <b>Balance: Every voice equal</b> on the Sound tab, the piece plays as one instrument of all its voices, so a melody doubled on six voices stands out over a part of one.</p>
+
+          <h4><span class="step">7</span>Shape over time</h4>
+          <p>An envelope's decay and release can be <b>Natural</b>, dying away as strings and bells do. On the Sound tab, a pad can <b>breathe</b> at each chord change, and any part can <b>duck under</b> another, dipping each time it strikes, as pads pump under a kick. On the Motion tab, a <b>pitch drop</b> starts each note above its pitch and falls onto it (that's the kick), and <b>Glide shape</b> chooses Smooth, Straight, or Arc, where a run of slides traces circles.</p>
+
+          <h4><span class="step">8</span>Pure tuning, and a tide</h4>
+          <p>With <b>Tuning: Just</b> on the Harmony tab, every chord's notes are tuned as pure ratios from its root, so they ring without beating, and a note a chord shares with the one before stays exactly where it was. That means a progression that comes round can drift: C Am Dm G sinks 22 cents each time round, and C G Dm Am rises as much. Every part follows the chords' tuning.</p>
+
+          <h4><span class="step">9</span>Exports</h4>
+          <p>Audio, video and MIDI with glides carry everything, the echo setting included. <b>MIDI chords and notes</b> gives each part a track with its own instrument, and <b>MusicXML</b> a staff for each line and pattern. The <b>File format</b> section of Engine history lists what makes a piece need app 4.2.</p>
           <p class="guide-next"><button type="button" class="small" data-goto="math">Next: The math →</button></p>
         </section>
         <section class="guide-page" id="g-math" role="tabpanel" aria-labelledby="gt-math" hidden>
@@ -892,6 +997,12 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.2</span>Musical generators<span class="when">4 Nov 2026</span></h4>
+          <p>Pieces can now be written in musical time. A chord can last bars or beats (<code>Am:2bar</code>, <code>Am:3beat</code>), and the Harmony tab has <b>Time</b> (Seconds or Bars), <b>Tempo</b>, <b>Beats per bar</b> and <b>Tuning</b>. A line in brackets in the chords starts a section, with a repeat and a key change if you like (<code>[Groove x2]</code>, <code>[Drop +2]</code>), and each part chooses which sections it plays in. The new <b>Sections</b> button on the player bar jumps to any section and can loop the one that's playing while you work on it.</p>
+          <p>New parts in the Add menu: a <b>Bass pattern</b>, an <b>Arpeggio</b>, a <b>Kick</b> and an <b>Echo</b>. A pattern takes its notes from the chord as it plays (<code>R</code> the root, <code>B</code> the bass note, <code>3rd</code>, <code>5th</code>, <code>7th</code>, or chord tones counted up from its lowest note), and a melody or pattern can play different notes in each section (<code>[B]</code> in its text), moving with a section's key change. In a written line, <code>~</code> slides into a note, <code>@0.6</code> plays it softer, and <code>/0.4</code> glides into it over 0.4 seconds.</p>
+          <p>A part can be set to <b>Never stops</b>: its voices sound from start to end like one instrument changing notes, joining the chords wherever the part has nothing to play. With <b>Balance: Every voice equal</b> on the Sound tab, the piece plays as one instrument of all its voices, so doubled lines stand out. <b>Just</b> tuning tunes every chord pure, and a progression that comes round can drift like a tide.</p>
+          <p>Also new: an <b>Echo</b> on the Sound tab, synced to the tempo and bouncing left and right, envelopes with natural decays, parts that breathe at chord changes or duck under the kick, arc glides that trace circles, a pitch drop for drums, vibrato drawn in the picture, up to 32 parts, and section markers and instruments in MIDI exports. MIDI chords now has a track for every part, and MusicXML a staff for every line and pattern. Pieces that use any of this are saved in a new file format, 5, which older versions won't open; pieces that don't are saved as before. The Guide has two new pages: <b>Parts and sections</b>, on all of this, and <b>Piece files</b>, on what each file format holds. Notices under the chords now say whether they're information, a warning or an error. Two new examples show what this can do: <b>Bounce of the Spheres</b> and <b>Fold</b>, both written natively.</p>
 
           <h4><span class="step ver">4.1.3</span>Clearer when zoomed out<span class="when">2 Nov 2026</span></h4>
           <p>New on the Export tab: <b>Auto zoom</b>, beside Quality. Leave it on Automatic, or choose Custom times to say when the view zooms in and when it zooms out, typed as minutes and seconds or with <b>Now</b> to take the playhead. The times are saved with the piece and used by Auto view when it plays and in videos. The automatic zoom in is back to how it was in 3.9, from the first chord's glide to just after it arrives. Zoomed out, a voice that moves faster than the picture can show (a bass jumping octaves on every note, a kick diving on every beat) is drawn as a faint band between the notes it moves between instead of a solid block, so busy pieces stay readable and draw quickly; <b>Fast movement</b>, in the view menu, in Settings and with the video settings, draws a line through the middle, or every move, instead. The export buttons are now one <b>Export</b> menu, with each format and what it holds, and Settings has pages down the side, like this Guide. Zoomed in, every move is drawn as it is. The zoomed view now frames everything it draws, so a kick that dives on every beat stays in the picture.</p>
@@ -1039,8 +1150,28 @@ figure.vl circle { fill: var(--ink); }
             <li><b>Opening chords.</b> Out of a single note, chord tones are spread from a fifth above the bass up to C6, and the voices glide there over max(2.4 s, 1.9 × glide).</li>
           </ul>
 
-          <h4>File format</h4>
-          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. Top-level fields this version doesn't know are kept when a piece is saved again.</p>
+          <p>Piece files have version numbers of their own, separate from the engine's: <b>Piece files</b>, the next page, says what each one holds and which versions of the app open it.</p>
+          <p class="guide-next"><button type="button" class="small" data-goto="files">Next: Piece files →</button></p>
+        </section>
+        <section class="guide-page" id="g-files" role="tabpanel" aria-labelledby="gt-files" hidden>
+          <h3>Piece files</h3>
+          <p class="lede">A piece file (<b>Export</b>, then <b>Piece file</b>) holds everything needed to play a piece again: its chords, seeds, settings and parts, and the notes it was voiced with. Its format has a version, which goes up only when a piece can hold something older versions of the app can't play.</p>
+          <p>Chord Glide always saves a piece in the oldest format that holds everything it uses, so it opens in as many versions as it can. A piece you haven't given parts to is still format 3, and opens in every version since app 3. Every version opens every older format. Since app 3.1, a version given a newer format than it knows says so and leaves the file alone, rather than playing it with parts missing.</p>
+
+          <h4><span class="step ver">5</span>Musical time, sections and more<span class="when">app 4.2 and later</span></h4>
+          <p>Saved only when a piece uses something new in 4.2: time in bars and beats, sections, patterns, kicks and echoes, notes that slide, glide or play softer, a part that never stops, <b>Every voice equal</b>, <b>Just</b> tuning, the <b>Echo</b> setting, breathing and ducking, natural decays, arc glides, or more than 12 parts (up to 32).</p>
+
+          <h4><span class="step ver">4</span>Parts<span class="when">app 4.1 and later</span></h4>
+          <p>Parts besides the main one, each with its own voices, sound and envelope: pads that follow the chords, written lines and saved notes. Also the volume shape over the whole piece.</p>
+
+          <h4><span class="step ver">3</span>One part<span class="when">app 3 and later</span></h4>
+          <p>The main part: chords, the four seeds and every setting. App 3.1 added the notes a piece was voiced with, so it plays exactly the same under a later engine, and app 3.3 the look of the trace. Older versions of app 3 ignore those and voice the piece themselves. Piece files began with app 3, so there's no format 1 or 2.</p>
+
+          <h4>Three version numbers</h4>
+          <p>The <b>app</b> version (4.2) is the release. The <b>engine</b> version (3.1) changes only when the same chords and settings would be voiced differently; Engine history has them. The <b>file format</b> (3, 4 or 5) changes only when a piece can hold something new. Most releases change neither of the last two.</p>
+
+          <h4>For programs that write piece files</h4>
+          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. A piece that uses anything added in app 4.2 is <code>"formatVersion": 5</code>: time in bars (<code>"unit": "bar"</code> in <code>timing</code>, or a chord length like <code>:2bar</code>), sections in the chords or <code>plays</code> on a part, more than 12 parts, pattern parts and echoes (<code>preset</code> <code>"pattern"</code> or <code>"copy"</code>), a pitch drop, natural decays (<code>envelope.curve</code>), a glide shape or portamento over 2 seconds, slides, loudness, glide times or section markers in a line (<code>~</code>, <code>@</code>, <code>/</code>, <code>[</code>), loudness or glide shapes in any saved notes (<code>vel</code>, <code>ease</code>), breathing or ducking, <b>Never stops</b> (<code>nonstop</code>), <b>Every voice equal</b> (<code>"mix": "voices"</code>) or <b>Just</b> tuning (<code>"tuning": "just"</code>). Saving always writes the lowest version that holds what the piece uses, so a piece without those is still saved as 3 or 4 and older versions open it. A program writing piece files should do the same: a file that uses format 5's fields but says 4 opens in app 4.1, which then plays it without them. Top-level fields this version doesn't know are kept when a piece is saved again.</p>
           <p class="guide-next"><button type="button" class="small" data-goto="about">Next: About →</button></p>
         </section>
         <section class="guide-page" id="g-about" role="tabpanel" aria-labelledby="gt-about" hidden>

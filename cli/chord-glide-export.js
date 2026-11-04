@@ -5,8 +5,8 @@
  *   node chord-glide-export.js <piece.json> [options]
  *
  *   --midi        MIDI with glides (MPE, one channel per voice)
- *   --chords      MIDI with settled chords only
- *   --musicxml    MusicXML harmonic score
+ *   --chords      MIDI with the settled chords, and each part's notes on a track of its own
+ *   --musicxml    MusicXML: the chords, and a staff for each line, pattern or echo part
  *   --all         all three (the default when no format is given)
  *   --out <dir>   where to write (default: beside the piece file)
  *   --tempo <bpm> override the piece's export tempo

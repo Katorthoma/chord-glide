@@ -79,21 +79,29 @@ parts: [
   - [x] Saved notes as an optional cache, with parts and rests
   - [x] Export capability messages
   - [x] Interface for parts
-- **4.2, musical generators:**
-  - [ ] Beat grid; chord lengths in bars and beats (`:2bar`, `:3beat`), and the offer to switch a piece to bars
-  - [ ] Bass and arpeggio patterns, copies (echo), rhythmic gates, pitch-envelope percussion (kick)
-  - [ ] MIDI note-ons per part; MusicXML for notation-compatible parts
-  - [ ] Bounce of the Spheres rewritten as a short piece file
-  - [ ] Per-note loudness: a velocity for each note in lines and saved notes, so a part's notes can differ (quiet drips, accented downbeats, a big final chord) without splitting it into parts by level
-  - [ ] Shaping a held note: a gain curve within a note (a pad breathing at a chord change, an armonica re-bowed between notes)
-  - [ ] Curved decays: exponential envelope segments, so plucks and rings die away naturally rather than in straight lines
-  - [ ] Glass Tide rewritten as a short piece file (needs the three above)
-  - [ ] Sections: named runs of chords with repeat and transpose (a key change), each saying which parts play and how (on, off or a level; which bass or arpeggio pattern), so a piece has an arrangement (intro, groove, theme, breakdown, drop) without hand-placed clips. Start at a section and loop it while editing. This is most of what Bounce's structure needs
-  - [ ] Slide into one note: `~G5:2` in a line glides from the note before without a new attack, so legato can be per note as well as per part
-  - [ ] Ducking: a part's level dips under another part's hits and recovers (pads pumping under the kick), as gain automation driven by the other part's notes
-  - [ ] Echo as a sound setting as well as a copied part: a tempo-synced delay (eighth, dotted eighth, quarter; alternating left and right) per part, for echoes that needn't be drawn
-  - [ ] MIDI with glides: section and chord names as markers, and a General MIDI program per part chosen from its tone
+- **4.2, musical generators.** Acceptance: Bounce of the Spheres and Fold as short native piece files (no saved notes), and Glass Tide in parts (below); the Deep Note study waits for 4.3's Swarm.
+  - [x] Beat grid; chord lengths in bars and beats (`:2bar`, `:3beat`); a Time setting (seconds or bars) that converts the chord length at the current tempo; tempo and beats per bar on the Harmony tab; file format 5 for pieces that use them
+  - [x] The offer to switch a piece to bars when its first rhythm part is added
+  - [x] Arc glides: a glide that follows an arc rather than a straight line or an S-curve (Fold's dotted circles)
+  - [x] Fold rewritten as a native piece file (84 KB, from 2.3 MB of saved notes): 22 written lines (arc glides for the dotted circles, straight glides for the hexagons and diamonds, pitch-drop ticks for floor and ceiling) in 9 sections; the same picture as the original, and within 0.6 dB in every frequency band. An example in the Library
+  - [x] Bass and arpeggio patterns (chord-relative steps, fixed notes), copies (echo), rhythmic gates, pitch-drop percussion (kick)
+  - [x] MIDI note-ons per part; MusicXML for notation-compatible parts
+  - [x] Bounce of the Spheres rewritten as a short piece file (7 KB, from 1.1 MB of saved notes): 24 voices in 11 parts that never stop, every voice equal, in 10 sections, with the Build converging on A, a ping-pong echo, the Breakdown's whistle canon and a sine sub under the bass; within about 1.5 dB of the original above 120 Hz, with a deliberately deeper low end. An example in the Library
+  - [x] Per-note loudness: a velocity for each note in lines and saved notes, so a part's notes can differ (quiet drips, accented downbeats, a big final chord) without splitting it into parts by level
+  - [x] (as breathing at chord changes) Shaping a held note: a gain curve within a note (a pad breathing at a chord change, an armonica re-bowed between notes)
+  - [x] Curved decays: exponential envelope segments, so plucks and rings die away naturally rather than in straight lines
+  - [x] Glass Tide in 4.2, as two arrangements of saved notes in parts rather than a short generated file: a struck-glass arrangement (725 KB: decays, per-note loudness, breathing, ducking) and a one-tone version (24 glass voices in 12 pairs) that matches the original to within half a dB in every band. A generated version (just intonation, parts that never stop) drifted like the original but couldn't reproduce its sound, which depends on the exact phase of voices doubled at the same pitch
+  - [x] Sections: headers in the chords (`[Groove x2 +2]`: name, repeat, key change) and Plays in for each part, the main part included. and text by section in lines and patterns (`[B]` in the text), with key changes moving written lines. and the Sections button on the player bar, to jump to a section and loop the one that's playing
+  - [x] (was) Sections: named runs of chords with repeat and transpose (a key change), each saying which parts play and how (on, off or a level; which bass or arpeggio pattern), so a piece has an arrangement (intro, groove, theme, breakdown, drop) without hand-placed clips. Start at a section and loop it while editing. This is most of what Bounce's structure needs
+  - [x] Slide into one note: `~G5:2` in a line glides from the note before without a new attack, so legato can be per note as well as per part
+  - [x] Ducking: a part's level dips under another part's hits and recovers (pads pumping under the kick), as gain automation driven by the other part's notes
+  - [x] Echo as a sound setting as well as a copied part: a tempo-synced delay (eighth, dotted eighth, quarter; alternating left and right) per part, for echoes that needn't be drawn
+  - [x] MIDI with glides: section and chord names as markers, and a General MIDI program per part chosen from its tone
+- **4.2.1:**
+  - [ ] Echo's tail: with high feedback, repeats near the end can still be well above silence when playback and export stop (the music's end plus 3 s); lengthen the tail to fit the echo's decay, or limit feedback so the repeats die away within it
 - **4.3, generative motion:**
+  - [ ] Arrangement grid under the stage (the chosen layout, A): a row for each part (name, kind, a level meter, mute and solo) and a column for each section in time order, sized by its length, with the playhead; each cell shows whether the part plays there, rests on the chords (Never stops) or is silent, and a click changes it; clicking a part's name edits it in the tabs, and clicking a section jumps there (again to loop it). It replaces the part menu, the Plays in chips and the Sections button, and folds away. On a phone the grid scrolls sideways under pinned part names, rows are 44 px tall, and a part's settings slide up as a sheet
+  - [ ] Help text behind (?) buttons: hints longer than a line (Chords, Line, Pattern and others) open in place from a (?) beside their label, with a Show help text switch in Settings, Interface
   - [ ] Swarm: stochastic wander, convergence and divergence
   - [ ] Per-voice modulation; pan and filter automation
   - [ ] An option for voices to cross when moving between pinned voicings
@@ -128,4 +136,5 @@ From the earlier roadmap:
 
 ## Housekeeping
 
-- [ ] Replace `source/apple-touch-icon.png`, `source/og-image.jpg` and `source/logo.svg` with exports from my own design tool (they carry embedded provenance metadata from a file transfer).
+- [x] Strip the embedded provenance metadata from `source/apple-touch-icon.png` and `source/og-image.jpg` (done in 4.2: only the metadata blocks removed, the pixels unchanged)
+- [ ] Replace `source/apple-touch-icon.png`, `source/og-image.jpg` and `source/logo.svg` with exports from my own design tool

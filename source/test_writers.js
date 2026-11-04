@@ -174,7 +174,8 @@ check('MIDI glides at the slowest tempo (30 BPM, the longest ticks) stay within 
   const decode = tr => { const ev = []; let tick = 0;
     for (let i = 0; i < tr.length;) { let d = 0; do { d = (d << 7) | (tr[i] & 127); } while (tr[i++] & 128); tick += d; const st = tr[i];
       if (st === 0xFF) { let n = 0, j = i + 2; do { n = (n << 7) | (tr[j] & 127); } while (tr[j++] & 128); i = j + n; continue; }
-      ev.push({ t: tick / 960 * 60 / 120, type: st & 0xF0, a: tr[i + 1], b: tr[i + 2] }); i += 3; } return ev; };
+      const two = (st & 0xF0) === 0xC0 || (st & 0xF0) === 0xD0; // program change and channel pressure are two bytes
+      ev.push({ t: tick / 960 * 60 / 120, type: st & 0xF0, a: tr[i + 1], b: two ? undefined : tr[i + 2] }); i += two ? 2 : 3; } return ev; };
   const mel = sc.parts[2].first, ev = decode(tracks[1 + mel]), gates = sc.parts[2].sub.gates[0];
   const ons = ev.filter(e => e.type === 0x90), offs = ev.filter(e => e.type === 0x80);
   const near = (a, b) => Math.abs(a - b) < 0.002;
@@ -190,8 +191,21 @@ check('MIDI glides at the slowest tempo (30 BPM, the longest ticks) stay within 
     while (k < ev.length && ev[k].t <= t + 1e-9) { const e = ev[k++]; if (e.type === 0x90) note = e.a; if (e.type === 0x80) note = null; if (e.type === 0xE0) bend = ((e.b << 7 | e.a) - 8192) / 8191 * 48; }
     if (note !== null && W.gainAt(sc, mel, t) > 0.05) { const e2 = Math.abs(note + bend - W.pitchAt(sc, mel, t)); if (sliding(t)) worstSlide = Math.max(worstSlide, e2); else worst = Math.max(worst, e2); } }
   check('MIDI with parts: while it sounds, the melody holds each note within 5 cents (worst ' + (worst * 100).toFixed(1) + ') and its fast slides within 10 (worst ' + (worstSlide * 100).toFixed(1) + ')', worst <= 0.05 && worstSlide <= 0.1);
-  check('MIDI chords and MusicXML carry the main part only, unchanged by the other parts',
-    Buffer.compare(Buffer.from(W.midiChords(sc, { tempo: 120 })), Buffer.from(W.midiChords(sc.main, { tempo: 120 }))) === 0 && W.musicXml(sc, { tempo: 120 }).length === W.musicXml(sc.main, { tempo: 120 }).length);
+  // MIDI chords: the main part's chords as before, then a track per part with its notes
+  const chunks = buf => { const out = []; for (let i = 14; i < buf.length;) { const len = buf.readUInt32BE(i + 4); out.push(buf.subarray(i + 8, i + 8 + len)); i += 8 + len; } return out; };
+  const mc = chunks(Buffer.from(W.midiChords(sc, { tempo: 120 }))), mc0 = chunks(Buffer.from(W.midiChords(sc.main, { tempo: 120 })));
+  const bassNotes = decode(mc[2]).filter(e => e.type === 0x90), bassGates = sc.parts[1].sub.gates[0];
+  check('MIDI chords: the main part\'s chords unchanged, then a track for each part (Bass, Melody) with its notes: a note-on at each note, at its pitch',
+    mc.length === 2 + sc.parts.length - 1 && Buffer.compare(mc[1], mc0[1]) === 0 && bassNotes.length === bassGates.length
+    && bassGates.every((g, k) => near(bassNotes[k].t, g.on) && bassNotes[k].a === Math.round(W.pitchAt(sc, sc.parts[1].first, g.on + 0.2))) && mc[2].includes(Buffer.from('Bass')), mc.length + ' tracks, ' + bassNotes.length + ' bass notes');
+  check('… and a piece with only its main part writes exactly what it did', Buffer.compare(Buffer.from(W.midiChords(sc.main, { tempo: 120 })), Buffer.from(W.midiChords(W.buildPiece(it, P3), { tempo: 120 }))) === 0);
+  const xml = new TextDecoder().decode(W.musicXml(sc, { tempo: 120 })), xml0 = new TextDecoder().decode(W.musicXml(sc.main, { tempo: 120 }));
+  const part = (x, id) => (x.match(new RegExp('<part id="' + id + '">[\\s\\S]*?</part>')) || [''])[0];
+  const melNotes = (part(xml, 'P3').match(/<note><pitch>/g) || []).length - (part(xml, 'P3').match(/<tie type="stop"\/>/g) || []).length;
+  check('MusicXML: the harmonic staff unchanged, then a staff for each line (Bass in the bass clef, Melody in the treble), every melody note written once',
+    part(xml, 'P1') === part(xml0, 'P1') && /<score-part id="P2"><part-name>Bass<\/part-name>/.test(xml) && /<score-part id="P3"><part-name>Melody<\/part-name>/.test(xml)
+    && /<sign>F<\/sign>/.test(part(xml, 'P2')) && /<sign>G<\/sign>/.test(part(xml, 'P3')) && melNotes === sc.parts[2].sub.gates[0].length
+    && (part(xml, 'P2').match(/<measure /g) || []).length === (part(xml, 'P1').match(/<measure /g) || []).length, melNotes + ' melody notes, ' + sc.parts[2].sub.gates[0].length + ' in the line');
   const files = W.midiGlideFiles(Object.assign({}, sc), { tempo: 120 });
   check('MIDI with parts splits into files of 15 voices across parts when needed', files.length === 1 && files[0].voices[1] === 9);
 }
@@ -200,9 +214,22 @@ check('MIDI glides at the slowest tempo (30 BPM, the longest ticks) stay within 
   const huge = { engine: 'custom', easing: 'smooth', N: 2, total: 1, events: [{ t: 0, g: 0, label: 'a', kind: 'note', targets: [60, 64] }, { t: 0.5, g: 1e9, label: 'b', kind: 'note', targets: [72, 64], off: [0, 1e9], dur: [1e9, 1e9] }] };
   const hb = W.builtFromRealization(huge, W.defaultPiece()), t0 = Date.now(), smf = Buffer.from(W.midiWithGlides(hb, { tempo: 60 })), ms = Date.now() - t0;
   let lastTick = 0; for (let i = 14; i < smf.length;) { const len = smf.readUInt32BE(i + 4), tr = smf.subarray(i + 8, i + 8 + len); let tick = 0;
-    for (let j = 0; j < tr.length;) { let d = 0; do { d = (d << 7) | (tr[j] & 127); } while (tr[j++] & 128); tick += d; lastTick = Math.max(lastTick, tick); const st = tr[j]; if (st === 0xFF) { let n = 0, k = j + 2; do { n = (n << 7) | (tr[k] & 127); } while (tr[k++] & 128); j = k + n; } else j += 3; }
+    for (let j = 0; j < tr.length;) { let d = 0; do { d = (d << 7) | (tr[j] & 127); } while (tr[j++] & 128); tick += d; lastTick = Math.max(lastTick, tick); const st = tr[j]; if (st === 0xFF) { let n = 0, k = j + 2; do { n = (n << 7) | (tr[k] & 127); } while (tr[k++] & 128); j = k + n; } else j += ((st & 0xF0) === 0xC0 || (st & 0xF0) === 0xD0) ? 2 : 3; }
     i += 8 + len; }
   check('MIDI with glides: a glide claiming 10⁹ seconds in a 1-second piece is written only to the end (' + ms + ' ms, last event at tick ' + lastTick + ' of 960)', ms < 1000 && lastTick <= 960);
+}
+// ---- MIDI: sections as markers, the meter, part names and instruments ----
+{
+  const P = W.normalizePiece(Object.assign(W.defaultPiece(), { chords: '[Intro]\nAm:2\n[Groove x2]\nF:2', timing: { chordSec: 4, glide: 1.6, easing: 'smooth', tempo: 120, meter: 3 },
+    parts: [{ id: 'kick', name: 'Kick', preset: 'pattern', pattern: 'C1', step: '1/4', from: 24, transpose: [0], drop: { semis: 36, time: 0.1 }, sound: { tone: 'pure' } },
+            { id: 'bass', name: 'Bass', preset: 'pattern', pattern: 'R', step: '1/4', from: 36, transpose: [0], sound: { tone: 'saw' } }] }));
+  const its = W.parseProgression(P.chords).items, sc = W.buildScore(W.buildPiece(its, P), its);
+  const smf = Buffer.from(W.midiWithGlides(sc, { tempo: 120 })), txt = smf.toString('latin1');
+  check('MIDI marks each section as it starts ([Intro], [Groove 1/2], [Groove 2/2]) and each chord', ['[Intro]', '[Groove 1/2]', '[Groove 2/2]', 'Am', 'F'].every(x => txt.includes(x)));
+  const ts = smf.indexOf(Buffer.from([0xFF, 0x58, 4]));
+  check('… writes the piece\'s beats per bar (3/4)', ts > 0 && smf[ts + 3] === 3 && smf[ts + 4] === 2);
+  const progs = []; for (let i = 0; i + 1 < smf.length; i++) if ((smf[i] & 0xF0) === 0xC0 && smf[i - 1] === 0 && (smf[i] & 15) >= 1) progs.push(smf[i + 1]);
+  check('… names each voice\'s track after its part, and gives the kick a synth drum and the low saw bass a synth bass', txt.includes('Kick (pure)') && txt.includes('Bass (saw)') && progs.includes(118) && progs.includes(38), JSON.stringify(progs));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;
