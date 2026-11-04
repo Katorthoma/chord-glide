@@ -522,6 +522,15 @@ function normalizeEcho(o) {
   const num = (v, lo, hi, d) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
   return { time: ECHO_BEATS[o.time] ? o.time : '3/16', mix: num(o.mix, 0, 1, 0), feedback: num(o.feedback, 0, 0.9, 0.35), pingpong: o.pingpong !== false };
 }
+/* How long an echo rings on after the last thing it repeats: until its repeats are 50 dB down (each one `feedback` of the one
+   before, the first at `mix`), in seconds at this tempo */
+function echoRing(ec, beat) {
+  if (!ec || !(ec.mix > 0)) return 0;
+  const dt = Math.min(4, (ECHO_BEATS[ec.time] || 0.75) * beat), fb = Math.min(0.9, Math.max(0, +ec.feedback || 0));
+  const n = fb > 0 ? Math.max(1, Math.ceil(Math.log(0.00316 / ec.mix) / Math.log(fb))) : 1;
+  return n * dt;
+}
+const ECHO_ROOM = 20; // the most an echo can lengthen a piece past the end of its music, in seconds
 const STEPS = { '1/1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125, '1/4t': 2 / 3, '1/8t': 1 / 3, '1/16t': 1 / 6 }; // in beats
 const ENVELOPES = { // attack, decay and release in seconds; sustain as a fraction of full level
   pad: { attack: 0.4, decay: 0, sustain: 1, release: 1 },
@@ -949,7 +958,17 @@ function buildScore(main, items) {
      by what wouldn't fit in the tail (with 0.2 s to spare), so the usual releases end within it and change nothing. */
   let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env && !pt.sub.held) pt.sub.gates.forEach((gs, v) => { if (gs && gs.length && !(pt.sub.heldV && pt.sub.heldV[v])) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release); });
   const musicEnd = total; // where the held parts' closing fade begins, whatever the releases do
-  total = Math.max(total, ring - (TAIL - 0.2));
+  /* An echo (the Echo setting) rings on after its part's last sound: the held parts' closing fade, or a line's last release. The
+     piece lasts until its repeats have died away, like a long release, but no more than ECHO_ROOM past the music's end (the
+     echo then fades out with the end of the tail rather than stopping). */
+  let echoEnd = 0;
+  for (const pt of list) {
+    const ec = pt.main ? P.echo : pt.echo, gs = pt.sub.gates; if (!ec || !(ec.mix > 0)) continue;
+    let end = !gs ? musicEnd + FADE : 0;
+    if (gs) for (const g of gs) if (g && g.length) end = Math.max(end, pt.sub.held ? Math.min(g[g.length - 1].off, musicEnd + FADE) : g[g.length - 1].off + (pt.sub.env ? pt.sub.env.release : 0));
+    if (end > 0) echoEnd = Math.max(echoEnd, Math.min(end + echoRing(ec, 60 / P.timing.tempo), musicEnd + ECHO_ROOM));
+  }
+  total = Math.max(total, ring - (TAIL - 0.2), echoEnd - (TAIL - 0.2));
   total = Math.min(total, REALIZATION_LIMITS.seconds);
   const voices = [];
   list.forEach((pt, k) => { pt.first = voices.length; for (let v = 0; v < pt.sub.N; v++) voices.push({ p: k, b: pt.sub, v }); });

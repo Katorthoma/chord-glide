@@ -1,7 +1,7 @@
 // node test_engine.js — engine v3 checks
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES, buildScore, parseLine, gainAt, gainMoves, vibratoMoves, volumeAt, partSeed, partRealizations, realizationOf, LINE_LIMITS, landmarks, FADE, itemSeconds, defaultChordSec, formatFor, usesMusicalTime, hasSections, sectionRuns, parsePattern, patternNote, pitchMoves, parseLine, envelopePoints};')();
+const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, echoRing, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES, buildScore, parseLine, gainAt, gainMoves, vibratoMoves, volumeAt, partSeed, partRealizations, realizationOf, LINE_LIMITS, landmarks, FADE, itemSeconds, defaultChordSec, formatFor, usesMusicalTime, hasSections, sectionRuns, parsePattern, patternNote, pitchMoves, parseLine, envelopePoints};')();
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (d ? '  ' + d : '')); };
 console.log('engine v' + E.ENGINE_VERSION);
@@ -634,6 +634,19 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('An echo of only the first voice, two octaves up, plays C6, though the voice it leaves out (C8) would go past 127', !!cp && cp.sub.N === 1 && cp.sub.max === 84 && E.pitchAt(sb, cp.first, 1) === 84, cp ? cp.sub.N + ' ' + cp.sub.max : 'left out');
   const all = mk('C:4', [two, { id: 'e', preset: 'copy', of: 'm', delay: 1, shift: 24 }]);
   check('… and an echo of both voices is still left out, as C8 up two octaves is out of range', !all.parts.find(x => x.id === 'e'));
+}
+// ---- 4.2.1: a piece lasts until its echo dies away ----
+{
+  const tm = { chordSec: 4, glide: 1.6, easing: 'smooth', tempo: 120 };
+  const mk = over => { const P = base(Object.assign({ chords: 'C:4 F:4', timing: tm }, over)), its = E.parseProgression(P.chords).items; return E.buildScore(E.buildPiece(its, P), its); };
+  const plain = mk({}), quick = mk({ echo: { time: '1/4', mix: 0.4, feedback: 0 } }), long = mk({ echo: { time: '1/4', mix: 0.5, feedback: 0.9 } }), mid = mk({ echo: { time: '1/8', mix: 0.4, feedback: 0.5 } });
+  check('Without an echo the piece ends where it did (8 s)', plain.total === 8 && plain.musicEnd === 8, plain.total);
+  check('An echo with one repeat (a quarter at 120 BPM) after the closing fade adds just that repeat, 0.5 s', Math.abs(quick.total - 8.5) < 1e-9 && quick.musicEnd === 8, quick.total);
+  check('… repeats at 50% (an eighth) run on until 50 dB down: 7 repeats, 1.75 s after the fade', Math.abs(mid.total + 3 - (8 + 2.8 + 7 * 0.25 + 0.2)) < 1e-9, mid.total);
+  check('… and with 90% feedback, which would ring for 24 s, the piece runs on at most 20 s past its music', Math.abs(long.total + 3 - (8 + 20 + 0.2)) < 1e-9 && long.musicEnd === 8, long.total);
+  check('How long an echo rings: 50 dB down, at the tempo', E.echoRing({ time: '1/4', mix: 0.5, feedback: 0.9 }, 0.5) === 49 * 0.5 && E.echoRing({ time: '1/4', mix: 0, feedback: 0.9 }, 0.5) === 0 && E.echoRing({ time: '3/16', mix: 1, feedback: 0 }, 1) === 0.75);
+  const line = mk({ plays: [], parts: [{ id: 'l', preset: 'line', line: 'C5 -:7', step: '1/4', transpose: [0], envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.1 }, echo: { time: '1/4', mix: 0.5, feedback: 0.5 } }] });
+  check('An echo on a line rings on from its last note\'s release, not the end of the piece: an early note\'s echo has died away by the end, so nothing is added', line.total === 8, line.total);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

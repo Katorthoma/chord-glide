@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.2.1-dev';
+const APP_VERSION = '4.2.1';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -632,13 +632,15 @@ function softClipCurve() {
 }
 /* A part's echo: its sound again ECHO_BEATS[time] beats later, at `mix`, each repeat `feedback` of the one before and a little
    darker; with pingpong the repeats alternate hard left and right (left first). Delays are capped at 4 seconds. */
-function addEcho(ctx, inp, out, ec, beat) {
+function addEcho(ctx, inp, out, ec, beat) { // returns the echo's output, so its very end can be faded
+  const og = ctx.createGain(); og.connect(out);
   // (panning a repeat hard to one side folds both channels into it, 1.8 dB more in all than a repeat in place: 0.81 evens that out)
   const dt = Math.min(4, ECHO_BEATS[ec.time] * beat), send = ctx.createGain(); send.gain.value = ec.mix * (ec.pingpong ? 0.81 : 1); inp.connect(send);
   const tap = panTo => { const d = ctx.createDelay(4.5); d.delayTime.value = dt; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 5000; f.Q.value = 0.3; d.connect(f);
-    let o = f; if (panTo !== null && ctx.createStereoPanner) { o = ctx.createStereoPanner(); o.pan.value = panTo; f.connect(o); } o.connect(out); const fb = ctx.createGain(); fb.gain.value = ec.feedback; f.connect(fb); return { d, fb }; };
+    let o = f; if (panTo !== null && ctx.createStereoPanner) { o = ctx.createStereoPanner(); o.pan.value = panTo; f.connect(o); } o.connect(og); const fb = ctx.createGain(); fb.gain.value = ec.feedback; f.connect(fb); return { d, fb }; };
   if (ec.pingpong) { const L = tap(-0.8), R = tap(0.8); send.connect(L.d); L.fb.connect(R.d); R.fb.connect(L.d); }
   else { const C = tap(null); send.connect(C.d); C.fb.connect(C.d); }
+  return og;
 }
 function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const P = b.piece, S = P.sound, N = b.N, T = b.total;
@@ -646,6 +648,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const master = ctx.createGain();
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
   const bus = ctx.createGain(), held = ctx.createGain(); held.connect(bus); // held: voices that sound throughout, which the closing fade ends
+  const echoOuts = []; // each echo's output, faded out over the tail's last moment so nothing is cut off
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.brightness; lp.Q.value = 0.3;
   const wetAmt = S.reverb / 100;
   const dry = ctx.createGain(); dry.gain.value = 1 - wetAmt * 0.35;
@@ -679,7 +682,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     const snd = pt.main ? S : pt.sound;
     // its echo, if it has one: the part's voices reach each destination through one input that also feeds the echo
     const ec = pt.main ? P.echo : pt.echo, vias = new Map();
-    const via = to => { if (!ec || !(ec.mix > 0)) return to; if (!vias.has(to)) { const inp = ctx.createGain(); inp.connect(to); addEcho(ctx, inp, to, ec, 60 / P.timing.tempo); vias.set(to, inp); } return vias.get(to); };
+    const via = to => { if (!ec || !(ec.mix > 0)) return to; if (!vias.has(to)) { const inp = ctx.createGain(); inp.connect(to); echoOuts.push(addEcho(ctx, inp, to, ec, 60 / P.timing.tempo)); vias.set(to, inp); } return vias.get(to); };
     const r = mulberry32(pt.main ? (P.seeds.sound ^ 0xA5A5A5A5) >>> 0 : partSeed(P.seeds.sound, pt.id, 'voices'));
     // each part balanced by its own voice count, then its level: adding a part (or doubling a line) leaves the others as they are
     const lvl = voiceLevel(equal ? eqN : pt.sub.N, snd.tone) * (pt.main ? 1 : Math.pow(10, snd.level / 20)) * headroom;
@@ -719,6 +722,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
      If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
      past; Chrome then plays it late, or holds the voice at the start pitch set above, so the sound drifts from the picture. */
   const now = offline ? 0 : ctx.currentTime + lead;
+  { const end = now + span + TAIL; for (const og of echoOuts) { og.gain.setValueAtTime(1, Math.max(now, end - 3)); og.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 1)); } } // (the last second for its reverb)
   /* Fade in, hold, then the closing fade (FADE). In a piece whose voices all sound throughout, the fade is on the master, after
      the compressor, exactly as it always was. In a piece with lines or saved notes (voices that rest), it's on the voices that
      sound throughout (`held`) instead, so a line's last notes ring out by their own release while the held chord fades; the
