@@ -235,10 +235,20 @@ canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display:
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .tabpanel { padding: 14px; display: grid; gap: 14px; }
 .group { display: grid; gap: 6px; }
-.group > label, .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.group > label, .group > .labrow > label, .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; resize: vertical; min-height: 170px; }
 .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
 .hint code { font-family: var(--font-data); font-size: 12px; color: var(--ink); }
+/* Longer explanations wait behind a (?) beside the name of what they explain, and open in place; Settings → Interface can show them all */
+.labrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.labrow > label:not(.check), .labrow > .label { min-width: 0; }
+.qhelp { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--rule); background: transparent; color: var(--muted); font: 600 11px/1 var(--font-body); letter-spacing: 0; text-transform: none; cursor: pointer; }
+.qhelp:hover { border-color: var(--accent); color: var(--ink); }
+.qhelp[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+@media (pointer: coarse) { .qhelp { width: 24px; height: 24px; font-size: 12px; } }
+.hint.help:not(.open) { display: none; }
+:root[data-help="shown"] .hint.help { display: block; }
+:root[data-help="shown"] .qhelp { display: none; }
 .err { font-size: 13px; color: var(--warn); margin: 0; }
 /* Notices under the chords, by kind: information (muted, an i), a warning (a ring with !) or an error (warning color, a filled !) */
 .notices { display: grid; gap: 5px; margin: 0; }
@@ -253,7 +263,7 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .notice.error::before { content: '!'; background: var(--warn); color: var(--stage); }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .seed { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; padding: 10px; border: 1px solid var(--rule); border-radius: 5px; }
-.seed .label { grid-column: 1 / -1; }
+.seed .label, .seed > .labrow { grid-column: 1 / -1; }
 .seed input { font-family: var(--font-data); font-size: 13px; }
 .lock[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
 .slider { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; align-items: center; }
@@ -385,6 +395,9 @@ dialog.guide[open] { display: flex; flex-direction: column; }
 dialog.settingsdlg { width: min(860px, calc(100vw - 32px)); height: min(80vh, 760px); }
 .settings-page:not([hidden]) { display: grid; gap: 6px; align-content: start; }
 .settings-page p.hint { color: var(--muted); }
+.settings-page .seg { justify-self: start; }
+.sset { display: grid; gap: 10px; align-content: start; }
+.sset + .sset { margin-top: 14px; padding-top: 18px; border-top: 1px solid var(--rule); }
 .guide-page h3 { font-family: var(--font-display); font-weight: 500; font-size: 22px; margin: 14px 0 6px; }
 .guide-page h4 { font-family: var(--font-display); font-weight: 500; font-size: 17px; margin: 22px 0 4px; display: flex; align-items: center; gap: 10px; }
 .guide-page p, .guide-page li { color: var(--muted); max-width: 66ch; }
@@ -453,7 +466,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.2.1 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.2.2 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -596,24 +609,24 @@ figure.vl circle { fill: var(--ink); }
         <div class="group">
           <label for="chords">Chords</label>
           <textarea id="chords" spellcheck="false"></textarea>
-          <p class="hint">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds, <code>Amaj9:2bar</code> for two bars, <code>Amaj9:3beat</code> for three beats. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. A line like <code>[Groove x2 +2]</code> starts a section: a name, then optionally how many times it plays and a key change in semitones. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
+          <p class="hint help">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds, <code>Amaj9:2bar</code> for two bars, <code>Amaj9:3beat</code> for three beats. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. A line like <code>[Groove x2 +2]</code> starts a section: a name, then optionally how many times it plays and a key change in semitones. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
           <div id="err" class="notices" role="status" aria-live="polite" hidden></div>
         </div>
         <div class="group plays" id="plays-box" hidden>
           <span class="label" id="plays-lbl">Plays in</span>
           <div class="chips" id="plays" role="group" aria-labelledby="plays-lbl"></div>
-          <p class="hint" id="plays-hint">Which sections this part plays in. Outside them it rests, coming in and out by its envelope.</p>
+          <p class="hint help" id="plays-hint">Which sections this part plays in. Outside them it rests, coming in and out by its envelope.</p>
         </div>
         <div class="seed" data-layer="harmony">
           <span class="label">Harmony seed</span>
           <input type="text" id="seed-harmony" aria-label="Harmony seed">
           <button type="button" class="lock small" id="lock-harmony" aria-pressed="true">Locked</button>
           <button type="button" class="small" id="roll-harmony">Reroll</button>
-          <p class="hint" style="grid-column:1/-1">Rerolling the harmony writes a new progression in place of these chords. Keep it locked while you explore voicings.</p>
+          <p class="hint help" style="grid-column:1/-1">Rerolling the harmony writes a new progression in place of these chords. Keep it locked while you explore voicings.</p>
         </div>
         <div class="group timebox"><span class="label" id="time-lbl">Time</span>
           <div class="seg" role="radiogroup" aria-labelledby="time-lbl"><input type="radio" name="timeunit" id="tu-sec" value="sec"><label for="tu-sec">Seconds</label><input type="radio" name="timeunit" id="tu-bar" value="bar"><label for="tu-bar">Bars</label></div>
-          <p class="hint">How chords without a length of their own are timed. Switching keeps the length you hear. Any chord can give its own: <code>:6</code> seconds, <code>:2bar</code>, <code>:3beat</code>.</p>
+          <p class="hint help">How chords without a length of their own are timed. Switching keeps the length you hear. Any chord can give its own: <code>:6</code> seconds, <code>:2bar</code>, <code>:3beat</code>.</p>
         </div>
         <div class="slider" id="row-chordsec"><label for="chordsec">Chord length</label><output id="o-chordsec"></output><input id="chordsec" type="range" min="1.5" max="12" step="0.1"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
         <div class="slider" id="row-chordbars" hidden><label for="chordbars">Chord length</label><output id="o-chordbars"></output><input id="chordbars" type="range" min="0.25" max="8" step="0.25"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
@@ -621,7 +634,7 @@ figure.vl circle { fill: var(--ink); }
         <div class="group"><label for="meter">Beats per bar</label><select id="meter"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="9">9</option><option value="12">12</option></select></div>
         <div class="group" style="grid-column:1/-1"><label for="tuning">Tuning</label>
           <select id="tuning"><option value="equal">Equal temperament</option><option value="just">Just (pure chords, can drift)</option></select>
-          <p class="hint">Just tunes each chord's notes as pure ratios from its root and keeps a note it shares with the chord before exactly where it was, so chords ring without beating. A progression that comes round can drift: C Am Dm G sinks 22 cents each time, and C G Dm Am rises as much. Every part follows the chords' tuning.</p>
+          <p class="hint help">Just tunes each chord's notes as pure ratios from its root and keeps a note it shares with the chord before exactly where it was, so chords ring without beating. A progression that comes round can drift: C Am Dm G sinks 22 cents each time, and C G Dm Am rises as much. Every part follows the chords' tuning.</p>
         </div>
       </div>
 
@@ -633,7 +646,7 @@ figure.vl circle { fill: var(--ink); }
           <input type="text" id="seed-voicing" aria-label="Voicing seed">
           <button type="button" class="lock small" id="lock-voicing" aria-pressed="false">Unlocked</button>
           <button type="button" class="small" id="roll-voicing">Reroll</button>
-          <p class="hint" style="grid-column:1/-1">Same chords, a different realization. Variation sets how far a reroll can wander.</p>
+          <p class="hint help" style="grid-column:1/-1">Same chords, a different realization. Variation sets how far a reroll can wander.</p>
         </div>
         <div class="slider"><label for="voices">Voices</label><output id="o-voices"></output><input id="voices" type="range" min="3" max="32" step="1"></div>
         <div class="slider"><label for="continuity">Continuity</label><output id="o-continuity"></output><input id="continuity" type="range" min="0" max="100" step="1"><span class="ends"><span>voices leap</span><span>voices step</span></span></div>
@@ -664,7 +677,7 @@ figure.vl circle { fill: var(--ink); }
           <input type="text" id="seed-motion" aria-label="Motion seed">
           <button type="button" class="lock small" id="lock-motion" aria-pressed="false">Unlocked</button>
           <button type="button" class="small" id="roll-motion">Reroll</button>
-          <p class="hint" style="grid-column:1/-1">Used by the random departure order. More motion controls will draw on it later.</p>
+          <p class="hint help" style="grid-column:1/-1">Used by the random departure order. More motion controls will draw on it later.</p>
         </div>
         <div class="slider"><label for="glide">Glide time</label><output id="o-glide"></output><input id="glide" type="range" min="0" max="12" step="0.1"></div>
         <div class="group"><label for="easing">Glide curve</label>
@@ -691,7 +704,7 @@ figure.vl circle { fill: var(--ink); }
           <input type="text" id="seed-sound" aria-label="Sound seed">
           <button type="button" class="lock small" id="lock-sound" aria-pressed="false">Unlocked</button>
           <button type="button" class="small" id="roll-sound">Reroll</button>
-          <p class="hint" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
+          <p class="hint help" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
         </div>
         <div class="group"><label for="tone">Tone</label>
           <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup></select>
@@ -702,11 +715,11 @@ figure.vl circle { fill: var(--ink); }
         <div class="slider"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
         <div class="group"><label for="mix">Balance</label>
           <select id="mix"><option value="parts">Each part on its own</option><option value="voices">Every voice equal (one sound)</option></select>
-          <p class="hint">Each part on its own: every part is about as loud as the main part, however many voices it has. Every voice equal: the piece plays as one instrument of all its voices, so a part of six voices is six times as strong as one of one, and doubled lines stand out. Part levels still apply either way.</p>
+          <p class="hint help">Each part on its own: every part is about as loud as the main part, however many voices it has. Every voice equal: the piece plays as one instrument of all its voices, so a part of six voices is six times as strong as one of one, and doubled lines stand out. Part levels still apply either way.</p>
         </div>
         <div class="group"><label for="vshape">Volume shape</label>
           <select id="vshape"><option value="none">None (steady)</option><option value="fadein">Fade in</option><option value="crescendo">Crescendo</option><option value="swell">Swell</option><option value="fadeout">Fade out</option><option value="custom" hidden>Custom</option></select>
-          <p class="hint" id="vshape-hint">A shape over the whole piece, on top of the volume control. Set for the piece's current length.</p>
+          <p class="hint help" id="vshape-hint">A shape over the whole piece, on top of the volume control. Set for the piece's current length.</p>
         </div>
         <p class="sect">Over time</p>
         <div class="slider"><label for="breathedepth">Breathe at chord changes</label><output id="o-breathedepth"></output><input id="breathedepth" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>dips and swells back at each change, like strings re-bowing</span></span></div>
@@ -716,7 +729,7 @@ figure.vl circle { fill: var(--ink); }
         <div class="slider"><label for="ducktime">Duck recovery</label><output id="o-ducktime"></output><input id="ducktime" type="range" min="0.05" max="2" step="0.01"></div>
         <div class="group"><label for="echotime">Echo</label>
           <select id="echotime"><option value="off">Off</option><option value="1/16">Sixteenth note</option><option value="1/8">Eighth note</option><option value="3/16">Dotted eighth</option><option value="1/4">Quarter note</option><option value="3/8">Dotted quarter</option><option value="1/2">Half note</option></select>
-          <p class="hint">The part again a note-length later, at the tempo, each repeat quieter. Heard but not drawn; for an echo you can see, add an Echo part.</p>
+          <p class="hint help">The part again a note-length later, at the tempo, each repeat quieter. Heard but not drawn; for an echo you can see, add an Echo part.</p>
         </div>
         <div class="slider"><label for="echomix">Echo level</label><output id="o-echomix"></output><input id="echomix" type="range" min="0" max="1" step="0.01"></div>
         <div class="slider"><label for="echofb">Repeats</label><output id="o-echofb"></output><input id="echofb" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>how much of each repeat carries on to the next</span></span></div>
@@ -732,13 +745,14 @@ figure.vl circle { fill: var(--ink); }
           <button type="button" role="menuitem" data-export="mp3">MP3<small>192 kbps</small></button>
           <button type="button" role="menuitem" data-export="midi">MIDI with glides<small id="midi-note">one channel per voice (MPE)</small></button>
           <button type="button" role="menuitem" data-export="midichords">MIDI chords and notes<small>the chords, and each part's notes on its own track</small></button>
-          <button type="button" role="menuitem" data-export="musicxml">MusicXML<small>the chords, and a staff for each line or pattern</small></button>
+          <button type="button" role="menuitem" data-export="musicxml">MusicXML<small>the chords where they settle, and a staff for each line or pattern</small></button>
           <button type="button" role="menuitem" data-export="all">Everything<small>all of the above in one .zip</small></button>
         </div>
         </div>
         <p class="hint" id="xhint"></p>
         <div class="video-box">
-          <span class="label">Video</span>
+          <span class="label" id="video-lbl">Video</span>
+          <p class="hint help" data-on="video-lbl">Auto zoom: <b>Automatic</b> zooms in over the first chord's glide and out at the end; <b>Custom times</b> sets your own, saved with the piece and used by Auto view on the stage too. <b>Fast movement</b> sets how a voice that moves faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.</p>
           <div class="vopts">
             <label>Shape<select id="vaspect"><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option><option value="1:1">Square 1:1</option></select></label>
             <label class="vr">Size<select id="vsize"><option value="1080">1080p</option><option value="1440">1440p</option></select></label>
@@ -766,7 +780,7 @@ figure.vl circle { fill: var(--ink); }
           <canvas id="vcanvas" width="1920" height="1080" hidden></canvas>
           <progress id="vprog" max="1" value="0" hidden></progress>
           <p class="hint" id="vest" aria-live="polite"></p>
-          <p class="hint" id="vhint">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
+          <p class="hint help" id="vhint" data-on="vrecord">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
         </div>
         <p id="xstatus" class="hint" role="status"></p>
       </div>
@@ -817,30 +831,46 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page settings-page" id="s-look" role="tabpanel" aria-labelledby="st-look">
           <h3>Trace look</h3>
           <p class="hint">How the lines are drawn. Saved with this piece, and used when you record a video.</p>
-          <div class="swatches" id="looks" role="radiogroup" aria-label="Trace look"></div>
-          <div class="slider"><label for="glowamt">Glow</label><output id="o-glowamt"></output><input id="glowamt" type="range" min="0" max="100" step="1"></div>
-          <div class="slider"><label for="lineweight">Line weight</label><output id="o-lineweight"></output><input id="lineweight" type="range" min="0.5" max="3" step="0.05"></div>
-          <div class="group"><label for="busys">Fast movement, zoomed out</label>
-            <select id="busys"><option value="range">Range: a faint band between its notes</option><option value="middle">Middle: one line through the middle</option><option value="every">Every move: each line as it moves</option></select>
-            <p class="hint">How a voice that moves faster than the zoomed-out picture can show (a bass jumping octaves on every note, a kick diving on every beat) is drawn. Zoomed in, every move is drawn. Also in the view menu and with the video settings.</p></div>
-          <div class="colors" id="customcolors" hidden>
-            <label>Line<input type="color" id="c-line"></label>
-            <label>Second line color<input type="color" id="c-line2"></label>
-            <label>Background<input type="color" id="c-bg"></label>
+          <div class="sset">
+            <div class="swatches" id="looks" role="radiogroup" aria-label="Trace look"></div>
+            <div class="colors" id="customcolors" hidden>
+              <label>Line<input type="color" id="c-line"></label>
+              <label>Second line color<input type="color" id="c-line2"></label>
+              <label>Background<input type="color" id="c-bg"></label>
+            </div>
+            <p class="hint" id="customhint" hidden>Pick a different second color to blend from low notes to high notes.</p>
           </div>
-          <p class="hint" id="customhint" hidden>Pick a different second color to blend from low notes to high notes.</p>
-          <div><button type="button" id="lookdefault" class="small">Use this look for new pieces</button> <span class="hint" id="lookdefault-note"></span></div>
+          <div class="sset">
+            <div class="slider"><label for="glowamt">Glow</label><output id="o-glowamt"></output><input id="glowamt" type="range" min="0" max="100" step="1"></div>
+            <div class="slider"><label for="lineweight">Line weight</label><output id="o-lineweight"></output><input id="lineweight" type="range" min="0.5" max="3" step="0.05"></div>
+            <div class="group"><label for="busys">Fast movement, zoomed out</label>
+              <select id="busys"><option value="range">Range: a faint band between its notes</option><option value="middle">Middle: one line through the middle</option><option value="every">Every move: each line as it moves</option></select>
+              <p class="hint">How a voice that moves faster than the zoomed-out picture can show (a bass jumping octaves on every note, a kick diving on every beat) is drawn. Zoomed in, every move is drawn. Also in the view menu and with the video settings.</p></div>
+          </div>
+          <div class="sset">
+            <div><button type="button" id="lookdefault" class="small">Use this look for new pieces</button> <span class="hint" id="lookdefault-note"></span></div>
+          </div>
         </section>
         <section class="guide-page settings-page" id="s-ui" role="tabpanel" aria-labelledby="st-ui" hidden>
           <h3>Interface</h3>
-          <p class="hint">The page's own colors. Your choice, on this device.</p>
-          <div class="swatches" id="uithemes" role="radiogroup" aria-label="Interface theme"></div>
-          <span class="label" id="accent-lbl">Accent color</span>
-          <div class="accents" id="accents" role="group" aria-labelledby="accent-lbl">
-            <button type="button" class="small" id="accent-default" aria-pressed="true">Theme default</button>
-            <label class="hint" style="display:flex;gap:6px;align-items:center">Custom <input type="color" id="accent-custom" aria-label="Custom accent color"></label>
+          <div class="sset">
+            <span class="label" id="theme-lbl">Theme</span>
+            <div class="swatches" id="uithemes" role="radiogroup" aria-labelledby="theme-lbl"></div>
+            <p class="hint">The page's own colors. Your choice, on this device.</p>
           </div>
-          <p class="hint">Used for buttons, sliders and highlights, on top of any theme.</p>
+          <div class="sset">
+            <span class="label" id="accent-lbl">Accent color</span>
+            <div class="accents" id="accents" role="group" aria-labelledby="accent-lbl">
+              <button type="button" class="small" id="accent-default" aria-pressed="true">Theme default</button>
+              <label class="hint" style="display:flex;gap:6px;align-items:center">Custom <input type="color" id="accent-custom" aria-label="Custom accent color"></label>
+            </div>
+            <p class="hint">Used for buttons, sliders and highlights, on top of any theme.</p>
+          </div>
+          <div class="sset">
+            <span class="label" id="help-lbl">Help text</span>
+            <div class="seg" role="radiogroup" aria-labelledby="help-lbl"><input type="radio" name="helpshow" id="hs-ask" value="ask"><label for="hs-ask">Behind ? buttons</label><input type="radio" name="helpshow" id="hs-shown" value="shown"><label for="hs-shown">Always shown</label></div>
+            <p class="hint">The longer explanations under the controls open from the <b>?</b> beside a control's name. Show them all instead while you're learning. On this device.</p>
+          </div>
         </section>
         <section class="guide-page settings-page" id="s-names" role="tabpanel" aria-labelledby="st-names" hidden>
           <h3>Name on exports</h3>
@@ -892,6 +922,7 @@ figure.vl circle { fill: var(--ink); }
 
           <h4><span class="step">2</span>Write the harmony</h4>
           <p>On the <b>Harmony</b> tab, type chord names, one per line. A few extras: <code>=G#6</code> gathers every voice onto one note, <code>Amaj9:6</code> holds a chord for 6 seconds, and <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. Notes in those two can carry cents after the octave, so <code>=C4-14</code> is 14 cents flat of C4 and <code>[D3+33 …]</code> pins a D3 33 cents sharp. The <b>harmony seed</b> can write a whole progression for you. Keep it locked to protect chords you've written.</p>
+          <p>The longer explanations of each control wait behind the <b>?</b> beside its name: press it to read them in place. <b>Settings → Interface → Help text</b> shows them all instead.</p>
 
           <h4><span class="step">3</span>Shape the voicing</h4>
           <p>The <b>Voicing</b> tab decides which note each voice sings. Choose how many voices, then balance the sliders: <b>continuity</b> (small steps), <b>coverage</b> (every chord note present), <b>stacking</b> (unisons avoided or welcomed), <b>spacing</b> and <b>variation</b>. Each slider is a weight in the score that picks every voice's next note, as step 9 of The math explains. The highest note and the bass rule set the range.</p>
@@ -1070,6 +1101,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.2.2</span>A quieter sidebar<span class="when">4 Nov 2026</span></h4>
+          <p>The long explanations under the controls now wait behind a <b>?</b> beside each control's name (Chords, Tuning, Pattern, Line, Balance, Echo, the seeds and more) and open in place when you press it, so the sidebar shows the controls themselves. What you open stays open as you move between parts and tabs. <b>Settings → Interface → Help text</b> can show them all, as before. What's changing with the piece, such as which part the tabs edit or when Auto view zooms, stays in view. With a mouse, hovering a <b>?</b> previews its first sentence. Settings has more room between its sections.</p>
 
           <h4><span class="step ver">4.2.1</span>Open, and new examples<span class="when">4 Nov 2026</span></h4>
           <p><b>Open</b>, beside New and Save, opens a window of your saved pieces and the examples, chosen from a sidebar. Each piece shows a preview of its trace, when it was made and last changed, the version that saved it, its length, parts, sections and size, and which versions open it; search, sort, open, download or delete it from there. On a phone it fills the screen. Opening a piece, or starting a new one, now asks first if the one you're working on has changes that aren't saved. And a piece with a long <b>Echo</b> now lasts until its repeats die away (up to 20 seconds more), instead of stopping 3 seconds after the music. Four new examples each show one thing: <b>First Light</b> (chords alone), <b>Pure Drift</b> (Just tuning and sections), <b>Sketchbook</b> (written lines and an echo) and <b>Breathing Room</b> (patterns, sections and space), alongside Three Parts and Bounce of the Spheres.</p>
@@ -3141,7 +3175,7 @@ const EXAMPLE_PIECES = [{"format":"chord-glide-piece","formatVersion":3,"name":"
 {"format":"chord-glide-piece","formatVersion":5,"name":"Bounce of the Spheres","chords":"=G4:2beat\n[Bloom]\nCadd9:2bar\n[Intro]\nC G7\n[A]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[A2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[B]\nAm Dm7 G7 Cmaj7 Fmaj7 Bm7b5 E7 Am\n[Breakdown]\nFmaj9 Am9 Dm9 G7sus4 Abmaj7 Abmaj9 Bb Bb\n[Build]\nGm Em7b5 A7sus4 A7:2beat A7[A2 A3 A4 A5 A6]:2beat\n[Drop +2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[Coda]\nG D/F# Em7:2beat A7:2beat Bm G D/F# Em7:2beat A7:2beat Bb C D:2bar\n[Final]\nD","voices":5,"mix":"voices","timing":{"chordSec":2,"glide":0.22,"easing":"smooth","tempo":120,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":70,"coverage":60,"stacking":25,"spacing":30,"variation":15,"spread":70,"top":72,"bassMode":"none","bassOctave":3},"motion":{"order":"low-high","stagger":20},"sound":{"tone":"saw","detune":6,"width":85,"reverb":40,"brightness":3800},"seeds":{"harmony":1,"voicing":722083045,"motion":1358565869,"sound":993611272},"locks":{"harmony":true,"voicing":true,"motion":true,"sound":true},"view":{"mode":"auto","labels":"notes","trace":{"look":"aurora","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":5,"pan":0,"width":0,"detune":6},"id":"bass","name":"Bass","pattern":"B:2 B':2\n[Bloom] ~B:32\n[Breakdown] ~B:16\n[Build] B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 | B B' B B' B B' B B' ~A2:8","from":36,"transpose":[0,0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown"]},{"id":"sub","name":"Sub","preset":"copy","of":"bass","voices":1,"delay":0,"shift":-12,"sound":{"tone":"pure","level":6,"pan":0,"width":0,"detune":0}},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"pure","level":5,"pan":0,"width":0,"detune":6},"id":"kick","name":"Kick","pattern":"B,:4\n[Bloom] ~B,:32\n[Intro] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:2 B,:2\n[Breakdown] ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:8 B,:4 B,:4\n[Build] B,:4 B,:4 B,:4 B,:4 | B,:4 B,:4 B,:2 B,:2 B,:2 B,:2 | B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 | B, B, B, B, B, B, B, B, B, B, B, B, -:4\n[Coda] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4\n[Final] B,:16","from":36,"transpose":[0,0],"drop":{"semis":36,"time":0.117},"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown","Final"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"alberti","name":"Alberti","pattern":"1 3 2 3\n[Breakdown] 1':4 2':4 3':4 4':4\n[Build] 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Breakdown"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"pump","name":"Pump","pattern":"3rd:2 3rd':2\n[Intro] -:16 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2\n[Build] 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda"]},{"preset":"pattern","step":"1/16","portamento":0,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"whistle","name":"Whistles","pattern":"[A B] 3rd:2 3rd':2\n[A2] ~C7:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~E6:16 ~F6:16 ~E6:16\n[Drop] ~D7:16 ~C#7:16 ~B6:16 ~A6:16 ~G6:16 ~F#6:16 ~G6:16 ~F#6:16\n[Breakdown] ~G5:4 ~C6:4 ~E6:4 ~G6:4 ~C7:6 ~B6:2 ~C7:4 ~G6:4 ~D7:6 ~C7:2 ~B6:4 ~A6:4 ~G6:8 ~D6:8 ~C6:4 ~Eb6:4 ~Ab6:4 ~C7:4 ~Bb6:6 ~Ab6:2 ~G6:4 ~Ab6:4 ~D7:6 ~C7:2 ~Bb6:4 ~F6:4 ~F6:16\n[Coda] ~G6:16 ~F#6:16 ~G6:16 ~F#6:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~G6:16 ~A6:16 ~A6:16\n[Final] ~D7:16","from":52,"transpose":[0,0],"vibrato":{"cents":22,"rate":6,"delay":0.15}},{"id":"melody","name":"Melody","preset":"line","line":"[A A2 Drop] G4:2 C5:2 E5:2 G5:2 C6:3 B5:1 C6:2 G5:2 | D6:3 C6:1 B5:2 A5:2 G5:4 D5:4 | E5:2 A5:2 C6:2 E6:2 D6:3 C6:1 B5:2 C6:2 | B5:3 A5:1 G5:2 E5:2 B4:2 C5:2 D5:2 E5:2 | F5:2 A5:2 C6:2 F6:2 E6:3 D6:1 C6:2 A5:2 | G5:3 F5:1 E5:2 C5:2 E5:4 G5:4 | F5:2 A5:2 D6:2 C6:2 B5:3 A5:1 G5:2 F5:2 | E5:4 G5:2 E5:2 C5:8\n[B] C6:6 E5:2 A5:2 E6:3 D6:1 C6:2 | C6:6 D6:2 F5:2 A5:2 D6:2 C6:2 | B5:6 D5:2 G5:2 D6:3 C6:1 B5:2 | B5:6 C6:2 E5:2 G5:2 C6:2 B5:2 | A5:6 C5:2 F5:2 C6:3 B5:1 A5:2 | A5:6 B5:2 D5:2 F5:2 B5:2 A5:2 | G#5:6 B4:2 E5:2 B5:3 A5:1 G#5:2 | A5:6 E5:2 A5:2 C6:2 E6:4\n[Build] D5:2 G5:2 Bb5:2 D6:2 D5:2 G5:2 Bb5:2 D6:2 | E5:2 G5:2 Bb5:2 D6:2 E5:2 G5:2 Bb5:2 D6:2 | E5:2 A5:2 D6:2 E6:2 E5:2 A5:2 D6:2 E6:2 | E5:2 A5:2 C#6:2 E6:2 E6:8\n[Coda] G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | F#5:4 A5:2 F#5:2 D5:8 | G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | D6:6 F6:2 D6:2 Bb5:2 C6:2 D6:2 | E6:6 G6:2 E6:2 C6:2 D6:2 E6:2 | F#6:6 A6:2 F#6:2 D6:2 E6:2 F#6:2 | A6:3 F#6:1 D6:2 A5:2 B5:3 C#6:1 D6:2 E6:2 | D6:16","step":"1/16","transpose":[0,0,0,0,0,-12],"portamento":0.017,"glideShape":"straight","nonstop":true,"vibrato":{"cents":12,"rate":6,"delay":0.25},"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6}},{"id":"echo-1","name":"Echo","preset":"copy","of":"melody","voices":1,"delay":0.75,"shift":0,"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"echo-2","name":"Echo 2","preset":"copy","of":"melody","voices":1,"delay":1.5,"shift":0,"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}},{"id":"whistle-echo-1","name":"Whistle echo","preset":"copy","of":"whistle","voices":1,"delay":1,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"whistle-echo-2","name":"Whistle echo 2","preset":"copy","of":"whistle","voices":1,"delay":2,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}}]}];
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.2.1';
+const APP_VERSION = '4.2.2';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -3499,6 +3533,39 @@ async function removeLocal(id) {
   if (libInDb) await IDB.remove(id); else storeLocal(lib.items.filter(x => x.id !== id));
   lib.items = lib.items.filter(x => x.id !== id);
 }
+/* ---------- Help text behind (?) buttons ----------
+   A long explanation (.hint.help) waits behind a (?) beside the name of what it explains: its group's label, or the element its
+   data-on names (data-help-key, in the part editor, or an id). The (?) opens it in place, and stays open across parts and tabs
+   this visit. Settings → Interface can show them all (data-help="shown" on the page), on this device. */
+const helpOpen = new Set();
+function helpTarget(h) {
+  const on = h.dataset.on, box = h.parentElement;
+  if (on) return (box && box.closest('.partblock, .tabpanel, .rack') || document).querySelector('[data-help-key="' + on + '"]') || document.getElementById(on);
+  const g = h.closest('.group, .seed, .slider');
+  return g && g.querySelector(':scope > label, :scope > .label, :scope > .labrow > label, :scope > .labrow > .label');
+}
+let helpSeq = 0;
+function wireHelp(root) {
+  for (const h of root.querySelectorAll('.hint.help:not([data-wired])')) {
+    let t = helpTarget(h); if (!t) continue;
+    h.dataset.wired = '1'; if (!h.id) h.id = 'help' + (++helpSeq);
+    const name = (t.querySelector && t.querySelector('label') || t).textContent.replace(/\s+/g, ' ').trim(), key = (h.dataset.on || name).toLowerCase();
+    if (t.matches('.slider, .group')) t = t.querySelector(':scope > label') || t; // a named slider or field: its label
+    let row = t.parentElement && t.parentElement.classList.contains('labrow') ? t.parentElement : null;
+    if (!row) { row = mk('span', { className: 'labrow' }); t.replaceWith(row); row.appendChild(t); }
+    const b = mk('button', { type: 'button', className: 'qhelp', textContent: '?' });
+    // with a mouse, a preview: the text's first sentence (read when hovered, as some texts change with the piece); the click opens it all
+    const preview = () => { const t = h.textContent.replace(/\s+/g, ' ').trim(), m = t.match(/^.+?[.!?](?=\s|$)/), first = m ? m[0] : t;
+      const cut = first.length > 140 ? first.slice(0, first.lastIndexOf(' ', 137)) + '…' : first; return cut + (cut.length < t.length ? ' (press for more)' : ''); };
+    b.title = preview(); b.addEventListener('pointerenter', () => { b.title = preview(); });
+    b.setAttribute('aria-label', 'Help: ' + name); b.setAttribute('aria-controls', h.id);
+    const show = on => { h.classList.toggle('open', on); b.setAttribute('aria-expanded', String(on)); if (on) helpOpen.add(key); else helpOpen.delete(key); };
+    b.addEventListener('click', () => show(!h.classList.contains('open')));
+    show(helpOpen.has(key)); row.appendChild(b);
+  }
+}
+const setHelpShown = v => { if (v === 'shown') document.documentElement.setAttribute('data-help', 'shown'); else document.documentElement.removeAttribute('data-help'); };
+setHelpShown(lsGet('cge.help'));
 /* ---------- The Open window: your saved pieces and the examples, and what each one holds ----------
    A sidebar chooses between them (tabs across the top on a phone). The list shows each piece's name, when it last changed, its
    length, parts and size; choosing one shows a preview of its trace and the rest: when it was made and by which version, which
@@ -3962,7 +4029,7 @@ function syncZoomUI() {
   $('vzoom').value = custom ? 'custom' : 'auto'; $('vzoom-times').hidden = !custom;
   ZOOM_IDS.forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = L ? fmtZoom(L[ZOOM_KEYS[i]]) : ''; });
   $('vzoom-hint').textContent = !L ? '' : (custom ? 'This piece zooms in and out at these times in Auto view, on the stage and in videos. Times are m:ss or seconds; Now takes the playhead.'
-    : 'Auto view zooms in ' + fmtZoom(L.inStart) + '–' + fmtZoom(L.inEnd) + ' and out ' + fmtZoom(L.outStart) + '–' + fmtZoom(L.outEnd) + '. Choose Custom times to set your own. Fast movement sets how a voice moving faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.');
+    : 'Auto view zooms in ' + fmtZoom(L.inStart) + '–' + fmtZoom(L.inEnd) + ' and out ' + fmtZoom(L.outStart) + '–' + fmtZoom(L.outEnd) + '.'); // (what the settings mean is behind the Video heading's ?)
 }
 function setZoom(next) { piece.view.zoom = next; marks = zoomMarks(); screenCam.snap = true; syncZoomUI(); commit(); }
 function cameraZ(t, S = null) {
@@ -4534,8 +4601,8 @@ const canSave = () => saveMode !== 'none';
 async function initDownloads() {
   if (HOST_SAVES) { try { hostSave = await HOST.saver(); } catch (e) { hostSave = null; } saveMode = typeof hostSave === 'function' ? 'host' : 'none'; }
   $('xhint').textContent = saveMode === 'browser'
-    ? 'Files download straight to your computer. MusicXML shows where the voices settle; the glides live in the MIDI and audio.'
-    : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip. MusicXML shows where the voices settle; the glides live in the MIDI and audio.');
+    ? 'Files download straight to your computer.'
+    : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip.');
   if (!canSave()) { document.querySelectorAll('[data-export], #xopen, #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
 }
 function xstatus(m) { $('xstatus').textContent = m; }
@@ -5111,7 +5178,7 @@ function applyPartView() {
   refreshPartBar();
 }
 let peSeq = 0;
-const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(c => e.append(c)); return e; };
+const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag), { dataset, ...rest } = props; Object.assign(e, rest); if (dataset) Object.assign(e.dataset, dataset); kids.forEach(c => e.append(c)); return e; };
 /* The chosen part's own settings, at the top of each tab */
 function renderPartBlocks(n) {
   const blocks = { harmony: $('pp-harmony'), voicing: $('pp-voicing'), motion: $('pp-motion'), sound: $('pp-sound') };
@@ -5135,6 +5202,7 @@ function renderPartBlocks(n) {
   const check = (label, val, set) => { const cb = mk('input', { type: 'checkbox', checked: !!val }); cb.addEventListener('change', () => { set(cb.checked); rebuild(true); refreshPartBar(); commit(); }); return mk('label', {}, [cb, ' ' + label]); };
   const opts = list => list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
   const sect = t => mk('p', { className: 'sect', textContent: t });
+  const named = (el, key) => { el.dataset.helpKey = key; return el; }; // where a help text's (?) goes (data-on on the text names it)
   const put = (key, ...els) => { if (els.length) { blocks[key].append(...els); blocks[key].hidden = false; } };
   if (n.preset === 'pattern') {
     const ta = mk('textarea', { value: raw.pattern !== undefined ? raw.pattern : n.pattern, spellcheck: false }), err = mk('p', { className: 'err' });
@@ -5143,9 +5211,9 @@ function renderPartBlocks(n) {
     const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
     start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
     const lows = []; for (let m = 24; m <= 84; m++) lows.push([m, noteName(m)]);
-    put('harmony', field('Pattern', ta, [err, mk('p', { className: 'hint', innerHTML: 'Each step takes its note from the chord playing as it starts. <code>R</code> is the root and <code>B</code> the bass note, and <code>3rd</code>, <code>5th</code>, <code>7th</code> are the chord\'s third, fifth and seventh; <code>1</code>, <code>2</code>, <code>3</code>… are chord tones counting up from the lowest note below, on into the next octave. <code>\'</code> raises a step an octave and <code>,</code> lowers one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long; <code>~</code> before a step slides into it and <code>@0.6</code> after it strikes it softer. A note name like <code>C1</code> is that note whatever the chord. It loops until the music ends. Try <code>R R\'</code> for an octave bass, or <code>1 2 3 4 3 2</code> for an arpeggio. In a piece with sections, <code>[B]</code> starts the steps for section B, and <code>[A A2]</code> steps for both; steps before any marker play everywhere else.' })]),
+    put('harmony', field('Pattern', ta, [err, mk('p', { className: 'hint help', innerHTML: 'Each step takes its note from the chord playing as it starts. <code>R</code> is the root and <code>B</code> the bass note, and <code>3rd</code>, <code>5th</code>, <code>7th</code> are the chord\'s third, fifth and seventh; <code>1</code>, <code>2</code>, <code>3</code>… are chord tones counting up from the lowest note below, on into the next octave. <code>\'</code> raises a step an octave and <code>,</code> lowers one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long; <code>~</code> before a step slides into it and <code>@0.6</code> after it strikes it softer. A note name like <code>C1</code> is that note whatever the chord. It loops until the music ends. Try <code>R R\'</code> for an octave bass, or <code>1 2 3 4 3 2</code> for an arpeggio. In a piece with sections, <code>[B]</code> starts the steps for section B, and <code>[A A2]</code> steps for both; steps before any marker play everywhere else.' })]),
       mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), select('Lowest note', opts(lows), n.from, v => { raw.from = +v; })]),
-      mk('div', { className: 'two' }, [field('Start (beats)', start), mk('div', { className: 'checks' }, [check('Legato (join notes)', n.legato, v => { raw.legato = v; }), check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; })])]), mk('p', { className: 'hint', textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
+      mk('div', { className: 'two' }, [field('Start (beats)', start), mk('div', { className: 'checks' }, [check('Legato (join notes)', n.legato, v => { raw.legato = v; }), named(check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; }), 'nonstop')])]), mk('p', { className: 'hint help', dataset: { on: 'nonstop' }, textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
   }
   if (n.preset === 'line' || n.preset === 'pattern') {
     if (n.preset === 'line') {
@@ -5154,24 +5222,24 @@ function renderPartBlocks(n) {
     ta.addEventListener('input', () => { raw.line = ta.value; showErr(); changed(); }); ta.addEventListener('change', commit); showErr();
     const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
     start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
-    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. The chords it plays over are under Whole piece.' })]),
+    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint help', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. The chords it plays over are under Whole piece.' })]),
       mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), field('Start (beats)', start)]),
-      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; }), check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; })]), mk('p', { className: 'hint', textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
+      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; }), named(check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; }), 'nonstop')]), mk('p', { className: 'hint help', dataset: { on: 'nonstop' }, textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
     }
     const tr = mk('input', { type: 'text', value: n.transpose.join(', '), autocomplete: 'off', spellcheck: false });
     tr.addEventListener('input', () => { const v = tr.value.split(/[\s,]+/).filter(Boolean).map(Number).filter(Number.isFinite).slice(0, 8); raw.transpose = v.length ? v : [0]; changed(); }); tr.addEventListener('change', commit);
-    put('voicing', field('Voices at (semitones)', tr, [mk('p', { className: 'hint', innerHTML: 'One voice per number, all singing the line: <code>0</code> is one voice, <code>0,&nbsp;-12</code> adds an octave below, <code>0,&nbsp;7</code> a fifth above.' })]));
-    put('motion', slider('Portamento', 0, 4, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }),
+    put('voicing', field('Voices at (semitones)', tr, [mk('p', { className: 'hint help', innerHTML: 'One voice per number, all singing the line: <code>0</code> is one voice, <code>0,&nbsp;-12</code> adds an octave below, <code>0,&nbsp;7</code> a fifth above.' })]));
+    put('motion', named(slider('Portamento', 0, 4, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }), 'portamento'),
       select('Glide shape', opts([['smooth', 'Smooth'], ['straight', 'Straight'], ['arc', 'Arc: out, then in (curves and circles)']]), n.glideShape, v => { raw.glideShape = v; }),
-      mk('p', { className: 'hint', innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
+      mk('p', { className: 'hint help', dataset: { on: 'portamento' }, innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
       sect('Vibrato'),
       slider('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }),
       slider('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }),
       slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }),
-      sect('Pitch drop'),
+      named(sect('Pitch drop'), 'pitchdrop'),
       slider('Drop', -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? 'from ' + v + ' st above' : 'from ' + -v + ' st below') : 'off', v => { own('drop').semis = v; }),
       slider('Fall time', 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }),
-      mk('p', { className: 'hint', textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
+      mk('p', { className: 'hint help', dataset: { on: 'pitchdrop' }, textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
   } else if (n.preset === 'copy') {
     const srcs = (piece.parts || []).filter(x => x.preset !== 'copy' && x.id !== n.id).map(x => [x.id, x.name || x.id]);
     const delay = mk('input', { type: 'number', min: 0, max: 64, step: 0.25, value: n.delay }), shift = mk('input', { type: 'number', min: -48, max: 48, step: 1, value: n.shift });
@@ -5179,14 +5247,14 @@ function renderPartBlocks(n) {
     shift.addEventListener('input', () => { raw.shift = Math.round(Math.max(-48, Math.min(48, +shift.value || 0))); changed(); }); shift.addEventListener('change', commit);
     const srcN = (() => { const s0 = (piece.parts || []).find(x => x.id === n.of); try { return s0 ? partVoices(normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [s0] })).parts[0]) : 1; } catch (e) { return 1; } })();
     const vopts = [['0', 'All (' + srcN + ')']]; for (let k = 1; k < srcN; k++) vopts.push([String(k), 'The first ' + (k === 1 ? 'one' : k)]);
-    put('harmony', select('Copy of', opts(srcs.length ? srcs : [['', '(no other parts)']]), n.of, v => { raw.of = v; }),
+    put('harmony', named(select('Copy of', opts(srcs.length ? srcs : [['', '(no other parts)']]), n.of, v => { raw.of = v; }), 'copyof'),
       mk('div', { className: 'two' }, [field('Delay (beats)', delay), field('Shift (semitones)', shift)]),
       select('Voices', opts(vopts), String(n.voices || 0), v => { if (+v > 0) raw.voices = +v; else delete raw.voices; }),
-      mk('p', { className: 'hint', textContent: 'Plays the other part\'s notes again, later and moved, with its own tone, level and pan: 0.75 beats is a dotted eighth, 12 semitones an octave. It uses the other part\'s envelope, glides and vibrato.' }));
+      mk('p', { className: 'hint help', dataset: { on: 'copyof' }, textContent: 'Plays the other part\'s notes again, later and moved, with its own tone, level and pan: 0.75 beats is a dotted eighth, 12 semitones an octave. It uses the other part\'s envelope, glides and vibrato.' }));
   } else if (n.preset === 'notes') {
     put('harmony', mk('p', { className: 'hint', textContent: 'Saved notes for ' + n.realization.N + ' voices, written into the piece file, played exactly as written.' }));
   } else {
-    put('harmony', mk('p', { className: 'hint', textContent: 'This pad follows the chords under Whole piece, with its own voices and voicing (Voicing tab), departure order (Motion tab) and sound, and its own random choices.' }));
+    put('harmony', mk('p', { className: 'hint', textContent: 'Follows the chords under Whole piece, with its own voices, voicing, motion, sound and random choices.' }));
   }
   put('sound', slider('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }),
     slider('Pan', -1, 1, 0.05, n.sound.pan, fmtPan, v => { own('sound').pan = v; }));
@@ -5699,6 +5767,10 @@ function applyAccent(hex) {
 { const k = lsGet('cge.ui'); if (k && k !== 'system') document.documentElement.setAttribute('data-ui', k); }
 applyAccent(cssHex(lsGet('cge.accent') || '') || '');
 readColors(); fit(); selectTab(tabs[0]);
+wireHelp(document); // the help texts in the page, then any the part editor adds as it's rebuilt
+new MutationObserver(() => wireHelp(document.querySelector('.rack') || document)).observe(document.querySelector('.rack') || document.body, { childList: true, subtree: true });
+{ const cur = lsGet('cge.help') === 'shown' ? 'shown' : 'ask'; $('hs-' + cur).checked = true;
+  document.querySelectorAll('input[name=helpshow]').forEach(r => r.addEventListener('change', () => { lsSet('cge.help', r.value); setHelpShown(r.value); })); }
 (async () => {
   const draft = await loadDraft();
   let ok = false;

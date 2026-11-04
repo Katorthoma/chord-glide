@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.2.1';
+const APP_VERSION = '4.2.2';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -358,6 +358,39 @@ async function removeLocal(id) {
   if (libInDb) await IDB.remove(id); else storeLocal(lib.items.filter(x => x.id !== id));
   lib.items = lib.items.filter(x => x.id !== id);
 }
+/* ---------- Help text behind (?) buttons ----------
+   A long explanation (.hint.help) waits behind a (?) beside the name of what it explains: its group's label, or the element its
+   data-on names (data-help-key, in the part editor, or an id). The (?) opens it in place, and stays open across parts and tabs
+   this visit. Settings → Interface can show them all (data-help="shown" on the page), on this device. */
+const helpOpen = new Set();
+function helpTarget(h) {
+  const on = h.dataset.on, box = h.parentElement;
+  if (on) return (box && box.closest('.partblock, .tabpanel, .rack') || document).querySelector('[data-help-key="' + on + '"]') || document.getElementById(on);
+  const g = h.closest('.group, .seed, .slider');
+  return g && g.querySelector(':scope > label, :scope > .label, :scope > .labrow > label, :scope > .labrow > .label');
+}
+let helpSeq = 0;
+function wireHelp(root) {
+  for (const h of root.querySelectorAll('.hint.help:not([data-wired])')) {
+    let t = helpTarget(h); if (!t) continue;
+    h.dataset.wired = '1'; if (!h.id) h.id = 'help' + (++helpSeq);
+    const name = (t.querySelector && t.querySelector('label') || t).textContent.replace(/\s+/g, ' ').trim(), key = (h.dataset.on || name).toLowerCase();
+    if (t.matches('.slider, .group')) t = t.querySelector(':scope > label') || t; // a named slider or field: its label
+    let row = t.parentElement && t.parentElement.classList.contains('labrow') ? t.parentElement : null;
+    if (!row) { row = mk('span', { className: 'labrow' }); t.replaceWith(row); row.appendChild(t); }
+    const b = mk('button', { type: 'button', className: 'qhelp', textContent: '?' });
+    // with a mouse, a preview: the text's first sentence (read when hovered, as some texts change with the piece); the click opens it all
+    const preview = () => { const t = h.textContent.replace(/\s+/g, ' ').trim(), m = t.match(/^.+?[.!?](?=\s|$)/), first = m ? m[0] : t;
+      const cut = first.length > 140 ? first.slice(0, first.lastIndexOf(' ', 137)) + '…' : first; return cut + (cut.length < t.length ? ' (press for more)' : ''); };
+    b.title = preview(); b.addEventListener('pointerenter', () => { b.title = preview(); });
+    b.setAttribute('aria-label', 'Help: ' + name); b.setAttribute('aria-controls', h.id);
+    const show = on => { h.classList.toggle('open', on); b.setAttribute('aria-expanded', String(on)); if (on) helpOpen.add(key); else helpOpen.delete(key); };
+    b.addEventListener('click', () => show(!h.classList.contains('open')));
+    show(helpOpen.has(key)); row.appendChild(b);
+  }
+}
+const setHelpShown = v => { if (v === 'shown') document.documentElement.setAttribute('data-help', 'shown'); else document.documentElement.removeAttribute('data-help'); };
+setHelpShown(lsGet('cge.help'));
 /* ---------- The Open window: your saved pieces and the examples, and what each one holds ----------
    A sidebar chooses between them (tabs across the top on a phone). The list shows each piece's name, when it last changed, its
    length, parts and size; choosing one shows a preview of its trace and the rest: when it was made and by which version, which
@@ -821,7 +854,7 @@ function syncZoomUI() {
   $('vzoom').value = custom ? 'custom' : 'auto'; $('vzoom-times').hidden = !custom;
   ZOOM_IDS.forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = L ? fmtZoom(L[ZOOM_KEYS[i]]) : ''; });
   $('vzoom-hint').textContent = !L ? '' : (custom ? 'This piece zooms in and out at these times in Auto view, on the stage and in videos. Times are m:ss or seconds; Now takes the playhead.'
-    : 'Auto view zooms in ' + fmtZoom(L.inStart) + '–' + fmtZoom(L.inEnd) + ' and out ' + fmtZoom(L.outStart) + '–' + fmtZoom(L.outEnd) + '. Choose Custom times to set your own. Fast movement sets how a voice moving faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.');
+    : 'Auto view zooms in ' + fmtZoom(L.inStart) + '–' + fmtZoom(L.inEnd) + ' and out ' + fmtZoom(L.outStart) + '–' + fmtZoom(L.outEnd) + '.'); // (what the settings mean is behind the Video heading's ?)
 }
 function setZoom(next) { piece.view.zoom = next; marks = zoomMarks(); screenCam.snap = true; syncZoomUI(); commit(); }
 function cameraZ(t, S = null) {
@@ -1393,8 +1426,8 @@ const canSave = () => saveMode !== 'none';
 async function initDownloads() {
   if (HOST_SAVES) { try { hostSave = await HOST.saver(); } catch (e) { hostSave = null; } saveMode = typeof hostSave === 'function' ? 'host' : 'none'; }
   $('xhint').textContent = saveMode === 'browser'
-    ? 'Files download straight to your computer. MusicXML shows where the voices settle; the glides live in the MIDI and audio.'
-    : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip. MusicXML shows where the voices settle; the glides live in the MIDI and audio.');
+    ? 'Files download straight to your computer.'
+    : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip.');
   if (!canSave()) { document.querySelectorAll('[data-export], #xopen, #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
 }
 function xstatus(m) { $('xstatus').textContent = m; }
@@ -1970,7 +2003,7 @@ function applyPartView() {
   refreshPartBar();
 }
 let peSeq = 0;
-const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach(c => e.append(c)); return e; };
+const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag), { dataset, ...rest } = props; Object.assign(e, rest); if (dataset) Object.assign(e.dataset, dataset); kids.forEach(c => e.append(c)); return e; };
 /* The chosen part's own settings, at the top of each tab */
 function renderPartBlocks(n) {
   const blocks = { harmony: $('pp-harmony'), voicing: $('pp-voicing'), motion: $('pp-motion'), sound: $('pp-sound') };
@@ -1994,6 +2027,7 @@ function renderPartBlocks(n) {
   const check = (label, val, set) => { const cb = mk('input', { type: 'checkbox', checked: !!val }); cb.addEventListener('change', () => { set(cb.checked); rebuild(true); refreshPartBar(); commit(); }); return mk('label', {}, [cb, ' ' + label]); };
   const opts = list => list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
   const sect = t => mk('p', { className: 'sect', textContent: t });
+  const named = (el, key) => { el.dataset.helpKey = key; return el; }; // where a help text's (?) goes (data-on on the text names it)
   const put = (key, ...els) => { if (els.length) { blocks[key].append(...els); blocks[key].hidden = false; } };
   if (n.preset === 'pattern') {
     const ta = mk('textarea', { value: raw.pattern !== undefined ? raw.pattern : n.pattern, spellcheck: false }), err = mk('p', { className: 'err' });
@@ -2002,9 +2036,9 @@ function renderPartBlocks(n) {
     const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
     start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
     const lows = []; for (let m = 24; m <= 84; m++) lows.push([m, noteName(m)]);
-    put('harmony', field('Pattern', ta, [err, mk('p', { className: 'hint', innerHTML: 'Each step takes its note from the chord playing as it starts. <code>R</code> is the root and <code>B</code> the bass note, and <code>3rd</code>, <code>5th</code>, <code>7th</code> are the chord\'s third, fifth and seventh; <code>1</code>, <code>2</code>, <code>3</code>… are chord tones counting up from the lowest note below, on into the next octave. <code>\'</code> raises a step an octave and <code>,</code> lowers one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long; <code>~</code> before a step slides into it and <code>@0.6</code> after it strikes it softer. A note name like <code>C1</code> is that note whatever the chord. It loops until the music ends. Try <code>R R\'</code> for an octave bass, or <code>1 2 3 4 3 2</code> for an arpeggio. In a piece with sections, <code>[B]</code> starts the steps for section B, and <code>[A A2]</code> steps for both; steps before any marker play everywhere else.' })]),
+    put('harmony', field('Pattern', ta, [err, mk('p', { className: 'hint help', innerHTML: 'Each step takes its note from the chord playing as it starts. <code>R</code> is the root and <code>B</code> the bass note, and <code>3rd</code>, <code>5th</code>, <code>7th</code> are the chord\'s third, fifth and seventh; <code>1</code>, <code>2</code>, <code>3</code>… are chord tones counting up from the lowest note below, on into the next octave. <code>\'</code> raises a step an octave and <code>,</code> lowers one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long; <code>~</code> before a step slides into it and <code>@0.6</code> after it strikes it softer. A note name like <code>C1</code> is that note whatever the chord. It loops until the music ends. Try <code>R R\'</code> for an octave bass, or <code>1 2 3 4 3 2</code> for an arpeggio. In a piece with sections, <code>[B]</code> starts the steps for section B, and <code>[A A2]</code> steps for both; steps before any marker play everywhere else.' })]),
       mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), select('Lowest note', opts(lows), n.from, v => { raw.from = +v; })]),
-      mk('div', { className: 'two' }, [field('Start (beats)', start), mk('div', { className: 'checks' }, [check('Legato (join notes)', n.legato, v => { raw.legato = v; }), check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; })])]), mk('p', { className: 'hint', textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
+      mk('div', { className: 'two' }, [field('Start (beats)', start), mk('div', { className: 'checks' }, [check('Legato (join notes)', n.legato, v => { raw.legato = v; }), named(check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; }), 'nonstop')])]), mk('p', { className: 'hint help', dataset: { on: 'nonstop' }, textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
   }
   if (n.preset === 'line' || n.preset === 'pattern') {
     if (n.preset === 'line') {
@@ -2013,24 +2047,24 @@ function renderPartBlocks(n) {
     ta.addEventListener('input', () => { raw.line = ta.value; showErr(); changed(); }); ta.addEventListener('change', commit); showErr();
     const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
     start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
-    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. The chords it plays over are under Whole piece.' })]),
+    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint help', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. The chords it plays over are under Whole piece.' })]),
       mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), field('Start (beats)', start)]),
-      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; }), check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; })]), mk('p', { className: 'hint', textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
+      mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; }), named(check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; }), 'nonstop')]), mk('p', { className: 'hint help', dataset: { on: 'nonstop' }, textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
     }
     const tr = mk('input', { type: 'text', value: n.transpose.join(', '), autocomplete: 'off', spellcheck: false });
     tr.addEventListener('input', () => { const v = tr.value.split(/[\s,]+/).filter(Boolean).map(Number).filter(Number.isFinite).slice(0, 8); raw.transpose = v.length ? v : [0]; changed(); }); tr.addEventListener('change', commit);
-    put('voicing', field('Voices at (semitones)', tr, [mk('p', { className: 'hint', innerHTML: 'One voice per number, all singing the line: <code>0</code> is one voice, <code>0,&nbsp;-12</code> adds an octave below, <code>0,&nbsp;7</code> a fifth above.' })]));
-    put('motion', slider('Portamento', 0, 4, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }),
+    put('voicing', field('Voices at (semitones)', tr, [mk('p', { className: 'hint help', innerHTML: 'One voice per number, all singing the line: <code>0</code> is one voice, <code>0,&nbsp;-12</code> adds an octave below, <code>0,&nbsp;7</code> a fifth above.' })]));
+    put('motion', named(slider('Portamento', 0, 4, 0.005, n.portamento, fmtSec, v => { raw.portamento = v; }), 'portamento'),
       select('Glide shape', opts([['smooth', 'Smooth'], ['straight', 'Straight'], ['arc', 'Arc: out, then in (curves and circles)']]), n.glideShape, v => { raw.glideShape = v; }),
-      mk('p', { className: 'hint', innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
+      mk('p', { className: 'hint help', dataset: { on: 'portamento' }, innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
       sect('Vibrato'),
       slider('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }),
       slider('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }),
       slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }),
-      sect('Pitch drop'),
+      named(sect('Pitch drop'), 'pitchdrop'),
       slider('Drop', -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? 'from ' + v + ' st above' : 'from ' + -v + ' st below') : 'off', v => { own('drop').semis = v; }),
       slider('Fall time', 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }),
-      mk('p', { className: 'hint', textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
+      mk('p', { className: 'hint help', dataset: { on: 'pitchdrop' }, textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
   } else if (n.preset === 'copy') {
     const srcs = (piece.parts || []).filter(x => x.preset !== 'copy' && x.id !== n.id).map(x => [x.id, x.name || x.id]);
     const delay = mk('input', { type: 'number', min: 0, max: 64, step: 0.25, value: n.delay }), shift = mk('input', { type: 'number', min: -48, max: 48, step: 1, value: n.shift });
@@ -2038,14 +2072,14 @@ function renderPartBlocks(n) {
     shift.addEventListener('input', () => { raw.shift = Math.round(Math.max(-48, Math.min(48, +shift.value || 0))); changed(); }); shift.addEventListener('change', commit);
     const srcN = (() => { const s0 = (piece.parts || []).find(x => x.id === n.of); try { return s0 ? partVoices(normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [s0] })).parts[0]) : 1; } catch (e) { return 1; } })();
     const vopts = [['0', 'All (' + srcN + ')']]; for (let k = 1; k < srcN; k++) vopts.push([String(k), 'The first ' + (k === 1 ? 'one' : k)]);
-    put('harmony', select('Copy of', opts(srcs.length ? srcs : [['', '(no other parts)']]), n.of, v => { raw.of = v; }),
+    put('harmony', named(select('Copy of', opts(srcs.length ? srcs : [['', '(no other parts)']]), n.of, v => { raw.of = v; }), 'copyof'),
       mk('div', { className: 'two' }, [field('Delay (beats)', delay), field('Shift (semitones)', shift)]),
       select('Voices', opts(vopts), String(n.voices || 0), v => { if (+v > 0) raw.voices = +v; else delete raw.voices; }),
-      mk('p', { className: 'hint', textContent: 'Plays the other part\'s notes again, later and moved, with its own tone, level and pan: 0.75 beats is a dotted eighth, 12 semitones an octave. It uses the other part\'s envelope, glides and vibrato.' }));
+      mk('p', { className: 'hint help', dataset: { on: 'copyof' }, textContent: 'Plays the other part\'s notes again, later and moved, with its own tone, level and pan: 0.75 beats is a dotted eighth, 12 semitones an octave. It uses the other part\'s envelope, glides and vibrato.' }));
   } else if (n.preset === 'notes') {
     put('harmony', mk('p', { className: 'hint', textContent: 'Saved notes for ' + n.realization.N + ' voices, written into the piece file, played exactly as written.' }));
   } else {
-    put('harmony', mk('p', { className: 'hint', textContent: 'This pad follows the chords under Whole piece, with its own voices and voicing (Voicing tab), departure order (Motion tab) and sound, and its own random choices.' }));
+    put('harmony', mk('p', { className: 'hint', textContent: 'Follows the chords under Whole piece, with its own voices, voicing, motion, sound and random choices.' }));
   }
   put('sound', slider('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }),
     slider('Pan', -1, 1, 0.05, n.sound.pan, fmtPan, v => { own('sound').pan = v; }));
@@ -2558,6 +2592,10 @@ function applyAccent(hex) {
 { const k = lsGet('cge.ui'); if (k && k !== 'system') document.documentElement.setAttribute('data-ui', k); }
 applyAccent(cssHex(lsGet('cge.accent') || '') || '');
 readColors(); fit(); selectTab(tabs[0]);
+wireHelp(document); // the help texts in the page, then any the part editor adds as it's rebuilt
+new MutationObserver(() => wireHelp(document.querySelector('.rack') || document)).observe(document.querySelector('.rack') || document.body, { childList: true, subtree: true });
+{ const cur = lsGet('cge.help') === 'shown' ? 'shown' : 'ask'; $('hs-' + cur).checked = true;
+  document.querySelectorAll('input[name=helpshow]').forEach(r => r.addEventListener('change', () => { lsSet('cge.help', r.value); setHelpShown(r.value); })); }
 (async () => {
   const draft = await loadDraft();
   let ok = false;

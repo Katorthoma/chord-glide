@@ -104,7 +104,7 @@ parts: [
   - [x] Echo's tail: with high feedback, repeats near the end can still be well above silence when playback and export stop (the music's end plus 3 s); lengthen the tail to fit the echo's decay, or limit feedback so the repeats die away within it
 - **4.3, generative motion:**
   - [ ] Arrangement grid under the stage (the chosen layout, A): a row for each part (name, kind, a level meter, mute and solo) and a column for each section in time order, sized by its length, with the playhead; each cell shows whether the part plays there, rests on the chords (Never stops) or is silent, and a click changes it; clicking a part's name edits it in the tabs, and clicking a section jumps there (again to loop it). It replaces the part menu, the Plays in chips and the Sections button, and folds away. On a phone the grid scrolls sideways under pinned part names, rows are 44 px tall, and a part's settings slide up as a sheet
-  - [ ] Help text behind (?) buttons: hints longer than a line (Chords, Line, Pattern and others) open in place from a (?) beside their label, with a Show help text switch in Settings, Interface
+  - [x] (in 4.2.2) Help text behind (?) buttons: hints longer than a line (Chords, Line, Pattern and others) open in place from a (?) beside their label, with a Show help text switch in Settings, Interface
   - [ ] Swarm: stochastic wander, convergence and divergence
   - [ ] Per-voice modulation; pan and filter automation
   - [ ] An option for voices to cross when moving between pinned voicings

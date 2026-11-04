@@ -1,3 +1,11 @@
+# Chord Glide 4.2.2 · 4 Nov 2026
+
+Engine 3.1 and the file formats are unchanged.
+
+- **Help text behind a ?.** The sidebar's long explanations (19 of them, about a hundred lines when all shown) now wait behind a small **?** beside the name of what they explain, and open in place when it's pressed: Chords, Plays in, Time, Tuning, the four seeds, Balance, Volume shape, Echo and Video in the main tabs, and Pattern, Line, Never stops, Voices at, Portamento, Pitch drop and Copy of for parts. With a mouse, hovering the **?** previews the text's first sentence ("One chord per line, or separate with spaces or commas. (press for more)"); pressing it opens the rest, and works the same with touch and the keyboard. One that's open stays open as you move between parts and tabs, for the visit. **Settings → Interface → Help text** chooses **Behind ? buttons** (the default) or **Always shown**, on this device (`cge.help`). Status that changes with the piece stays in view: which part the tabs edit, when Auto view zooms, the video's size. A long text is marked `.hint.help`; its ? goes beside its group's label, or the element its `data-on` names (`wireHelp()`, which also wires the part editor's as it's rebuilt).
+- **Settings has room to breathe.** Each setting (its name, its control and its note) is now a section of its own, with space and a thin line between sections, so Theme, Accent color and Help text no longer run together; the theme picker has a **Theme** heading like the rest. Trace look groups the look, how lines are drawn, and the default button the same way.
+- **Shorter where it could be.** The Export tab's note is now just where files go (each format's own line in the Export menu says what it holds), and the auto zoom line just says when this piece zooms. A pad part's note says in one line what it follows.
+
 # Chord Glide 4.2.1 · 4 Nov 2026
 
 Engine 3.1 and the file formats are unchanged.
