@@ -1,0 +1,115 @@
+{
+ "format": "chord-glide-piece",
+ "formatVersion": 5,
+ "name": "Sketchbook",
+ "chords": "[Draw]\nD Bm7 Gmaj7 A\nD Bm7 Gmaj7 A\n[Canon]\nD Bm7 Gmaj7 A\nD Bm7 Gmaj7 A\n[End]\nDmaj9:2bar",
+ "voices": 5,
+ "timing": {
+  "chordSec": 2.6667,
+  "glide": 0.6,
+  "easing": "smooth",
+  "tempo": 90,
+  "meter": 4,
+  "unit": "bar",
+  "chordBars": 1
+ },
+ "voicing": {
+  "continuity": 70,
+  "coverage": 70,
+  "stacking": 20,
+  "spacing": 30,
+  "variation": 10,
+  "spread": 55,
+  "top": 69,
+  "bassMode": "root",
+  "bassOctave": 2
+ },
+ "motion": {
+  "order": "together",
+  "stagger": 0
+ },
+ "sound": {
+  "tone": "soft",
+  "detune": 5,
+  "width": 80,
+  "reverb": 45,
+  "brightness": 5000
+ },
+ "seeds": {
+  "harmony": 1,
+  "voicing": 240941617,
+  "motion": 2065814728,
+  "sound": 615116907
+ },
+ "locks": {
+  "harmony": true,
+  "voicing": false,
+  "motion": false,
+  "sound": false
+ },
+ "view": {
+  "mode": "auto",
+  "labels": "notes",
+  "trace": {
+   "look": "laserblue",
+   "glow": 70,
+   "weight": 1,
+   "custom": {
+    "line": "#39ff88",
+    "line2": "#39ff88",
+    "bg": "#020604"
+   }
+  }
+ },
+ "parts": [
+  {
+   "id": "melody",
+   "name": "Melody",
+   "preset": "line",
+   "line": "[Draw Canon]\nD5:1 ~A5:2/0.667 ~D5:2/0.667 F#5:1 E5:2 | B4:1 ~F#5:2/0.667 ~B4:2/0.667 D5:1 E5:2 |\nG4:2 B4:2/0.15l D5:2/0.15l F#5:2/0.15l | E5:4@0.9 ~C#5:2/0.667 ~E5:2/0.667 |\nA5:1 ~D6:2/0.667 ~A5:2/0.667 F#5:1 A5:2 | D6:3@0.85 C#6:1@0.6 B5:2@0.7 A5:2@0.6 |\nB5:2 ~G5:2/0.667 ~B5:2/0.667 D6:2/0.2s | E6:2 ~C#6:2/0.667 ~A5:4/1.334",
+   "step": "1/8",
+   "transpose": [
+    0
+   ],
+   "portamento": 0,
+   "glideShape": "arc",
+   "vibrato": {
+    "cents": 15,
+    "rate": 5.5,
+    "delay": 0.3
+   },
+   "sound": {
+    "tone": "triangle",
+    "level": 0,
+    "pan": 0.3,
+    "width": 0,
+    "detune": 3
+   },
+   "envelope": {
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.75,
+    "release": 0.25
+   }
+  },
+  {
+   "id": "echo",
+   "name": "Echo",
+   "preset": "copy",
+   "of": "melody",
+   "delay": 4,
+   "shift": -12,
+   "plays": [
+    "Canon",
+    "End"
+   ],
+   "sound": {
+    "tone": "triangle",
+    "level": -5,
+    "pan": -0.3,
+    "width": 0,
+    "detune": 3
+   }
+  }
+ ]
+}

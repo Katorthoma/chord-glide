@@ -1,0 +1,218 @@
+{
+ "format": "chord-glide-piece",
+ "formatVersion": 5,
+ "name": "Breathing Room",
+ "chords": "[Groove x4]\nAm7 D9\n[Swell]\nFmaj9 E7sus4\n[Groove2 x2]\nAm7 D9\n[Last]\nAm9:3bar",
+ "voices": 5,
+ "plays": [
+  "Groove",
+  "Groove2"
+ ],
+ "timing": {
+  "chordSec": 2.4,
+  "glide": 0.35,
+  "easing": "smooth",
+  "tempo": 100,
+  "meter": 4,
+  "unit": "bar",
+  "chordBars": 1
+ },
+ "voicing": {
+  "continuity": 70,
+  "coverage": 75,
+  "stacking": 20,
+  "spacing": 30,
+  "variation": 10,
+  "spread": 60,
+  "top": 74,
+  "bassMode": "root",
+  "bassOctave": 3
+ },
+ "motion": {
+  "order": "together",
+  "stagger": 0
+ },
+ "sound": {
+  "tone": "warm",
+  "detune": 5,
+  "width": 80,
+  "reverb": 35,
+  "brightness": 4600
+ },
+ "volume": [
+  {
+   "t": 0,
+   "db": -10
+  },
+  {
+   "t": 4.8,
+   "db": 0
+  },
+  {
+   "t": 33.6,
+   "db": 0
+  },
+  {
+   "t": 40.8,
+   "db": -24
+  }
+ ],
+ "seeds": {
+  "harmony": 1,
+  "voicing": 1585060873,
+  "motion": 255565094,
+  "sound": 1640276712
+ },
+ "locks": {
+  "harmony": true,
+  "voicing": false,
+  "motion": false,
+  "sound": false
+ },
+ "view": {
+  "mode": "auto",
+  "labels": "notes",
+  "trace": {
+   "look": "phosphor",
+   "glow": 70,
+   "weight": 1,
+   "custom": {
+    "line": "#39ff88",
+    "line2": "#39ff88",
+    "bg": "#020604"
+   }
+  }
+ },
+ "parts": [
+  {
+   "id": "bass",
+   "name": "Bass",
+   "preset": "pattern",
+   "pattern": "R . - R - R' 5th -",
+   "from": 33,
+   "step": "1/8",
+   "plays": [
+    "Groove",
+    "Groove2"
+   ],
+   "transpose": [
+    0
+   ],
+   "portamento": 0,
+   "sound": {
+    "tone": "square",
+    "level": -2,
+    "pan": 0,
+    "width": 0,
+    "detune": 3
+   },
+   "envelope": {
+    "attack": 0.004,
+    "decay": 0.35,
+    "sustain": 0.25,
+    "release": 0.06,
+    "curve": "exp"
+   }
+  },
+  {
+   "id": "plucks",
+   "name": "Plucks",
+   "preset": "pattern",
+   "pattern": "- 3 - - 2 - 3 -",
+   "from": 64,
+   "step": "1/8",
+   "plays": [
+    "Groove",
+    "Groove2"
+   ],
+   "transpose": [
+    0,
+    12
+   ],
+   "portamento": 0,
+   "sound": {
+    "tone": "chime",
+    "level": -6,
+    "pan": 0.15,
+    "width": 40,
+    "detune": 2
+   },
+   "envelope": {
+    "attack": 0.002,
+    "decay": 0.25,
+    "sustain": 0.0,
+    "release": 0.1,
+    "curve": "exp"
+   },
+   "echo": {
+    "time": "3/16",
+    "mix": 0.55,
+    "feedback": 0.55,
+    "pingpong": true
+   }
+  },
+  {
+   "id": "strings",
+   "name": "Strings",
+   "preset": "pad",
+   "voices": 4,
+   "voicing": {
+    "spread": 70,
+    "top": 84,
+    "bassMode": "root",
+    "bassOctave": 3,
+    "variation": 10
+   },
+   "plays": [
+    "Swell",
+    "Groove2",
+    "Last"
+   ],
+   "sound": {
+    "tone": "cello",
+    "level": -4,
+    "pan": 0,
+    "width": 70,
+    "detune": 5
+   },
+   "envelope": {
+    "attack": 1.6,
+    "decay": 0,
+    "sustain": 1,
+    "release": 2.5,
+    "curve": "exp"
+   }
+  },
+  {
+   "id": "bell",
+   "name": "Last bell",
+   "preset": "pattern",
+   "pattern": "1:16 -:8",
+   "from": 57,
+   "step": "1/8",
+   "plays": [
+    "Last"
+   ],
+   "transpose": [
+    0,
+    12,
+    19
+   ],
+   "portamento": 0,
+   "sound": {
+    "tone": "glass",
+    "level": -3,
+    "pan": 0,
+    "width": 50,
+    "detune": 3
+   },
+   "envelope": {
+    "attack": 0.004,
+    "decay": 9,
+    "sustain": 0.0,
+    "release": 3,
+    "curve": "exp"
+   }
+  }
+ ]
+}

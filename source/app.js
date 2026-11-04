@@ -1,16 +1,10 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.2';
+const APP_VERSION = '4.2.1-dev';
+/* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
+   order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
-  { name: 'Lantern Hours', voices: 12, seeds: { harmony: 0x2F6A11C3, voicing: 0x51D0A7E2, motion: 0x0C44B9A1, sound: 0x7E1F33D0 },
-    chords: '=F6:0.8\nDbmaj9\nFm7\nGbmaj9#11\nEbm9\nAb9sus4\nBbm11\nGbmaj9\nAb13sus4\nDbmaj9:3\n=F6',
-    timing: { chordSec: 5, glide: 1.8, easing: 'smooth', tempo: 60 }, voicing: { variation: 25, spread: 100 }, motion: { order: 'together', stagger: 0 }, sound: { tone: 'soft' } },
-  { name: 'Slow Orbit', voices: 9, seeds: { harmony: 0x13C0FFEE, voicing: 0x6B2D9F04, motion: 0x3A7712E5, sound: 0x48B1C9D6 },
-    chords: '=E6:1\nAm9\nFmaj9\nCmaj7/E\nDm11\nG9sus4\nEm7\nFmaj7#11\nE7sus4\nAm(add9):3.5\n=A5',
-    timing: { chordSec: 6, glide: 2.6, easing: 'smoother', tempo: 60 }, voicing: { variation: 35, spread: 30, stacking: 40 }, motion: { order: 'high-low', stagger: 55 }, sound: { tone: 'warm', reverb: 50 } },
-  { name: 'Glasshouse', voices: 14, seeds: { harmony: 0x77E01234, voicing: 0x0BADF00D, motion: 0x1EAF5A2B, sound: 0x5C3E9D11 },
-    chords: '=F#6:0.6\nBmaj9\nG#m11\nEmaj9\nGmaj7#11\nC#m9\nF#13sus4\nD#m7\nGmaj9\nF#9sus4\nBmaj9:3\n=D#6',
-    timing: { chordSec: 4, glide: 1.3, easing: 'smooth', tempo: 60 }, voicing: { variation: 20, spread: 85, coverage: 65 }, motion: { order: 'low-high', stagger: 70 }, sound: { tone: 'glass', detune: 6, brightness: 6000 } },
+  ...(typeof EXAMPLE_PIECES !== 'undefined' ? EXAMPLE_PIECES : []).map(p => ({ name: p.name, piece: p })),
   // Parts: the main part is the pad; a bass line and a melody (with rests and vibrato) are written out, one bar per chord at 120 BPM
   { name: 'Three Parts', voices: 6, seeds: { harmony: 0x3A1E5C07, voicing: 0x6D2B8F14, motion: 0x19C4E7A2, sound: 0x4F08B3D6 },
     chords: 'C\nG/B\nAm\nEm/G\nF\nC/E\nDm7\nG7sus4\nG7\nC:4',
@@ -24,9 +18,16 @@ const EXAMPLES = [
         envelope: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.2 }, vibrato: { cents: 18, rate: 5.5, delay: 0.35 },
         line: 'E5:2 G5:2 C6:3 B5:1 | D6:2 B5:2 G5:4 | C6:2 A5:2 E5:2 A5:2 | B5:3 A5:1 G5:4 | A5:2 C6:2 F6:3 E6:1 | E6:2 C6:2 G5:4 | F5:2 A5:2 D6:2 C6:2 | C6:3 B5:1 -:2 G5:2 | D6:2 B5:2 F5:2 D5:2 | E5:8 -:8' }
     ] },
-  // pieces kept whole in source/examples/ (sections, parts that never stop, their own look), after the ones above
-  ...(typeof EXAMPLE_PIECES !== 'undefined' ? EXAMPLE_PIECES : []).map(p => ({ name: p.name, piece: p }))
 ];
+// what each example is for, shown with it in the Open window
+const EXAMPLE_NOTES = {
+  'First Light': 'One note blooms into twelve voices: the voicing and motion engine on its own.',
+  'Pure Drift': 'Pure chords that sink a comma every time round.',
+  'Sketchbook': 'Arcs, ramps and accents in a written line, with an echo that turns it into a canon.',
+  'Breathing Room': 'A groove where what doesn\'t play matters: rests, sections, a pad that swells in, a bell that rings out.',
+  'Bounce of the Spheres': 'The full-length showcase: sections, patterns, a kick and echoes, in parts that never stop.',
+  'Three Parts': 'A pad, a bass line and a melody: written lines with rests and vibrato.'
+};
 const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
 
 const $ = id => document.getElementById(id);
@@ -80,19 +81,20 @@ let artistTyped = null; // what was typed this session, in case this browser can
 const artistName = () => String(artistTyped !== null ? artistTyped : (lsGet('cge.artist') || '')).trim().slice(0, 80);
 function defaultLook() { try { const v = JSON.parse(lsGet('cge.look') || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
 function examplePiece(ex) {
-  if (ex.piece) { const p = Object.assign(defaultPiece(), JSON.parse(JSON.stringify(ex.piece))); p.created = new Date().toISOString(); delete p.modified; return normalizePiece(p); } // with its own look
+  if (ex.piece) { const p = Object.assign(defaultPiece(), JSON.parse(JSON.stringify(ex.piece))); p.created = new Date().toISOString(); p.madeWith = APP_VERSION; delete p.modified; delete p.app; return normalizePiece(p); } // with its own look
   const p = defaultPiece();
   const dl = defaultLook(); if (dl) p.view.trace = dl;
   p.name = ex.name; p.voices = ex.voices; p.chords = ex.chords; p.seeds = Object.assign({}, ex.seeds);
   Object.assign(p.timing, ex.timing); Object.assign(p.voicing, ex.voicing); Object.assign(p.motion, ex.motion); Object.assign(p.sound, ex.sound);
   if (ex.parts) p.parts = JSON.parse(JSON.stringify(ex.parts)); if (ex.volume) p.volume = JSON.parse(JSON.stringify(ex.volume));
-  p.created = new Date().toISOString();
+  p.created = new Date().toISOString(); p.madeWith = APP_VERSION;
   return normalizePiece(p);
 }
 
 /* ---------- State ---------- */
 let piece = null, built = null, marks = null;
 let currentLibId = null, savedJSON = null;
+let openedJSON = null; // the piece as it was opened or made (for one that's never been saved): whether there's anything to lose
 let undoStack = [], redoStack = [], committed = null;
 let offset = 0, playing = false, startAt = 0;
 // TAIL (the fade and reverb after the last change, which the clock counts) and FADE (the closing fade inside it) are in engine.js
@@ -227,7 +229,7 @@ function commit() {
 function applyPiece(p, { record = true, keepTime = false, fresh = false } = {}) {
   piece = prepPiece(p);
   syncUI(); rebuild(keepTime);
-  if (fresh) { undoStack = []; redoStack = []; updateUndo(); } // a different piece: undo must not reach back into the previous one (and save over it)
+  if (fresh) { undoStack = []; redoStack = []; updateUndo(); openedJSON = JSON.stringify(piece); } // a different piece: undo must not reach back into the previous one (and save over it)
   if (record && !fresh) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
 }
 function undo() { if (!undoStack.length) return; redoStack.push(committed); const s = undoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
@@ -237,7 +239,7 @@ let draftTimer = null;
 let draftInDb = false; // known once storage has been checked at start
 const saveDraftNow = () => {
   clearTimeout(draftTimer); if (!piece) return;
-  const d = { piece, libId: currentLibId, savedJSON };
+  const d = { piece, libId: currentLibId, savedJSON, openedJSON };
   if (draftInDb) IDB.set('draft', JSON.parse(JSON.stringify(d))).catch(() => lsSet('cge.draft', JSON.stringify(d)));
   else lsSet('cge.draft', JSON.stringify(d));
 };
@@ -254,6 +256,32 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 let statusNote = '', statusWarn = false;
 let statusTimer = null;
 /* Event messages fade after a few seconds (warnings stay a little longer), leaving just the save state */
+/* Changes that would be lost: in a saved piece, anything since it was saved; in one never saved, anything since it was opened or
+   made (an example or a new piece as it came needn't be kept) */
+function unsavedWork() {
+  if (!piece) return false;
+  const s = JSON.stringify(piece);
+  if (savedJSON !== null) return s !== savedJSON;
+  if (currentLibId) return false;
+  return openedJSON === null || s !== openedJSON;
+}
+/* Before something replaces the piece you're working on: if it has unsaved changes, ask first. `then` says what replaces it
+   ("Opening “Fold” replaces it."), `go` does it; Save saves (to the library) and then goes on, Don't save goes on, Cancel stays. */
+function replaceWork(then, go, { revert = false } = {}) {
+  if (!unsavedWork()) { go(); return; }
+  const dlg = $('discarddlg'), canSave = lib.mode !== 'none' && !revert, name = String($('name').value || piece.name || '').trim() || 'This piece';
+  $('discard-title').textContent = revert ? 'Go back to the saved version?' : 'Save your changes first?';
+  $('discard-text').textContent = '“' + name + '” has ' + (savedJSON === null && !currentLibId ? 'never been saved, and has changes' : 'changes that aren\'t saved') + '. ' + then + (canSave ? '' : lib.mode === 'none' && !revert ? ' (This browser isn\'t keeping saved pieces: use Export → Piece file to keep it.)' : '');
+  $('discard-save').hidden = !canSave;
+  $('discard-go').textContent = revert ? 'Go back to saved' : canSave ? 'Don\'t save' : 'Replace it';
+  $('discard-go').classList.toggle('danger', true);
+  dlg.onclose = null;
+  const done = act => { dlg.onclose = null; dlg.close(); if (act) act(); };
+  $('discard-save').onclick = async () => { await savePiece(false); if (!unsavedWork()) done(go); };
+  $('discard-go').onclick = () => done(go);
+  $('discard-cancel').onclick = () => done(null);
+  dlg.showModal(); (canSave ? $('discard-save') : $('discard-cancel')).focus();
+}
 function setStatus(msg, warn = false) {
   statusNote = msg; statusWarn = warn; updateStatus();
   clearTimeout(statusTimer);
@@ -330,29 +358,176 @@ async function removeLocal(id) {
   if (libInDb) await IDB.remove(id); else storeLocal(lib.items.filter(x => x.id !== id));
   lib.items = lib.items.filter(x => x.id !== id);
 }
-function renderLibrary() {
-  $('lib-note').textContent = lib.mode === 'host' ? (HOST.libraryNote || 'Saved by the page that hosts Chord Glide.')
-    : lib.mode === 'none' ? (location.protocol === 'file:'
-      ? 'This browser won\'t keep saved pieces for a page opened straight from a file, so the library is off. Use Export → Piece file to save your work, and open it again from here. (Another browser, or serving the folder from a local web server, may allow the library.)'
-      : 'This browser isn\'t keeping saved pieces for this page, so the library is off. Use Export → Piece file to save your work, and open it again from here.')
-    : lib.mode === 'local' ? ((HOST && HOST.localLibraryNote) || 'Saved in this browser\'s storage on this computer. Export piece files to back them up or move them.') : 'Loading your library…';
-  const ul = $('lib-list'); ul.textContent = '';
-  const items = [...lib.items].sort((a, b) => String(b.modified).localeCompare(String(a.modified)));
-  if (!items.length) { const li = document.createElement('li'); li.innerHTML = '<span class="hint">No saved pieces yet. Press Save to keep the one you\'re working on.</span>'; ul.appendChild(li); }
-  for (const it of items) {
-    const li = document.createElement('li'); if (it.id === currentLibId) li.className = 'current';
-    const meta = document.createElement('div'); meta.className = 'meta';
-    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name || 'Untitled piece';
-    const dt = document.createElement('div'); dt.className = 'dt'; dt.textContent = it.modified ? new Date(it.modified).toLocaleString() : '';
-    meta.append(nm, dt);
-    const acts = document.createElement('div'); acts.className = 'acts';
-    const open = document.createElement('button'); open.className = 'small'; open.type = 'button'; open.textContent = 'Open';
-    open.onclick = () => openFromLibrary(it);
-    const del = document.createElement('button'); del.className = 'small danger'; del.type = 'button';
-    del.textContent = confirmDelete === it.id ? 'Confirm delete' : 'Delete';
-    del.onclick = () => deleteFromLibrary(it);
-    acts.append(open, del); li.append(meta, acts); ul.appendChild(li);
+/* ---------- The Open window: your saved pieces and the examples, and what each one holds ----------
+   A sidebar chooses between them (tabs across the top on a phone). The list shows each piece's name, when it last changed, its
+   length, parts and size; choosing one shows a preview of its trace and the rest: when it was made and by which version, which
+   version last saved it, its sections, chords, file format and notes. On a phone the details replace the list, with Back. */
+const openDlg = $('opendlg');
+const libView = { tab: lsGet('cge.opentab') === 'examples' ? 'examples' : 'saved', sel: null, q: '', sort: ['modified', 'created', 'name', 'size'].includes(lsGet('cge.libsort')) ? lsGet('cge.libsort') : 'modified' };
+const narrowOpen = matchMedia('(max-width: 640px)');
+const facts = new Map(); // what's been worked out about each piece (by id and when it last changed), so it's done once
+const textBytes = s => new TextEncoder().encode(s).length;
+const fmtSize = n => n < 1024 ? n + ' bytes' : n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const fmtWhen = iso => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''; };
+const fmtDay = iso => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''; };
+const OPENS_IN = { 3: 'app 3 and later', 4: 'app 4.1 and later', 5: 'app 4.2 and later' };
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's'), ver = v => String(v).replace(/-/g, '\u2011'); // (a version never breaks at its hyphen)
+function openEntries() {
+  const q = libView.q.trim().toLowerCase(), hit = e => !q || e.name.toLowerCase().includes(q);
+  if (libView.tab === 'examples') return EXAMPLES.map((ex, i) => ({ key: 'ex:' + i, kind: 'example', name: ex.name, ex })).filter(hit);
+  const out = lib.items.map(it => ({ key: it.id, kind: 'saved', name: it.name || 'Untitled piece', it })).filter(hit), by = libView.sort;
+  const size = e => e.it.meta && e.it.meta.size || factsOf(e, true).size;
+  out.sort(by === 'name' ? (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : by === 'size' ? (a, b) => size(b) - size(a)
+    : by === 'created' ? (a, b) => String((b.it.piece || {}).created || '').localeCompare(String((a.it.piece || {}).created || '')) : (a, b) => String(b.it.modified || '').localeCompare(String(a.it.modified || '')));
+  return out;
+}
+const rawOf = e => e.kind === 'example' ? examplePiece(e.ex) : e.it.piece;
+/* Size from the stored piece; everything else from building it, as opening it would (light: only the size) */
+function factsOf(e, light = false) {
+  const k = e.key + '|' + (e.it ? e.it.modified : ''), have = facts.get(k);
+  if (have && (light || have.built)) return have;
+  const raw = rawOf(e), f = have || { size: textBytes(JSON.stringify(raw)) };
+  if (!light) {
+    f.built = true;
+    try {
+      const q = prepPiece(raw), items = parseProgression(q.chords).items, frozen = !!(q.realization && q.realization.engine !== ENGINE_VERSION && validRealization(q.realization));
+      f.q = q; f.frozen = frozen; f.chords = items.length; f.format = +raw.formatVersion || formatFor(q);
+      if (items.length || frozen) {
+        const sb = buildScore(frozen ? builtFromRealization(q.realization, q) : buildPiece(items, q), items);
+        f.sb = sb; f.length = sb.total + TAIL; f.voices = sb.N; f.parts = sb.parts.length - 1; f.sections = [...new Set((sb.sections || []).map(r => r.name).filter(Boolean))];
+      }
+    } catch (err) { f.error = err && err.message ? err.message : 'This piece couldn\'t be read.'; }
   }
+  facts.set(k, f); return f;
+}
+// the list's second line: when it last changed (saved pieces), then its length, parts and size, as far as they're known yet
+function rowLine(e) {
+  if (e.kind === 'example' && EXAMPLE_NOTES[e.name]) return EXAMPLE_NOTES[e.name]; // an example: what it's for
+  const m = e.it && e.it.meta, f = facts.get(e.key + '|' + (e.it ? e.it.modified : '')) || {}, bits = [];
+  if (e.it) bits.push(fmtDay(e.it.modified) || 'Not dated');
+  const len = m && m.length || f.length, parts = m && m.parts !== undefined ? m.parts : f.parts;
+  if (len) bits.push(fmtClock(len));
+  if (parts !== undefined) bits.push(parts ? plural(parts + 1, 'part') : '1 part');
+  if (e.it) bits.push(fmtSize(m && m.size || factsOf(e, true).size));
+  return bits.join(' · ');
+}
+function renderLibrary() {
+  $('n-saved').textContent = lib.mode === 'none' ? '' : lib.items.length; $('n-examples').textContent = EXAMPLES.length;
+  if (!openDlg.open) return;
+  const saved = libView.tab === 'saved';
+  document.querySelectorAll('#open-nav [role=tab]').forEach(t => { const on = t.dataset.opage === libView.tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
+  $('o-panel').setAttribute('aria-labelledby', saved ? 'ot-saved' : 'ot-examples');
+  $('libsort').closest('.sortby').hidden = !saved; $('libsort').value = libView.sort;
+  $('lib-note').textContent = !saved ? 'Open one to hear it and change it; your own pieces are never touched.' : lib.mode === 'host' ? (HOST.libraryNote || 'Saved by the page that hosts Chord Glide.')
+    : lib.mode === 'none' ? (location.protocol === 'file:'
+      ? 'This browser won\'t keep saved pieces for a page opened straight from a file, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again. (Another browser, or serving the folder from a local web server, may allow saving here.)'
+      : 'This browser isn\'t keeping saved pieces for this page, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again.')
+    : lib.mode === 'local' ? ((HOST && HOST.localLibraryNote) || 'Saved in this browser on this computer. Download piece files to back them up or move them.') : 'Loading your pieces…';
+  const list = openEntries(), ul = $('lib-list'); ul.textContent = '';
+  if (libView.sel && !list.some(e => e.key === libView.sel)) libView.sel = null;
+  if (!libView.sel && !narrowOpen.matches && list.length) libView.sel = (saved && list.find(e => e.key === currentLibId) || list[0]).key;
+  if (!list.length) ul.appendChild(mk('li', { className: 'empty', textContent: libView.q ? 'Nothing matches “' + libView.q.trim() + '”.' : saved ? (lib.mode === 'none' ? '' : 'No saved pieces yet. Save keeps the piece you\'re working on here.') : '' }));
+  for (const e of list) {
+    const li = mk('li', { id: 'lib-' + e.key.replace(/[^a-z0-9]/gi, '_') }, [mk('div', { className: 'nm' }, [mk('span', { textContent: e.name })].concat(saved && e.key === currentLibId ? [mk('span', { className: 'now', textContent: 'open now' })] : [])), mk('div', { className: e.kind === 'example' ? 'dt say' : 'dt', textContent: rowLine(e) })]);
+    li.setAttribute('role', 'option'); li.setAttribute('aria-selected', String(e.key === libView.sel)); li.dataset.key = e.key;
+    li.addEventListener('click', () => selectEntry(e.key, true));
+    li.addEventListener('dblclick', () => openEntry(e));
+    ul.appendChild(li);
+  }
+  if (libView.sel) ul.setAttribute('aria-activedescendant', 'lib-' + libView.sel.replace(/[^a-z0-9]/gi, '_')); else ul.removeAttribute('aria-activedescendant');
+  renderDetail(list);
+  measureSoon(list);
+}
+function selectEntry(key, fromClick) {
+  libView.sel = key; $('open-split').classList.toggle('detail', !!fromClick && narrowOpen.matches);
+  document.querySelectorAll('#lib-list li[data-key]').forEach(li => li.setAttribute('aria-selected', String(li.dataset.key === key)));
+  const li = document.querySelector('#lib-list li[aria-selected="true"]'); if (li) { li.scrollIntoView({ block: 'nearest' }); $('lib-list').setAttribute('aria-activedescendant', li.id); }
+  renderDetail(openEntries());
+}
+// the facts the list doesn't have yet (pieces saved before 4.3 carry none), worked out a piece at a time while nothing else is happening
+let measureJob = null;
+function measureSoon(list) {
+  if (measureJob) return;
+  const todo = list.filter(e => e.kind === 'saved' && !e.it.meta && !(facts.get(e.key + '|' + (e.it ? e.it.modified : '')) || {}).built);
+  const idle = window.requestIdleCallback || (fn => setTimeout(fn, 60));
+  const step = () => { measureJob = null; if (!openDlg.open || !todo.length) return; const e = todo.shift(); factsOf(e); const f = facts.get(e.key + '|' + (e.it ? e.it.modified : '')); if (f) delete f.sb;
+    const li = document.querySelector('#lib-list li[data-key="' + CSS.escape(e.key) + '"] .dt'); if (li) li.textContent = rowLine(e); measureJob = idle(step); };
+  measureJob = idle(step);
+}
+function renderDetail(list) {
+  const box = $('lib-detail'); box.textContent = '';
+  const e = list.find(x => x.key === libView.sel);
+  if (!e) { box.appendChild(mk('p', { className: 'none', textContent: list.length ? 'Choose a piece to see what it holds.' : '' })); return; }
+  const f = factsOf(e), raw = rawOf(e), q = f.q, saved = e.kind === 'saved';
+  { const row = document.querySelector('#lib-list li[data-key="' + CSS.escape(e.key) + '"] .dt'); if (row) row.textContent = rowLine(e); } // its row, now its length and parts are known
+  const back = mk('button', { type: 'button', className: 'small lib-back', textContent: '← ' + (saved ? 'Your pieces' : 'Examples') });
+  back.addEventListener('click', () => { $('open-split').classList.remove('detail'); const li = document.querySelector('#lib-list li[aria-selected="true"]'); if (li) li.scrollIntoView({ block: 'nearest' }); });
+  const cnv = mk('canvas', { width: 640, height: 240 }); cnv.setAttribute('role', 'img'); cnv.setAttribute('aria-label', 'Preview of ' + e.name);
+  box.append(back, cnv, mk('h3', { textContent: e.name }));
+  if (e.kind === 'example' && EXAMPLE_NOTES[e.name]) box.appendChild(mk('p', { className: 'about-ex', textContent: EXAMPLE_NOTES[e.name] }));
+  if (!f.thumb && !f.sb && !f.error && f.length) { delete f.built; factsOf(e); } // its picture was let go: build it again to draw one
+  if (!f.thumb && f.sb) { try { f.thumb = mk('canvas', { width: cnv.width, height: cnv.height }); drawThumb(f.thumb, f); } catch (err) { f.thumb = null; } }
+  delete f.sb;
+  if (f.thumb) cnv.getContext('2d').drawImage(f.thumb, 0, 0); else cnv.hidden = true;
+  const rows = [];
+  if (f.error) rows.push(['Can\'t open', f.error]);
+  if (saved) {
+    rows.push(['Made', [fmtWhen(raw.created) || 'Not recorded', raw.madeWith ? 'app ' + ver(raw.madeWith) : ''].filter(Boolean).join(' · ')]);
+    rows.push(['Last changed', fmtWhen(e.it.modified) || 'Not recorded']);
+    rows.push(['Saved with', (raw.app ? 'app ' + ver(raw.app) : 'app 4.2 or earlier') + (raw.engine ? ' · engine ' + raw.engine : '')]);
+  }
+  if (f.length) rows.push(['Length', fmtClock(f.length)]);
+  if (f.voices) rows.push(['Parts', (f.parts ? plural(f.parts + 1, 'part') + ' (the main part and ' + f.parts + ' more)' : 'The main part only') + ', ' + plural(f.voices, 'voice')]);
+  if (f.sections && f.sections.length) rows.push(['Sections', f.sections.length + ': ' + f.sections.join(', ')]);
+  if (q) rows.push(['Chords', plural(f.chords, 'chord') + (q.timing.unit === 'bar' ? ', in bars at ' + q.timing.tempo + ' BPM, ' + q.timing.meter + ' beats a bar' : ', in seconds') + (q.tuning === 'just' ? ', Just tuning' : '')]);
+  if (saved) rows.push(['Size', fmtSize(f.size)]);
+  if (f.format) rows.push(['File format', f.format + ' · opens in ' + (OPENS_IN[f.format] || 'app ' + f.format)]);
+  if (q) rows.push(['Notes', f.frozen ? (q.realization.engine === 'custom' ? 'Plays the notes written into it' : 'Plays the notes saved by engine ' + q.realization.engine) : 'Voiced by engine ' + ENGINE_VERSION + ' from its chords and settings']);
+  const dl = mk('dl', { className: 'facts' }); for (const [k, v] of rows) dl.append(mk('dt', { textContent: k }), mk('dd', { textContent: v }));
+  box.appendChild(dl);
+  const open = mk('button', { type: 'button', className: 'primary', textContent: saved && e.key === currentLibId ? 'Open again' : 'Open' }); open.disabled = !!f.error;
+  open.addEventListener('click', () => openEntry(e));
+  const acts = mk('div', { className: 'acts' }, [open]);
+  if (saved) {
+    const file = mk('button', { type: 'button', textContent: 'Download piece file' });
+    file.addEventListener('click', async () => { const p = JSON.parse(JSON.stringify(raw)); p.exported = new Date().toISOString(); await saveFile(safeName(e.name) + '.json', pieceJson(p) + '\n'); setStatus($('xstatus').textContent); });
+    const del = mk('button', { type: 'button', className: 'danger', textContent: confirmDelete === e.it.id ? 'Confirm delete' : 'Delete' });
+    del.addEventListener('click', () => deleteFromLibrary(e.it));
+    acts.append(file, del);
+  }
+  box.appendChild(acts);
+}
+/* A small picture of the piece in its own look: every voice's pitch over the whole piece, drawn where it sounds */
+function drawThumb(cnv, f) {
+  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, d = W / 320, sb = f.sb, pal = tracePalette(f.q.view.trace);
+  paintBackground(g, W, H, pal);
+  const T = Math.max(0.1, sb.total), lo = sb.min - 1, hi = sb.max + 1, Y = p => H - 10 * d - (p - lo) / Math.max(6, hi - lo) * (H - 20 * d);
+  const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  for (let v = 0; v < sb.N; v++) {
+    const path = new Path2D(); let on = false;
+    for (let x = 0; x <= W; x += 1.5 * d) {
+      const t = x / W * T;
+      if (gainAt(sb, v, t) < 0.02) { on = false; continue; }
+      const y = Y(pitchAt(sb, v, t)); if (on) path.lineTo(x, y); else { path.moveTo(x, y); on = true; }
+    }
+    glowStroke(g, path, grad || pal.line(v, sb.N), pal.core, pal, d * 0.75, 1);
+  }
+}
+function openEntry(e) {
+  if (e.kind === 'saved' && factsOf(e, true).error) return;
+  const again = e.kind === 'saved' && e.key === currentLibId;
+  replaceWork(again ? 'Opening it again goes back to the version you last saved.' : 'Opening “' + e.name + '” replaces it.', () => {
+    if (e.kind === 'example') { setPlaying(false); currentLibId = null; savedJSON = null; applyPiece(examplePiece(e.ex), { fresh: true }); setStatus('Opened the example “' + e.ex.name + '”'); }
+    else openFromLibrary(lib.items.find(x => x.id === e.key) || e.it); // (as saved just now, if Save came first)
+    if (openDlg.open) openDlg.close();
+  }, { revert: again });
+}
+function showOpen(tab) {
+  if (tab) libView.tab = tab;
+  if (!openDlg.open) { openDlg.showModal(); libView.sel = null; $('open-split').classList.remove('detail'); }
+  renderLibrary();
+  setTimeout(() => { if (!narrowOpen.matches) $('libsearch').focus(); else $('ot-' + libView.tab).focus(); }, 0);
 }
 /* What to say about the engine a piece came from */
 function openNote(src) {
@@ -383,10 +558,12 @@ async function deleteFromLibrary(it) {
 async function savePiece(asNew) {
   if (lib.mode === 'none') { setStatus('The library isn\'t available here. Use Export → Piece file to save your work.', true); return; }
   piece.name = safeName($('name').value);
-  if (!piece.created) piece.created = new Date().toISOString();
-  piece.modified = new Date().toISOString();
+  if (!piece.created) { piece.created = new Date().toISOString(); piece.madeWith = APP_VERSION; } // (a piece from a file keeps the version that made it)
+  piece.modified = new Date().toISOString(); piece.app = APP_VERSION;
   const p = withRealization();
-  const body = { name: p.name, modified: p.modified, piece: p };
+  // what the Open window lists, worked out now so it needn't build every piece to show the list
+  const meta = { size: textBytes(JSON.stringify(p)), length: built ? built.total + TAIL : 0, parts: (p.parts || []).length, voices: built ? built.N : 0 };
+  const body = { name: p.name, modified: p.modified, piece: p, meta };
   try {
     if (lib.mode === 'host') currentLibId = await lib.store.put(!asNew && currentLibId ? currentLibId : null, body);
     else { // nothing changes (not the library, not which piece this is) unless storage keeps it
@@ -1998,17 +2175,37 @@ $('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true
 $('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
 $('save').addEventListener('click', () => savePiece(false));
 $('saveas').addEventListener('click', () => savePiece(true));
-$('libtoggle').addEventListener('click', () => { const lb = $('library'); lb.hidden = !lb.hidden; $('libtoggle').setAttribute('aria-expanded', String(!lb.hidden)); });
-$('newpiece').addEventListener('click', () => {
+$('openbtn').addEventListener('click', () => showOpen());
+$('open-close').addEventListener('click', () => openDlg.close());
+openDlg.addEventListener('click', e => { if (e.target === openDlg) openDlg.close(); });
+openDlg.addEventListener('close', () => { confirmDelete = null; facts.forEach(f => { delete f.sb; }); });
+{ const tabs = [...document.querySelectorAll('#open-nav [role=tab]')], orient = () => $('open-nav').setAttribute('aria-orientation', narrowOpen.matches ? 'horizontal' : 'vertical');
+  orient(); narrowOpen.addEventListener('change', () => { orient(); if (openDlg.open) renderLibrary(); });
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => { if (libView.tab === t.dataset.opage) return; libView.tab = t.dataset.opage; libView.sel = null; $('open-split').classList.remove('detail'); lsSet('cge.opentab', libView.tab); renderLibrary(); });
+    t.addEventListener('keydown', e => { const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]; if (d) { e.preventDefault(); const n = tabs[(i + d + tabs.length) % tabs.length]; n.click(); n.focus(); } });
+  }); }
+$('libsearch').addEventListener('input', () => { libView.q = $('libsearch').value; libView.sel = null; renderLibrary(); });
+$('libsearch').addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); $('lib-list').focus(); } else if (e.key === 'Enter') { const x = openEntries().find(y => y.key === libView.sel); if (x) openEntry(x); } });
+$('libsort').addEventListener('change', () => { libView.sort = $('libsort').value; lsSet('cge.libsort', libView.sort); renderLibrary(); });
+// the list: arrows move through it, Enter opens, Delete asks to delete (then confirms)
+$('lib-list').addEventListener('keydown', e => {
+  const list = openEntries(); if (!list.length) return;
+  const i = Math.max(0, list.findIndex(x => x.key === libView.sel)), d = { ArrowDown: 1, ArrowUp: -1, Home: -1e9, End: 1e9 }[e.key];
+  if (d) { e.preventDefault(); selectEntry(list[Math.max(0, Math.min(list.length - 1, i + d))].key, false); }
+  else if (e.key === 'Enter') { e.preventDefault(); openEntry(list[i]); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && list[i].it) { e.preventDefault(); deleteFromLibrary(list[i].it); }
+});
+$('newpiece').addEventListener('click', () => replaceWork('A new piece replaces it.', () => {
   setPlaying(false);
   const p = defaultPiece();
   const dl = defaultLook(); if (dl) p.view.trace = dl;
   for (const L of LAYERS) p.seeds[L] = randSeed();
   p.chords = composeFromSeed(p.seeds.harmony, defaultChordSec(normalizePiece(p)));
-  p.created = new Date().toISOString();
+  p.created = new Date().toISOString(); p.madeWith = APP_VERSION;
   currentLibId = null; savedJSON = null;
   applyPiece(p, { fresh: true }); setStatus('New piece written from a fresh harmony seed');
-});
+}));
 $('revoice').addEventListener('click', () => { unfreeze(); afterChange(); });
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
@@ -2020,15 +2217,13 @@ $('importfile').addEventListener('change', async () => {
     let obj; try { obj = JSON.parse(await f.text()); } catch (e) { obj = null; }
     if (!obj || (obj.format !== PIECE_FORMAT && typeof obj.chords !== 'string')) throw new Error('That file isn\'t a Chord Glide piece.');
     prepPiece(obj); // throws for a newer format
-    setPlaying(false); currentLibId = null; savedJSON = null;
-    applyPiece(obj, { fresh: true });
-    setStatus('Opened “' + piece.name + '” from a file' + openNote(obj) + '. Save to keep it in your library.');
+    replaceWork('Opening “' + (String(obj.name || '').trim() || f.name) + '” replaces it.', () => {
+      setPlaying(false); currentLibId = null; savedJSON = null;
+      applyPiece(obj, { fresh: true });
+      setStatus('Opened “' + piece.name + '” from a file' + openNote(obj) + '. Save to keep it in your library.');
+      if (openDlg.open) openDlg.close();
+    });
   } catch (e) { setStatus(e && e.message ? e.message : 'That file isn\'t a Chord Glide piece.', true); }
-});
-EXAMPLES.forEach(ex => {
-  const b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = ex.name;
-  b.onclick = () => { setPlaying(false); currentLibId = null; savedJSON = null; applyPiece(examplePiece(ex), { fresh: true }); setStatus('Opened the example “' + ex.name + '”'); };
-  $('examples').appendChild(b);
 });
 document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => { closeExportMenu(true); doExport(b.dataset.export); }));
 /* The export menu: Export opens a list of formats; choosing one saves it. Arrow keys move through the list, Escape or a click
@@ -2057,6 +2252,7 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); savePiece(false); }
   else if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); if (!settingsDlg.open) $('settingsbtn').click(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o' && !e.shiftKey) { e.preventDefault(); if (!openDlg.open && !settingsDlg.open && !aboutDlg.open) showOpen(); }
   else if (e.key === ' ' && !typing && tag !== 'button' && !recording) { e.preventDefault(); setPlaying(!playing); }
 });
 
@@ -2234,11 +2430,11 @@ document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   for (const [pop, btn] of POPS) if (e.key === 'Escape' && !pop.hidden) { setPop(pop, btn, false); btn.focus(); return; }
   if (rendering && e.key !== '?') return;
-  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || recording) return;
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || openDlg.open || $('discarddlg').open || recording) return;
   if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }
   if (e.key === '?') { e.preventDefault(); openGuide(); return; }
-  if (e.key === 'l' || e.key === 'L') { e.preventDefault(); $('libtoggle').click(); return; }
+  if (e.key === 'l' || e.key === 'L') { e.preventDefault(); showOpen(); return; }
   if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
   else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFull(!isFull()); }
   else if (e.key === 'Escape' && stageEl.classList.contains('pseudo-fs')) setFull(false);
@@ -2361,8 +2557,8 @@ readColors(); fit(); selectTab(tabs[0]);
 (async () => {
   const draft = await loadDraft();
   let ok = false;
-  if (draft && draft.piece) { try { currentLibId = draft.libId || null; savedJSON = draft.savedJSON || null; applyPiece(draft.piece, { record: false }); setStatus('Picked up where you left off'); ok = true; } catch (e) { currentLibId = null; savedJSON = null; } }
-  if (!ok) applyPiece(examplePiece(EXAMPLES[0]), { record: false });
+  if (draft && draft.piece) { try { currentLibId = draft.libId || null; savedJSON = draft.savedJSON || null; applyPiece(draft.piece, { record: false }); openedJSON = typeof draft.openedJSON === 'string' ? draft.openedJSON : null; setStatus('Picked up where you left off'); ok = true; } catch (e) { currentLibId = null; savedJSON = null; } }
+  if (!ok) applyPiece(examplePiece(EXAMPLES[0]), { record: false, fresh: true });
   requestAnimationFrame(frame); // drawing starts once there's a piece
 })();
 initLibrary();

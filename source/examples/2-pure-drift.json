@@ -1,0 +1,131 @@
+{
+ "format": "chord-glide-piece",
+ "formatVersion": 5,
+ "name": "Pure Drift",
+ "chords": "=E4:1bar\n[Loop x2]\nC Am Dm G\n[Lift x2]\nC Am Dm G\n[Home]\nC:2bar",
+ "voices": 6,
+ "tuning": "just",
+ "timing": {
+  "chordSec": 2.6087,
+  "glide": 0.8,
+  "easing": "smooth",
+  "tempo": 92,
+  "meter": 4,
+  "unit": "bar",
+  "chordBars": 1
+ },
+ "voicing": {
+  "continuity": 60,
+  "coverage": 80,
+  "stacking": 15,
+  "spacing": 30,
+  "variation": 10,
+  "spread": 70,
+  "top": 72,
+  "bassMode": "root",
+  "bassOctave": 2
+ },
+ "motion": {
+  "order": "together",
+  "stagger": 0
+ },
+ "sound": {
+  "tone": "organ",
+  "detune": 0,
+  "width": 70,
+  "reverb": 40,
+  "brightness": 4800
+ },
+ "breathe": {
+  "depth": 0.35,
+  "time": 0.8
+ },
+ "seeds": {
+  "harmony": 1,
+  "voicing": 494814386,
+  "motion": 1510773729,
+  "sound": 871413869
+ },
+ "locks": {
+  "harmony": true,
+  "voicing": false,
+  "motion": false,
+  "sound": false
+ },
+ "view": {
+  "mode": "auto",
+  "labels": "notes",
+  "trace": {
+   "look": "amber",
+   "glow": 70,
+   "weight": 1,
+   "custom": {
+    "line": "#39ff88",
+    "line2": "#39ff88",
+    "bg": "#020604"
+   }
+  }
+ },
+ "parts": [
+  {
+   "id": "harp",
+   "name": "Harp",
+   "preset": "pattern",
+   "pattern": "1 2 3 4 5 4 3 2 | 1 3 5 3 4 5 6 5",
+   "from": 60,
+   "step": "1/8",
+   "plays": [
+    "Loop",
+    "Lift"
+   ],
+   "transpose": [
+    0
+   ],
+   "portamento": 0,
+   "sound": {
+    "tone": "harp",
+    "level": -5,
+    "pan": 0.25,
+    "width": 30,
+    "detune": 0
+   },
+   "envelope": {
+    "attack": 0.003,
+    "decay": 0.9,
+    "sustain": 0.0,
+    "release": 0.4,
+    "curve": "exp"
+   }
+  },
+  {
+   "id": "melody",
+   "name": "Melody",
+   "preset": "line",
+   "line": "[Lift] E5:3 D5:1 C5:4 | E5:2 A5:2 G5:2 E5:2 | F5:3 E5:1 D5:2 A4:2 | B4:4 D5:2 G5:2",
+   "step": "1/8",
+   "transpose": [
+    0
+   ],
+   "portamento": 0.05,
+   "glideShape": "smooth",
+   "vibrato": {
+    "cents": 12,
+    "rate": 5.2,
+    "delay": 0.35
+   },
+   "sound": {
+    "tone": "triangle",
+    "level": -2,
+    "pan": -0.2,
+    "width": 0,
+    "detune": 0
+   },
+   "envelope": {
+    "attack": 0.03,
+    "decay": 0.3,
+    "sustain": 0.7,
+    "release": 0.25
+   }
+  }
+ ]
+}

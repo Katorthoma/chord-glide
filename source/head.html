@@ -91,37 +91,82 @@ input[type=range] { accent-color: var(--accent); width: 100%; }
 }
 /* Phone widths: name and windows; file, edit and Reroll; then four equal layer locks */
 @container (max-width: 600px) {
-  .bar .bar-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px 0; }
-  .bar .bar-row .grp.layers, .bar .bar-row .grp.rr { margin-top: 0; }
-  .bar .bar-row::after { content: none; }
-  .bar .bar-row .grp { border-left: 1px solid var(--rule); padding: 0 10px; }
-  .bar .bar-row .grp.piece { grid-area: 1 / 1 / 2 / 4; border-left: 0; padding-left: 0; }
-  .bar .bar-row .grp.end { grid-area: 1 / 4; border-left: 0; padding: 0 0 0 6px; margin-left: 0; }
-  .bar .bar-row .grp.file { grid-area: 2 / 1; border-left: 0; padding-left: 0; }
-  .bar .bar-row .grp.edit { grid-area: 2 / 2; }
-  .bar .bar-row .grp.rr { grid-area: 2 / 4; border-left: 0; padding: 0; justify-self: end; }
+  /* wrapped lines rather than a grid, so each line is only as wide as what's on it */
+  .bar .bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; }
+  .bar .bar-row::after { content: ""; flex-basis: 100%; order: 3; } /* after the name and windows */
+  .bar .bar-row .grp { border-left: 1px solid var(--rule); padding: 0 10px; margin-top: 0; }
+  .bar .bar-row .grp.piece { order: 1; flex: 1 1 0; min-width: 0; border-left: 0; padding-left: 0; }
+  .bar .bar-row .grp.end { order: 2; border-left: 0; padding: 0 0 0 6px; margin-left: 0; }
+  .bar .bar-row .grp.file { order: 4; border-left: 0; padding-left: 0; }
+  .bar .bar-row .grp.edit { order: 5; }
+  .bar .bar-row .grp.rr { order: 6; border-left: 0; padding: 0; margin-left: auto; }
   .reroll { margin-left: 0; }
-  .bar .bar-row .grp.layers { grid-area: 3 / 1 / 4 / 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding-right: 0; }
+  .bar .bar-row .grp.layers { order: 7; flex: 1 0 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0; border-left: 0; }
   .layerlock { justify-content: center; gap: 4px; padding: 6px 3px; font-size: 12px; min-width: 0; }
   .layerlock svg { width: 13px; height: 13px; flex: none; }
 }
-@container (max-width: 357px) {
+@container (max-width: 400px) { /* four file buttons, undo and redo, and Reroll on one line */
   .bar .icon { width: 34px; } .bar .icon.primary { width: 40px; }
   .bar .bar-row .grp.edit { padding: 0 6px; } .bar .bar-row .grp.file { padding-right: 6px; }
 }
+@container (max-width: 350px) { .reroll span { display: none; } .reroll { padding: 5px 8px; } }
 @container (max-width: 340px) { .layerlock svg { display: none; } }
-@container (max-width: 300px) { .reroll span { display: none; } .reroll { padding: 5px 8px; } .bar .icon { width: 30px; } .bar .icon.primary { width: 36px; } }
-.library { background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; display: grid; gap: 8px; }
-.library h2 { margin: 0; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-.lib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 280px; overflow-y: auto; }
-.lib-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 4px; }
+@container (max-width: 300px) { .bar .icon { width: 30px; } .bar .icon.primary { width: 36px; } }
+dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh, 760px); }
+.open-nav button { display: flex; align-items: center; gap: 8px; }
+.open-nav .count { margin-left: auto; font-family: var(--font-data); font-size: 11.5px; font-weight: 400; color: var(--muted); }
+.open-nav .nav-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--rule); }
+.open-nav .nav-foot button { width: 100%; justify-content: center; text-align: center; border: 1px solid var(--rule); background: var(--stage); color: var(--ink); font-weight: 500; }
+.open-nav .nav-foot button:hover { border-color: var(--accent); }
+.open-nav .short { display: none; }
+.open-panel { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.open-tools { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+.open-tools[hidden] { display: none; }
+.open-tools input[type=search] { flex: 1; min-width: 0; padding: 6px 10px; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; }
+.sortby { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.sortby select { padding: 5px 8px; font-size: 13px; }
+.lib-note { margin: 0; padding: 8px 14px 0; font-size: 12.5px; color: var(--muted); }
+.lib-note:empty { display: none; }
+.open-split { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+.lib-list { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; border-right: 1px solid var(--rule); outline: none; }
+.lib-list li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 5px; cursor: pointer; }
 .lib-list li:hover { background: var(--paper); }
-.lib-list .meta { min-width: 0; }
-.lib-list .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lib-list .dt { font-size: 12px; color: var(--muted); font-family: var(--font-data); }
-.lib-list .acts { display: flex; gap: 6px; }
-.lib-list li.current .nm::after { content: " · open"; color: var(--accent); font-weight: 500; }
-.examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.lib-list li[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.lib-list:focus-visible li[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lib-list .nm { display: flex; gap: 8px; align-items: baseline; min-width: 0; font-weight: 600; }
+.lib-list .nm span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-list .now { flex: none; font-size: 11px; font-weight: 600; color: var(--accent); }
+.lib-list .dt { font-size: 12px; color: var(--muted); font-family: var(--font-data); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-list .dt.say { font-family: var(--font-body); font-size: 12.5px; }
+.lib-list .empty { cursor: default; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.lib-list .empty:hover { background: none; }
+.lib-detail { min-height: 0; overflow-y: auto; padding: 14px 18px 22px; display: grid; gap: 12px; align-content: start; }
+.lib-detail canvas { width: 100%; height: auto; aspect-ratio: 8 / 3; display: block; border-radius: 6px; border: 1px solid var(--rule); }
+.lib-detail h3 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 22px; overflow-wrap: anywhere; }
+.lib-detail .none { color: var(--muted); font-size: 13px; }
+.lib-detail .about-ex { margin: -4px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; max-width: 60ch; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 13px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.lib-detail .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.lib-back { display: none; }
+dialog.about.confirmdlg { width: min(460px, calc(100vw - 32px)); }
+.confirm-body { padding: 18px 20px 16px; display: grid; gap: 10px; }
+.confirm-body h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 20px; }
+.confirm-body p { margin: 0; color: var(--muted); line-height: 1.5; }
+.confirm-body .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+@media (max-width: 640px) {
+  dialog.guide.opendlg { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  .open-nav .nav-foot { margin: 0 0 0 auto; padding: 0 0 0 6px; border: 0; }
+  .open-nav .nav-foot button { width: auto; white-space: nowrap; padding: 6px 10px; }
+  .open-nav .long { display: none; } .open-nav .short { display: inline; }
+  .open-split { grid-template-columns: minmax(0, 1fr); }
+  .lib-list { border-right: 0; }
+  .open-split .lib-detail { display: none; }
+  .open-split.detail .lib-list { display: none; }
+  .open-split.detail .lib-detail { display: grid; }
+  .lib-back { display: inline-flex; justify-self: start; }
+}
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
 @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
@@ -398,19 +443,19 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.2 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.2.1-dev · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
   <section class="bar" aria-label="Piece">
     <div class="bar-row">
       <div class="grp piece">
-        <button id="libtoggle" type="button" class="icon" aria-expanded="false" aria-controls="library" aria-label="Library" title="Library (L)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M5.8 8.5h1.6M5.8 11.5h1.6"/></svg></button>
         <input id="name" class="name" type="text" aria-label="Piece name" maxlength="80">
         <span id="savedot" class="savedot" role="img"></span>
       </div>
       <div class="grp file" role="group" aria-label="File">
         <button id="newpiece" type="button" class="icon" aria-label="New piece" title="New piece"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 11v6M9.25 14h6"/></svg></button>
+        <button id="openbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Open" title="Open (⌘O / Ctrl+O)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3.5 18.5v-12.5h5.5l2 2h7.5v2.5"/><path d="M3.5 18.5l2.6-7.5h15.4l-2.6 7.5z"/></svg></button>
         <button id="save" type="button" class="icon primary" aria-label="Save" title="Save (⌘S / Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4.5 4.5h11.5l3.5 3.5v11.5h-15z"/><path d="M8 4.5v4.5h7v-4.5"/><rect x="7.5" y="13" width="9" height="6.5"/></svg></button>
         <button id="saveas" type="button" class="icon" aria-label="Save as a new piece" title="Save as a new piece"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 19.5H4.5v-15h11.5l3.5 3.5V12"/><path d="M8 4.5v4.5h7v-4.5"/><path d="M18 15v6M15 18h6"/></svg></button>
       </div>
@@ -433,15 +478,6 @@ figure.vl circle { fill: var(--ink); }
       </div>
     </div>
     <div class="bar-status"><span id="status" class="status" role="status"></span><button id="revoice" type="button" class="small" hidden>Re-voice with this engine</button></div>
-  </section>
-
-  <section id="library" class="library" hidden aria-label="Library">
-    <h2>Your pieces</h2>
-    <p id="lib-note" class="hint"></p>
-    <ul id="lib-list" class="lib-list"></ul>
-    <div class="examples"><span>Examples:</span><span id="examples"></span>
-      <label class="small" style="margin-left:auto"><input id="importfile" type="file" accept=".json,application/json" hidden><button id="importbtn" type="button" class="small">Open a piece file (.json)</button></label>
-    </div>
   </section>
 
   <main class="layout">
@@ -731,6 +767,34 @@ figure.vl circle { fill: var(--ink); }
     </aside>
   </main>
 
+  <dialog id="opendlg" class="about guide opendlg" aria-labelledby="open-title">
+    <div class="about-head"><h2 id="open-title">Open</h2><button type="button" id="open-close" class="small">Close</button></div>
+    <div class="guide-body">
+      <nav class="guide-nav open-nav" id="open-nav" role="tablist" aria-label="Pieces" aria-orientation="vertical">
+        <button type="button" role="tab" id="ot-saved" aria-controls="o-panel" aria-selected="true" data-opage="saved">Your pieces<span class="count" id="n-saved"></span></button>
+        <button type="button" role="tab" id="ot-examples" aria-controls="o-panel" aria-selected="false" data-opage="examples">Examples<span class="count" id="n-examples"></span></button>
+        <div class="nav-foot"><input id="importfile" type="file" accept=".json,application/json" hidden><button id="importbtn" type="button" class="small"><span class="long">Open a piece file…</span><span class="short">File…</span></button></div>
+      </nav>
+      <div class="open-panel" id="o-panel" role="tabpanel" aria-labelledby="ot-saved">
+        <div class="open-tools" id="open-tools">
+          <input id="libsearch" type="search" placeholder="Search by name" aria-label="Search by name" autocomplete="off">
+          <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label>
+        </div>
+        <p id="lib-note" class="hint lib-note"></p>
+        <div class="open-split" id="open-split">
+          <ul id="lib-list" class="lib-list" role="listbox" aria-label="Pieces" tabindex="0"></ul>
+          <div id="lib-detail" class="lib-detail"></div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="discarddlg" class="about confirmdlg" aria-labelledby="discard-title" aria-describedby="discard-text">
+    <div class="confirm-body">
+      <h2 id="discard-title">Save your changes first?</h2>
+      <p id="discard-text"></p>
+      <div class="acts"><button type="button" id="discard-cancel">Cancel</button><button type="button" id="discard-go" class="danger">Don't save</button><button type="button" id="discard-save" class="primary">Save</button></div>
+    </div>
+  </dialog>
   <dialog id="settings" class="about guide settingsdlg" aria-labelledby="settings-title">
     <div class="about-head"><h2 id="settings-title">Settings</h2><button type="button" id="settings-close" class="small">Close</button></div>
     <div class="guide-body">
@@ -799,9 +863,8 @@ figure.vl circle { fill: var(--ink); }
           <h4><span class="step">1</span>Find your way around the top bar</h4>
           <p>The bar across the top holds everything about the piece as a whole. From left to right:</p>
           <dl class="barmap">
-            <dt><span class="mini" data-icon="libtoggle"></span></dt><dd><b>Library.</b> Your saved pieces and the examples. You can also open a piece file here.</dd>
             <dt><span class="mini-name">Name</span><span class="savedot new"></span><span class="savedot saved"></span><span class="savedot dirty"></span></dt><dd><b>Piece name and save dot.</b> Click the name to rename the piece. The dot is hollow if the piece has never been saved, green when everything is saved, and amber when there are unsaved changes.</dd>
-            <dt><span class="mini" data-icon="newpiece"></span><span class="mini" data-icon="save"></span><span class="mini" data-icon="saveas"></span></dt><dd><b>New, Save, Save as new.</b> New writes a fresh piece from a new harmony seed. Save as new keeps the original and saves a copy.</dd>
+            <dt><span class="mini" data-icon="newpiece"></span><span class="mini" data-icon="openbtn"></span><span class="mini" data-icon="save"></span><span class="mini" data-icon="saveas"></span></dt><dd><b>New, Open, Save, Save as new.</b> New writes a fresh piece from a new harmony seed. Open shows your saved pieces and the examples, with what each one holds, and opens piece files. Save as new keeps the original and saves a copy.</dd>
             <dt><span class="mini" data-icon="undo"></span><span class="mini" data-icon="redo"></span></dt><dd><b>Undo and Redo.</b> Step back and forward through your changes, including rerolls.</dd>
             <dt><span class="mini-lock" data-locked="true">Harmony</span><span class="mini-lock" data-locked="false">Voicing</span></dt><dd><b>Layer locks.</b> A piece has four layers, and each one gets its own seed: the number its random choices start from. A <b>locked</b> layer (filled in, with a closed padlock) stays exactly as it is when you reroll. An <b>unlocked</b> layer (outlined, with an open padlock) gets a new seed. Click a lock to switch it.</dd>
             <dt><span class="mini" data-icon="rerollall"></span></dt><dd><b>Reroll.</b> Gives every unlocked layer a new seed, all at once. It's greyed out when everything is locked.</dd>
@@ -836,7 +899,7 @@ figure.vl circle { fill: var(--ink); }
           <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
 
           <h4><span class="step">8</span>Save, and reopen exactly</h4>
-          <p>The <b>Library</b> keeps your pieces in this browser. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
+          <p>Your saved pieces are kept in this browser, and <b>Open</b> lists them with when each was made and last changed, the version that saved it, its length, parts and size. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">9</span>Export</h4>
           <p>The <b>Export</b> tab's <b>Export</b> menu saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
@@ -847,7 +910,7 @@ figure.vl circle { fill: var(--ink); }
         </section>
         <section class="guide-page" id="g-parts" role="tabpanel" aria-labelledby="gt-parts" hidden>
           <h3>Parts and sections</h3>
-          <p class="lede">Beyond the chords: patterns that follow them, a kick, echoes, sections to arrange it all in, and a tuning that lets a whole piece drift. The <b>Bounce of the Spheres</b> and <b>Fold</b> examples use most of this.</p>
+          <p class="lede">Beyond the chords: patterns that follow them, a kick, echoes, sections to arrange it all in, and a tuning that lets a whole piece drift. The examples show it a piece at a time: <b>Pure Drift</b> tuning and sections, <b>Sketchbook</b> written lines and an echo, <b>Breathing Room</b> patterns, sections and space, and <b>Bounce of the Spheres</b> most of it at once.</p>
 
           <h4><span class="step">1</span>Keep time in bars</h4>
           <p>On the Harmony tab, <b>Time</b> says how chords without a length of their own are timed: in seconds, or in <b>bars</b> at the <b>Tempo</b> and <b>Beats per bar</b> beside it. Any chord can give its own length: <code>Am:6</code> is six seconds, <code>Am:2bar</code> two bars, <code>Am:3beat</code> three beats. Switching keeps what you hear. Adding your first pattern offers to switch a piece to bars, so chords change on the beat.</p>
@@ -991,12 +1054,15 @@ figure.vl circle { fill: var(--ink); }
           <dl class="keylist"><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd><dt><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Redo</dd><dt><kbd>⌘</kbd> <kbd>S</kbd></dt><dd>Save the piece</dd></dl>
 
           <h4><span class="step">?</span>Windows</h4>
-          <dl class="keylist"><dt><kbd>?</kbd></dt><dd>Open this Guide</dd><dt><kbd>⌘</kbd> <kbd>,</kbd></dt><dd>Open Settings</dd><dt><kbd>L</kbd></dt><dd>Show or hide the Library</dd></dl>
+          <dl class="keylist"><dt><kbd>?</kbd></dt><dd>Open this Guide</dd><dt><kbd>⌘</kbd> <kbd>,</kbd></dt><dd>Open Settings</dd><dt><kbd>⌘</kbd> <kbd>O</kbd> or <kbd>L</kbd></dt><dd>Open your pieces and the examples</dd></dl>
           <p class="guide-next"><button type="button" class="small" data-goto="history">Next: Version history →</button></p>
         </section>
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.2.1</span>Open, and new examples<span class="when">in progress</span></h4>
+          <p><b>Open</b>, beside New and Save, opens a window of your saved pieces and the examples, chosen from a sidebar. Each piece shows a preview of its trace, when it was made and last changed, the version that saved it, its length, parts, sections and size, and which versions open it; search, sort, open, download or delete it from there. On a phone it fills the screen. Opening a piece, or starting a new one, now asks first if the one you're working on has changes that aren't saved. Four new examples each show one thing: <b>First Light</b> (chords alone), <b>Pure Drift</b> (Just tuning and sections), <b>Sketchbook</b> (written lines and an echo) and <b>Breathing Room</b> (patterns, sections and space), alongside Three Parts and Bounce of the Spheres.</p>
 
           <h4><span class="step ver">4.2</span>Musical generators<span class="when">4 Nov 2026</span></h4>
           <p>Pieces can now be written in musical time. A chord can last bars or beats (<code>Am:2bar</code>, <code>Am:3beat</code>), and the Harmony tab has <b>Time</b> (Seconds or Bars), <b>Tempo</b>, <b>Beats per bar</b> and <b>Tuning</b>. A line in brackets in the chords starts a section, with a repeat and a key change if you like (<code>[Groove x2]</code>, <code>[Drop +2]</code>), and each part chooses which sections it plays in. The new <b>Sections</b> button on the player bar jumps to any section and can loop the one that's playing while you work on it.</p>

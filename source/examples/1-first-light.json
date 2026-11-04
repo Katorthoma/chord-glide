@@ -1,0 +1,64 @@
+{
+ "format": "chord-glide-piece",
+ "formatVersion": 3,
+ "name": "First Light",
+ "chords": "=D5:1.5\nDadd9\nA/C#\nBm7\nBm7/A\nGmaj7\nD/F#\nEm9\nA7sus4:2\nA7:2\nDmaj9[D2 A2 F#3 C#4 E4 F#4 A4 C#5 E5 F#5 A5 E6]:6\n=D5:3.5",
+ "voices": 12,
+ "timing": {
+  "chordSec": 3,
+  "glide": 1.5,
+  "easing": "smoother",
+  "tempo": 60,
+  "meter": 4,
+  "unit": "sec",
+  "chordBars": 1
+ },
+ "voicing": {
+  "continuity": 65,
+  "coverage": 75,
+  "stacking": 20,
+  "spacing": 30,
+  "variation": 15,
+  "spread": 90,
+  "top": 86,
+  "bassMode": "root",
+  "bassOctave": 2
+ },
+ "motion": {
+  "order": "largest",
+  "stagger": 45
+ },
+ "sound": {
+  "tone": "soft",
+  "detune": 6,
+  "width": 90,
+  "reverb": 50,
+  "brightness": 5600
+ },
+ "seeds": {
+  "harmony": 1,
+  "voicing": 1187096547,
+  "motion": 731713615,
+  "sound": 1849017001
+ },
+ "locks": {
+  "harmony": true,
+  "voicing": false,
+  "motion": false,
+  "sound": false
+ },
+ "view": {
+  "mode": "auto",
+  "labels": "notes",
+  "trace": {
+   "look": "spectrum",
+   "glow": 70,
+   "weight": 1,
+   "custom": {
+    "line": "#39ff88",
+    "line2": "#39ff88",
+    "bg": "#020604"
+   }
+  }
+ }
+}
