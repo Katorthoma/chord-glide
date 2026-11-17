@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.6';
+const APP_VERSION = '4.7';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -72,14 +72,21 @@ const IDB = (() => {
   return api;
 })();
 
-/* The optional artist name for exports (Settings): this browser only, never part of a piece */
-/* The video option only makes sense once there's a name: otherwise it's dimmed and says where to add one */
+/* The optional artist name for exports (Export → Details, and beside the video's option): this browser only, never part of a piece */
+/* The video option only makes sense once there's a name: otherwise it's dimmed until one is typed beside it */
 function showArtistOption() {
   const has = !!artistName(); $('vartist').disabled = !has; $('vartist-row').classList.toggle('off', !has);
-  $('vartist-text').textContent = has ? 'Artist name under the title (' + artistName() + ')' : 'Artist name under the title (add your name in Settings)';
+  $('vartist-text').textContent = 'Artist name under the title';
 }
 let artistTyped = null; // what was typed this session, in case this browser can't store it
-const artistName = () => String(artistTyped !== null ? artistTyped : (lsGet('cge.artist') || '')).trim().slice(0, 80);
+/* What a piece says about itself in exported files besides its name (Export → Details), saved with it as piece.tags */
+const TAG_FIELDS = [['dalbum', 'album'], ['dyear', 'year'], ['dgenre', 'genre'], ['dcomment', 'comment']];
+function pieceTags(p) { const t = p && p.tags && typeof p.tags === 'object' ? p.tags : {}, out = {}; for (const [, k] of TAG_FIELDS) if (typeof t[k] === 'string' && t[k].trim()) out[k] = t[k].trim(); return out; }
+/* The artist is each piece's own (piece.tags.artist, saved with it: a recreation can name its composer, or have none). A piece
+   that hasn't set one uses your default, kept on this device (cge.artist); its Details can make either the other. */
+const defaultArtist = () => String(artistTyped !== null ? artistTyped : (lsGet('cge.artist') || '')).trim().slice(0, 80);
+const artistOf = p => { const t = p && p.tags; return t && typeof t === 'object' && typeof t.artist === 'string' ? t.artist.trim().slice(0, 80) : defaultArtist(); };
+const artistName = () => artistOf(piece);
 function defaultLook() { try { const v = JSON.parse(lsGet('cge.look') || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
 function examplePiece(ex) {
   if (ex.piece) { const p = Object.assign(defaultPiece(), JSON.parse(JSON.stringify(ex.piece))); p.created = new Date().toISOString(); p.madeWith = APP_VERSION; delete p.modified; delete p.app; return normalizePiece(p); } // with its own look
@@ -179,8 +186,11 @@ function initKnobs(root) {
     const lo = +inp.min, hi = +inp.max, mid = lo < 0 && hi > 0 ? -lo / (hi - lo) : null;
     const dial = document.createElement('span'); dial.className = 'dial';
     dial.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true"><circle class="cap" cx="22" cy="22" r="12"/><path class="trk" d="' + knobArc(0, 1) + '"/><path class="val"/><line class="ptr"/></svg>';
-    const lbl = k.querySelector('label'); dial.title = (ends ? ends.textContent.replace(/\s+/g, ' ').trim() + '. ' : '') + 'Drag up or down; Shift for fine steps; double-click to reset.';
-    if (lbl && ends) lbl.title = ends.textContent.replace(/\s+/g, ' ').trim();
+    /* What the two ends mean ("Lower: voices leap. Higher: voices step."), or the one note there is. */
+    const endTxt = (() => { if (!ends) return ''; const sp = [...ends.children].map(x => x.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean), cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+      return sp.length === 2 ? 'Lower: ' + sp[0] + '. Higher: ' + sp[1] + '.' : sp.length ? cap(sp.join(' ')) + '.' : ''; })();
+    const lbl = k.querySelector('label'); dial.title = (endTxt ? endTxt + ' ' : '') + 'Drag up or down; Shift for fine steps; double-click to reset.';
+    if (lbl && endTxt) lbl.title = endTxt;
     inp.after(dial);
     const val = dial.querySelector('.val'), ptr = dial.querySelector('.ptr');
     const draw = () => { const t = hi > lo ? Math.min(1, Math.max(0, (+inp.value - lo) / (hi - lo))) : 0, r = (-135 + 270 * t) * Math.PI / 180;
@@ -242,6 +252,7 @@ function syncUI() {
   updateStatus(); updateUndo(); if (typeof syncLook === 'function') syncLook();
   if (typeof syncVolumeShape === 'function') syncVolumeShape();
   if (typeof syncTopbar === 'function') syncTopbar();
+  if (typeof syncDetails === 'function') syncDetails();
   tidyMods(); renderHist();
 }
 
@@ -507,7 +518,8 @@ setHelpShown(lsGet('cge.help'));
    length, parts and size; choosing one shows a preview of its trace and the rest: when it was made and by which version, which
    version last saved it, its sections, chords, file format and notes. On a phone the details replace the list, with Back. */
 const openDlg = $('opendlg');
-const libView = { tab: lsGet('cge.opentab') === 'examples' ? 'examples' : 'saved', sel: null, q: '', sort: ['modified', 'created', 'name', 'size'].includes(lsGet('cge.libsort')) ? lsGet('cge.libsort') : 'modified' };
+const SORT_DIR = { modified: ['Newest first', 'Oldest first'], created: ['Newest first', 'Oldest first'], name: ['A to Z', 'Z to A'], size: ['Largest first', 'Smallest first'] };
+const libView = { rev: lsGet('cge.librev') === '1', tab: lsGet('cge.opentab') === 'examples' ? 'examples' : 'saved', sel: null, q: '', sort: ['modified', 'created', 'name', 'size'].includes(lsGet('cge.libsort')) ? lsGet('cge.libsort') : 'modified' };
 const narrowOpen = matchMedia('(max-width: 640px)');
 const facts = new Map(); // what's been worked out about each piece (by id and when it last changed), so it's done once
 const textBytes = s => new TextEncoder().encode(s).length;
@@ -523,6 +535,7 @@ function openEntries() {
   const size = e => e.it.meta && e.it.meta.size || factsOf(e, true).size;
   out.sort(by === 'name' ? (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : by === 'size' ? (a, b) => size(b) - size(a)
     : by === 'created' ? (a, b) => String((b.it.piece || {}).created || '').localeCompare(String((a.it.piece || {}).created || '')) : (a, b) => String(b.it.modified || '').localeCompare(String(a.it.modified || '')));
+  if (libView.rev) out.reverse(); // (the other way round)
   return out;
 }
 const rawOf = e => e.kind === 'example' ? examplePiece(e.ex) : e.it.piece;
@@ -561,7 +574,8 @@ function renderLibrary() {
   const saved = libView.tab === 'saved';
   document.querySelectorAll('#open-nav [role=tab]').forEach(t => { const on = t.dataset.opage === libView.tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
   $('o-panel').setAttribute('aria-labelledby', saved ? 'ot-saved' : 'ot-examples');
-  $('libsort').closest('.sortby').hidden = !saved; $('libsort').value = libView.sort;
+  $('libsort').closest('.sortby').hidden = !saved; $('libdir').hidden = !saved;
+  { const [a1, b1] = SORT_DIR[libView.sort] || SORT_DIR.modified, now = libView.rev ? b1 : a1; $('libdir').textContent = (libView.rev ? '↑ ' : '↓ ') + now; $('libdir').title = 'Show ' + (libView.rev ? a1 : b1).toLowerCase(); $('libdir').setAttribute('aria-label', 'Order: ' + now + '. Press for ' + (libView.rev ? a1 : b1).toLowerCase()); } $('libsort').value = libView.sort;
   $('lib-note').textContent = !saved ? 'Open one to hear it and change it; your own pieces are never touched.' : lib.mode === 'host' ? (HOST.libraryNote || 'Saved by the page that hosts Chord Glide.')
     : lib.mode === 'none' ? (location.protocol === 'file:'
       ? 'This browser won\'t keep saved pieces for a page opened straight from a file, so there\'s nothing to list. Use Export → Piece file to save your work, and Open a piece file to open it again. (Another browser, or serving the folder from a local web server, may allow saving here.)'
@@ -870,6 +884,31 @@ function addEnsemble(ctx, inp, amount, from, lfos, seed) {
   });
   return out;
 }
+/* Width for a part of one voice: a mid/side spread around wherever the part is panned, instead of moving it off to one side. The
+   side signal is the difference of two short delays of the part (about 7 and 11 ms), added to the left and taken from the right,
+   so it cancels when the two are summed to mono; the part itself is turned down a little so the two ears together stay about as
+   loud. The part goes through a 9 ms delay, halfway between the two, and the two drift in mirror image (as one lengthens, the
+   other shortens, by two slow sines at once), so they always sit evenly either side of it: the side signal is then as much ahead
+   of the part as behind it at every moment, and the sound never leans to one ear. (Drifting each on its own, the balance swayed
+   by up to 2 dB.) `amount` is 0 to 1. Little of the low end is in the difference, so bass stays centred. */
+const WIDEN_MAX = 0.45;
+function addWidener(ctx, inp, amount, from, lfos, seed) {
+  if (!(amount > 0)) return inp;
+  const r = mulberry32(seed >>> 0), k = WIDEN_MAX * Math.min(1, amount);
+  const out = ctx.createGain(), dry = ctx.createGain(), mid = ctx.createDelay(0.05); mid.delayTime.value = 0.009; dry.gain.value = Math.sqrt(1 - 2 * k * k);
+  inp.connect(mid); mid.connect(dry); dry.connect(out);
+  const mono = ctx.createGain(); Object.assign(mono, { channelCount: 1, channelCountMode: 'explicit', channelInterpretation: 'speakers' }); inp.connect(mono);
+  const side = ctx.createGain(); Object.assign(side, { channelCount: 1, channelCountMode: 'explicit', channelInterpretation: 'speakers' });
+  const taps = [[0.007, k, 1], [0.011, -k, -1]].map(([base, sign, dir]) => {
+    const d = ctx.createDelay(0.05), g = ctx.createGain(); d.delayTime.value = base; g.gain.value = sign; mono.connect(d); d.connect(g); g.connect(side); return [d, dir]; });
+  for (const rate of [0.17, 0.23]) { // a slow drift, mirrored
+    const lfo = phasedLFO(ctx, rate, r() * 2 * Math.PI + 2 * Math.PI * rate * from); lfos.push(lfo);
+    for (const [d, dir] of taps) { const dg = ctx.createGain(); dg.gain.value = 0.0007 * dir; lfo.connect(dg); dg.connect(d.delayTime); }
+  }
+  const inv = ctx.createGain(); inv.gain.value = -1; const lr = ctx.createChannelMerger(2);
+  side.connect(lr, 0, 0); side.connect(inv); inv.connect(lr, 0, 1); lr.connect(out);
+  return out;
+}
 /* Tone controls for the whole piece: a low shelf, a broad middle band and a high shelf, each up to 12 dB either way */
 const EQ_BANDS = [['low', 'lowshelf', 160, 0.7], ['mid', 'peaking', 1000, 0.6], ['high', 'highshelf', 5000, 0.7]];
 /* Saturation: a tanh curve that rounds the loud moments and adds harmonics, like tape or a valve stage driven hard. `drive` sets
@@ -943,6 +982,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
           if (o.was) f.frequency.value = openAt(o, o.was, from);
           opens.push(o); }
       }
+      if (!pt.main && pt.sub.N === 1 && snd.width > 0) node = addWidener(ctx, node, (snd.width / 100) * (1 - Math.abs(snd.pan)), from, lfos, partSeed(P.seeds.sound, pt.id, 'widen')); // one voice: widened around its pan
       if (snd.ensemble > 0) node = addEnsemble(ctx, node, snd.ensemble / 100, from, lfos, partSeed(P.seeds.sound, pt.main ? 'main' : pt.id, 'ensemble'));
       const w = Math.min(1, wetAmt * (pt.main ? 1 : snd.reverb / 100)), dg = ctx.createGain(), wg = ctx.createGain();
       dg.gain.value = 1 - w * 0.35; wg.gain.value = w; node.connect(dg); dg.connect(busDry); node.connect(wg); wg.connect(busWet); }
@@ -968,7 +1008,8 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
       const vm = lfo ? vibratoMoves(b, v, from) : null;
       let depth = null;
       if (vm) { depth = ctx.createGain(); depth.gain.value = vm.moves[0].g; lfo.connect(depth); for (const p of osc.detunes || [osc.detune]) depth.connect(p); }
-      const pan = pt.main ? ((hasBass && lv === 0) ? 0 : pz * (S.width / 100)) : Math.max(-1, Math.min(1, snd.pan + pz * (snd.width / 100) * (1 - Math.abs(snd.pan))));
+      // (a part of one voice stays at its pan, widened around it in its path above; pz is still drawn, so the detunes that follow are as before)
+      const pan = pt.main ? ((hasBass && lv === 0) ? 0 : pz * (S.width / 100)) : pt.sub.N === 1 ? snd.pan : Math.max(-1, Math.min(1, snd.pan + pz * (snd.width / 100) * (1 - Math.abs(snd.pan))));
       const to = modes || (em && !pt.sub.held && !(pt.sub.heldV && pt.sub.heldV[lv])) ? bus : held; // (a struck voice rings out by itself, not by the closing fade) // a voice that sounds throughout fades with the piece (also one gated to sections, or an echo's that enters late); one with notes ends by its own envelope
       if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(via(to)); }
       else g.connect(via(to));
@@ -1197,7 +1238,7 @@ function videoTitleLayout(g, S, W, d) {
   }
   return { size: tf.size, lines: tf.lines, baselines, artist, artistSize, artistBaseline, y0 };
 }
-/* The artist line for videos: the name from Settings, if there is one and "Artist name under the title" is ticked */
+/* The artist line for videos: the piece's artist, if it has one and "Artist name under the title" is ticked */
 const videoArtist = () => ($('vartist') && $('vartist').checked) ? artistName() : '';
 /* The next event worth naming: skips same-name snapshots less than 0.2 s apart (pieces saved as dense snapshots of every voice),
    so they say what's actually coming. Real chords are never that close, so a repeated chord is still shown. */
@@ -1779,7 +1820,7 @@ let exporting = false;
 async function doExport(kind) {
   if (exporting || (!built && kind !== 'json')) return;
   exporting = true; document.querySelectorAll('[data-export], #xopen').forEach(b => b.disabled = true);
-  const name = safeName($('name').value), opts = { tempo: piece.timing.tempo, title: String($('name').value || '').trim() || name, artist: artistName() };
+  const name = safeName($('name').value), opts = Object.assign({ tempo: piece.timing.tempo, title: String($('name').value || '').trim() || name, artist: artistName() }, pieceTags(piece));
   try {
     if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
     const files = [];
@@ -2066,7 +2107,7 @@ async function renderVideo() {
     if (o.format === 'mp4' && !vDesc) { if (!avc.sps || !avc.pps) throw new Error('The video encoder gave no H.264 parameter sets.'); vDesc = avcConfig(avc.sps, avc.pps); }
     const video = { codec: vconf.codec.startsWith('vp8') ? 'vp8' : 'vp9', width: w, height: h, fps, description: o.format === 'mp4' ? vDesc : null, samples: vSamples };
     const box = videoContainer(o.format, aconf.kind);
-    const meta = { title: String(snap.piece.name || '').trim() || fileName, artist: artistName() };
+    const meta = Object.assign({ title: String(snap.piece.name || '').trim() || fileName, artist: artistOf(snap.piece) }, pieceTags(snap.piece));
     const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov', meta }) : webmMux({ video, audio, meta });
     const blob = new Blob(parts, { type: box.type });
     const secs = ((performance.now() - started) / 1000).toFixed(0);
@@ -2674,7 +2715,28 @@ document.querySelectorAll('input[name=timeunit]').forEach(r => r.addEventListene
 }));
 $('chords').addEventListener('input', () => { unfreeze(); piece.chords = $('chords').value; rebuildSoon(); updateStatus(); saveDraftSoon(); });
 $('chords').addEventListener('change', commit);
-$('name').addEventListener('input', () => { piece.name = $('name').value; updateStatus(); saveDraftSoon(); });
+$('name').addEventListener('input', () => { piece.name = $('name').value; $('dtitle').value = piece.name; updateStatus(); saveDraftSoon(); });
+/* Export → Details: the title is the piece's name; album, year, genre and comment are saved with the piece (piece.tags) */
+/* Under the artist: whether this piece uses your default, and buttons to go back to it or make this one the default */
+function syncArtistNote() {
+  const own = !!(piece.tags && typeof piece.tags.artist === 'string'), cur = artistName(), def = defaultArtist();
+  $('artist-note').textContent = !own ? (def ? 'Your default artist, for any piece that doesn\'t set its own.' : 'No default artist yet: a name typed here is this piece\'s; make it the default to use it for others.')
+    : cur === def ? 'This piece\'s artist, the same as your default.' : cur ? 'This piece\'s own artist.' + (def ? ' Your default is ' + def + '.' : '') : 'This piece has no artist.' + (def ? ' Your default is ' + def + '.' : '');
+  $('artist-usedefault').hidden = !own || !def || cur === def; $('artist-usedefault').textContent = 'Use ' + def;
+  $('artist-makedefault').hidden = !cur || cur === def; $('artist-makedefault').textContent = 'Make ' + cur + ' the default';
+}
+function syncDetails() {
+  if (document.activeElement !== $('dtitle')) $('dtitle').value = piece.name || '';
+  for (const id of ['artist', 'vartistname']) if (document.activeElement !== $(id)) $(id).value = artistName();
+  syncArtistNote(); showArtistOption(); // the video's tick box follows the piece's artist (a piece opened with one, or none)
+  const t = pieceTags(piece); for (const [id, k] of TAG_FIELDS) if (document.activeElement !== $(id)) $(id).value = t[k] || '';
+}
+$('dtitle').addEventListener('input', () => { $('name').value = $('dtitle').value; piece.name = $('dtitle').value; updateStatus(); saveDraftSoon(); });
+$('dtitle').addEventListener('change', () => { piece.name = safeName($('dtitle').value); $('name').value = $('dtitle').value = piece.name; commit(); });
+for (const [id, k] of TAG_FIELDS) {
+  $(id).addEventListener('input', () => { const v = $(id).value.trim(); const t = Object.assign({}, piece.tags && typeof piece.tags === 'object' ? piece.tags : {}); if (v) t[k] = v; else delete t[k]; if (Object.keys(t).length) piece.tags = t; else delete piece.tags; updateStatus(); saveDraftSoon(); });
+  $(id).addEventListener('change', commit);
+}
 $('name').addEventListener('change', () => { piece.name = safeName($('name').value); $('name').value = piece.name; commit(); });
 for (const L of LAYERS) {
   $('seed-' + L).addEventListener('change', () => {
@@ -2720,9 +2782,8 @@ const hoverUI = matchMedia('(hover: hover) and (pointer: fine)'); // mouse: hove
 function showVolume() {
   $('vol').value = volume; $('o-vol').textContent = pct(volume * 100);
   const m = volume <= 0.001;
-  for (const b of [$('volbtn'), $('mute')]) { b.classList.toggle('muted', m); b.classList.toggle('quiet', !m && volume < 0.4); }
+  { const b = $('volbtn'); b.classList.toggle('muted', m); b.classList.toggle('quiet', !m && volume < 0.4); }
   $('volbtn').setAttribute('aria-label', (hoverUI.matches ? (m ? 'Unmute' : 'Mute') : 'Volume') + (m ? ' (muted)' : ', ' + pct(volume * 100)));
-  $('mute').setAttribute('aria-label', m ? 'Unmute' : 'Mute'); $('mute').title = (m ? 'Unmute' : 'Mute') + ' (M)';
 }
 function setVolume(v) {
   volume = Math.max(0, Math.min(1, v)); lsSet('cge.volume', String(volume)); showVolume();
@@ -2736,7 +2797,6 @@ function setVolume(v) {
 }
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
-$('mute').addEventListener('click', toggleMute);
 $('play').addEventListener('click', () => setPlaying(!playing));
 $('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
 $('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
@@ -2755,6 +2815,7 @@ openDlg.addEventListener('close', () => { confirmDelete = null; facts.forEach(f 
 $('libsearch').addEventListener('input', () => { libView.q = $('libsearch').value; libView.sel = null; renderLibrary(); });
 $('libsearch').addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); $('lib-list').focus(); } else if (e.key === 'Enter') { const x = openEntries().find(y => y.key === libView.sel); if (x) openEntry(x); } });
 $('lib-undo-btn').addEventListener('click', undoDelete);
+$('libdir').addEventListener('click', () => { libView.rev = !libView.rev; lsSet('cge.librev', libView.rev ? '1' : '0'); renderLibrary(); });
 $('libsort').addEventListener('change', () => { libView.sort = $('libsort').value; lsSet('cge.libsort', libView.sort); renderLibrary(); });
 // the list: arrows move through it and Enter opens. Deleting is only ever the Delete button, pressed twice: no key deletes a piece
 $('lib-list').addEventListener('keydown', e => {
@@ -2776,6 +2837,9 @@ $('newpiece').addEventListener('click', () => replaceWork('A new piece replaces 
 $('revoice').addEventListener('click', () => { unfreeze(); afterChange(); });
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
+/* Piece files are .json, or .chordglide (the same JSON). Phones and tablets grey out files whose type they don't know, so there
+   the picker allows any file; what's inside is checked either way. */
+if (/iPhone|iPad|iPod|Android/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) $('importfile').removeAttribute('accept');
 $('importbtn').addEventListener('click', () => $('importfile').click());
 $('importfile').addEventListener('change', async () => {
   const f = $('importfile').files[0]; $('importfile').value = '';
@@ -2844,7 +2908,18 @@ document.addEventListener('pointerdown', e => { if (!e.target.closest('.menuwrap
 document.querySelectorAll('[data-proxy]').forEach(b => b.addEventListener('click', () => $(b.dataset.proxy).click()));
 $('menuimport').addEventListener('click', () => $('importfile').click());
 const exportDlg = $('exportdlg');
-function openExport() { if (!exportDlg.open) exportDlg.showModal(); }
+function openExport(page) { if (!exportDlg.open) exportDlg.showModal(); let busy = false; try { busy = !!recording || !!rendering; } catch (e) {} showExportPage(typeof page === 'string' ? page : busy ? 'video' : lsGet('cge.export') || 'files'); }
+const exportTabs = [...document.querySelectorAll('#export-nav [role=tab]')];
+function showExportPage(k, focusTab) {
+  if (!exportTabs.some(t => t.dataset.xpage === k)) k = 'files';
+  exportTabs.forEach(t => { const on = t.dataset.xpage === k; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $('xp-' + t.dataset.xpage).hidden = !on; if (on && focusTab) t.focus(); });
+  $('export-pages').scrollTop = 0; lsSet('cge.export', k);
+}
+exportTabs.forEach((t, i) => {
+  t.addEventListener('click', () => showExportPage(t.dataset.xpage));
+  t.addEventListener('keydown', e => { const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]; if (d) { e.preventDefault(); showExportPage(exportTabs[(i + d + exportTabs.length) % exportTabs.length].dataset.xpage, true); } });
+});
+exportDlg.addEventListener('click', e => { if (e.target === exportDlg) exportDlg.close(); });
 $('menuexport').addEventListener('click', openExport);
 $('export-close').addEventListener('click', () => exportDlg.close());
 $('busybtn').addEventListener('click', openExport);
@@ -2853,6 +2928,28 @@ document.querySelectorAll('.pop.menu kbd[data-key]').forEach(k => { k.textConten
 function syncTopbar() { document.querySelectorAll('#phonemenu [data-proxy]').forEach(b => { b.disabled = $(b.dataset.proxy).disabled; }); }
 /* ---------- Theater, full screen, about ---------- */
 const stageEl = document.querySelector('.stage'), layoutEl = document.querySelector('.layout');
+/* The arrangement takes the room left in the window under the stage, rather than a fixed height, so a piece of many parts shows as
+   many as fit with nothing to scroll at the top of the page; in theater, what's left after keeping the start of the controls below it
+   on screen; on a phone, as before */
+function fitArr() {
+  const body = $('arr-body'); if (!body) return;
+  const wide = matchMedia('(min-width: 921px)').matches, th = layoutEl.classList.contains('theater');
+  let v = '';
+  const cb = stageEl.querySelector('.canvas-box'), layoutTop = layoutEl.getBoundingClientRect().top + scrollY;
+  if (document.fullscreenElement === stageEl || stageEl.classList.contains('pseudo-fs')) { if (cb) cb.style.maxHeight = ''; return; } // full screen: the picture fills it, whatever theater asked for
+  if (th && wide) {
+    // theater: the controls' part picker, tabs and the top of their first row stay in view below it. The stage gives up height
+    // first (to no less than 260 px), so the arrangement keeps a few rows, up to 240 px of them
+    const head = document.querySelector('.rack-head'), keep = (head ? head.offsetHeight : 90) + 150;
+    if (cb) { cb.style.maxHeight = ''; const natural = cb.offsetHeight, other = stageEl.offsetHeight - natural - body.offsetHeight, room = innerHeight - layoutTop - other - keep - Math.min(body.scrollHeight, 240), m = Math.max(260, Math.round(room)); if (m < natural) cb.style.maxHeight = m + 'px'; }
+  } else if (cb && cb.style.maxHeight) cb.style.maxHeight = '';
+  const top = layoutTop + (body.getBoundingClientRect().top - stageEl.getBoundingClientRect().top); // where it starts, at the top of the page
+  if (wide && !th) v = Math.max(240, Math.round(innerHeight - top - 14)) + 'px';
+  else if (th) { const head = document.querySelector('.rack-head'), keep = (head ? head.offsetHeight : 90) + 150; v = Math.max(150, Math.round(innerHeight - top - keep)) + 'px'; }
+  if (body.style.maxHeight !== v) body.style.maxHeight = v;
+}
+addEventListener('resize', fitArr);
+if (window.ResizeObserver) new ResizeObserver(fitArr).observe(stageEl);
 function setTheater(on) {
   layoutEl.classList.toggle('theater', on);
   $('theater').setAttribute('aria-pressed', String(on));
@@ -2916,7 +3013,7 @@ for (const [pop, btn] of POPS) {
 }
 function cycleView() { const order = ['auto', 'scroll', 'whole']; piece.view.mode = order[(order.indexOf(piece.view.mode) + 1) % 3]; $('v-' + piece.view.mode).checked = true; screenCam.snap = true; commit();
   setStatus('View: ' + { auto: 'auto zoom', scroll: 'scrolling', whole: 'whole piece' }[piece.view.mode]); }
-document.addEventListener('fullscreenchange', updateFull);
+document.addEventListener('fullscreenchange', () => { updateFull(); fitArr(); });
 $('theater').addEventListener('click', () => setTheater(!layoutEl.classList.contains('theater')));
 $('fullscreen').addEventListener('click', () => setFull(!isFull()));
 /* ---------- Guide: six pages with a sidebar (tabs across the top on phones) ---------- */
@@ -3146,13 +3243,53 @@ function applyAccent(hex) {
   }
   $('accent-default').addEventListener('click', () => applyAccent(''));
   $('accent-custom').addEventListener('input', () => applyAccent($('accent-custom').value.toLowerCase()));
-  { const a = $('artist'); a.value = artistName(); a.addEventListener('input', () => { artistTyped = a.value; lsSet('cge.artist', a.value.trim().slice(0, 80)); showArtistOption(); }); }
+  { // the piece's artist: one value, typed in Details or beside the video's option (an empty one is kept: this piece has none)
+    const both = [$('artist'), $('vartistname')];
+    for (const a of both) {
+      a.addEventListener('input', () => { piece.tags = Object.assign({}, piece.tags && typeof piece.tags === 'object' ? piece.tags : {}, { artist: a.value.slice(0, 80) }); for (const b of both) if (b !== a) b.value = a.value; showArtistOption(); syncArtistNote(); updateStatus(); saveDraftSoon(); });
+      a.addEventListener('change', commit);
+    }
+    $('artist-usedefault').addEventListener('click', () => { const t = Object.assign({}, piece.tags || {}); delete t.artist; if (Object.keys(t).length) piece.tags = t; else delete piece.tags; syncDetails(); showArtistOption(); commit(); });
+    $('artist-makedefault').addEventListener('click', () => { const v = artistName(); artistTyped = v; lsSet('cge.artist', v); syncDetails(); });
+  }
 })();
 
 /* ---------- Start ---------- */
 { const k = lsGet('cge.ui'); if (k && k !== 'system') document.documentElement.setAttribute('data-ui', k); }
 applyAccent(cssHex(lsGet('cge.accent') || '') || '');
 readColors(); fit(); selectTab(tabs[0]);
+/* The app's own tooltips: anything with a title shows it in a quick tooltip of the app's (hover a moment, or reach it with the
+   keyboard), instead of the browser's slow one; a shortcut in brackets at the end is set apart. The title moves to data-tip as the
+   pointer arrives (the element keeps its accessible name), so the browser's own doesn't show as well. The arrangement's names and
+   section headings keep their own (for names cut short). Not on touch, where there's no hover. */
+{ const tip = mk('div', { className: 'tip', hidden: true }); tip.setAttribute('role', 'tooltip'); document.body.append(tip);
+  let cur = null, timer = null, lastShown = 0;
+  const target = el => { const t = el && el.closest && el.closest('[title], [data-tip]'); return t && !t.closest('.arr-sec, .arr-pick, .tip') && !(t instanceof SVGElement) ? t : null; };
+  const textOf = el => { if (el.hasAttribute('title')) { const t = el.getAttribute('title'); el.removeAttribute('title'); if (t) { el.dataset.tip = t; if (!el.getAttribute('aria-label') && !el.textContent.trim()) el.setAttribute('aria-label', t); } } return el.dataset.tip || ''; };
+  const hide = () => { clearTimeout(timer); cur = null; if (!tip.hidden) { tip.hidden = true; lastShown = performance.now(); } };
+  const show = el => {
+    const t = textOf(el); if (!t || !el.isConnected) return hide();
+    const m = t.match(/^(.*\S)\s*\(([^()]{1,24})\)$/), host = el.closest('dialog[open]') || document.body; if (tip.parentNode !== host) host.append(tip);
+    tip.replaceChildren(document.createTextNode(m ? m[1] : t)); if (m) tip.append(mk('kbd', { textContent: m[2] }));
+    tip.hidden = false;
+    const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    /* A knob's tooltip goes above its dial, or if there's no room, below the whole knob: never over the value under the dial. */
+    const kn = el.closest('.slider.knob'), below = kn ? kn.getBoundingClientRect().bottom : r.bottom;
+    tip.style.left = x + 'px'; tip.style.top = (kn ? (r.top - h - 6 >= 8 ? r.top - h - 6 : below + 6) : (r.bottom + h + 8 <= innerHeight ? r.bottom + 6 : Math.max(8, r.top - h - 6))) + 'px';
+  };
+  const soon = (el, wait) => { if (cur === el) return; hide(); cur = el; textOf(el); timer = setTimeout(() => { if (cur === el) show(el); }, performance.now() - lastShown < 600 ? 60 : wait); };
+  document.addEventListener('pointerover', e => { if (e.pointerType === 'touch') return; const el = target(e.target); if (el) soon(el, 450); else if (cur) hide(); });
+  document.addEventListener('pointerout', e => { if (cur && (!e.relatedTarget || !cur.contains(e.relatedTarget))) hide(); });
+  /* (a knob's focus is on its hidden range input, but its description is on the dial beside it) */
+  document.addEventListener('focusin', e => { const f = e.target; if (!f.matches || !f.matches(':focus-visible')) return;
+    const dial = f.matches('.slider.knob input[type=range]') ? f.parentNode.querySelector('.dial') : null, el = dial || target(f);
+    if (el && (el === f || el === dial)) soon(el, 150); });
+  document.addEventListener('focusout', hide);
+  for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, hide, true);
+  addEventListener('scroll', hide, true);
+}
+$('brandver').textContent = 'v' + APP_VERSION; $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
+fitArr();
 wireHelp(document); // the help texts in the page, then any the part editor adds as it's rebuilt
 new MutationObserver(() => wireHelp(document.querySelector('.rack') || document)).observe(document.querySelector('.rack') || document.body, { childList: true, subtree: true });
 { const cur = lsGet('cge.help') === 'shown' ? 'shown' : 'ask'; $('hs-' + cur).checked = true;

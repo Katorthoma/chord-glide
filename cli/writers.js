@@ -36,11 +36,15 @@ function zipStore(files) {
 }
 
 /* 24-bit PCM WAV */
-/* Title and artist for exported files: { title, artist }, either may be empty (then nothing is written for it) */
-const metaFields = meta => [['title', meta && meta.title], ['artist', meta && meta.artist]].map(([k, v]) => [k, String(v || '').trim().slice(0, 200)]).filter(([, v]) => v);
-/* RIFF LIST/INFO chunk: INAM (title), IART (artist), each null-terminated and padded to an even length */
+/* What exported files say about themselves: { title, artist, album, year, genre, comment }, any of them empty (then nothing is
+   written for it). The year is kept only as four digits. */
+const META_KEYS = ['title', 'artist', 'album', 'year', 'genre', 'comment'];
+const metaFields = meta => META_KEYS.map(k => [k, String((meta && meta[k]) || '').trim().slice(0, k === 'comment' ? 1000 : 200)])
+  .map(([k, v]) => [k, k === 'year' ? (v.match(/^\d{4}$/) ? v : '') : v]).filter(([, v]) => v);
+/* RIFF LIST/INFO chunk: INAM (title), IART (artist), IPRD (album), ICRD (year), IGNR (genre), ICMT (comment), each
+   null-terminated and padded to an even length */
 function wavInfo(meta) {
-  const ids = { title: 'INAM', artist: 'IART' }, subs = [];
+  const ids = { title: 'INAM', artist: 'IART', album: 'IPRD', year: 'ICRD', genre: 'IGNR', comment: 'ICMT' }, subs = [];
   for (const [k, v] of metaFields(meta)) { const b = [...utf8(v), 0], size = b.length; if (b.length % 2) b.push(0); subs.push(...fourcc(ids[k]), ...be32(size).reverse(), ...b); } // the size excludes the pad byte
   if (!subs.length) return new Uint8Array(0);
   return Uint8Array.from([...fourcc('LIST'), ...be32(subs.length + 4).reverse(), ...fourcc('INFO'), ...subs]);
@@ -62,11 +66,12 @@ function encodeWav24(left, right, sampleRate, meta = null) {
   return new Uint8Array(buf);
 }
 
-/* ID3v2.3 tag for the front of an MP3: TIT2 (title), TPE1 (artist), in UTF-16 with a byte-order mark. Empty if there's nothing to say. */
+/* ID3v2.3 tag for the front of an MP3: TIT2 (title), TPE1 (artist), TALB (album), TYER (year), TCON (genre) and COMM (comment,
+   in English with no description), in UTF-16 with a byte-order mark. Empty if there's nothing to say. */
 function id3v2(meta) {
-  const ids = { title: 'TIT2', artist: 'TPE1' }, frames = [];
+  const ids = { title: 'TIT2', artist: 'TPE1', album: 'TALB', year: 'TYER', genre: 'TCON', comment: 'COMM' }, frames = [];
   for (const [k, v] of metaFields(meta)) {
-    const body = [1, 0xFF, 0xFE]; for (const ch of v) { const c = ch.codePointAt(0); if (c > 0xFFFF) { const u = c - 0x10000; body.push(...[0xD800 + (u >> 10), 0xDC00 + (u & 1023)].flatMap(x => [x & 255, x >> 8])); } else body.push(c & 255, c >> 8); }
+    const body = k === 'comment' ? [1, 0x65, 0x6E, 0x67, 0xFF, 0xFE, 0, 0, 0xFF, 0xFE] : [1, 0xFF, 0xFE]; /* (a comment: encoding, language, an empty description, then its text) */ for (const ch of v) { const c = ch.codePointAt(0); if (c > 0xFFFF) { const u = c - 0x10000; body.push(...[0xD800 + (u >> 10), 0xDC00 + (u & 1023)].flatMap(x => [x & 255, x >> 8])); } else body.push(c & 255, c >> 8); }
     frames.push(...fourcc(ids[k]), ...be32(body.length), 0, 0, ...body);
   }
   if (!frames.length) return new Uint8Array(0);
@@ -444,7 +449,8 @@ function avcCParams(c) {
    audio: { codec: 'aac' | 'opus' | 'pcm', sampleRate, channels, bitrate, description, samples, delay?, length? }
    delay: the encoder's start-up samples (AAC priming) for players to skip; length: the real sound in samples. Both go in an edit list.
    PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them.
-   meta: { title, artist } — iTunes-style tags (moov/udta/meta/ilst) in an MP4, classic QuickTime text atoms (moov/udta/©nam, ©ART) in a .mov. */
+   meta: { title, artist, album, year, genre, comment } — iTunes-style tags (moov/udta/meta/ilst) in an MP4, classic QuickTime text
+   atoms (moov/udta/©nam, ©ART, ©alb, ©day, ©gen, ©cmt) in a .mov. */
 function mp4Mux({ video, audio, quicktime = false, meta = null }) {
   // video: split each frame into NAL units, keep the parameter sets for the avcC box, store the rest length-prefixed
   let { sps, pps } = avcCParams(video.description);
@@ -504,8 +510,8 @@ function mp4Mux({ video, audio, quicktime = false, meta = null }) {
     aEntry = mbox('Opus', audioHead(audio.channels), mbox('dOps', [0, audio.channels, ...be16(preSkip), ...be32(aSr), 0, 0, 0]));
   }
 
-  // title and artist
-  const tags = metaFields(meta), atom = { title: '\u00A9nam', artist: '\u00A9ART' };
+  // what the file says about itself
+  const tags = metaFields(meta), atom = { title: '\u00A9nam', artist: '\u00A9ART', album: '\u00A9alb', year: '\u00A9day', genre: '\u00A9gen', comment: '\u00A9cmt' };
   const udta = !tags.length ? new Uint8Array(0) : quicktime
     ? mbox('udta', ...tags.map(([k, v]) => { const b = utf8(v); return mbox(atom[k], be16(b.length), be16(0x55C4), b); })) // UTF-8, language 'und'
     : mbox('udta', fullBox('meta', 0, 0, fullBox('hdlr', 0, 0, be32(0), fourcc('mdir'), fourcc('appl'), be32(0), be32(0), [0]),
@@ -592,9 +598,10 @@ function webmMux({ video, audio, meta = null }) {
   const clusterBytes = clusterParts.map(parts => ({ length: parts.reduce((a, x) => a + x.length, 0), parts }));
   const tagList = metaFields(meta), titleTag = tagList.find(([k]) => k === 'title');
   const info = ebml(0x1549A966, ebmlUint(0x2AD7B1, 1000000), ebmlFloat(0x4489, durationMs), ...(titleTag ? [ebmlStr(0x7BA9, titleTag[1])] : []), ebmlStr(0x4D80, 'Chord Glide'), ebmlStr(0x5741, 'Chord Glide'));
-  // Tags: TITLE and ARTIST for the whole file (target type 50, an album/movie-level item)
+  // Tags for the whole file (target type 50, an album/movie-level item): TITLE, ARTIST, ALBUM, DATE_RELEASED, GENRE, COMMENT
+  const mkvName = { year: 'DATE_RELEASED' };
   const tagsEl = tagList.length ? ebml(0x1254C367, ebml(0x7373, ebml(0x63C0, ebmlUint(0x68CA, 50)),
-    ...tagList.map(([k, v]) => ebml(0x67C8, ebmlStr(0x45A3, k.toUpperCase()), ebmlStr(0x4487, v))))) : null;
+    ...tagList.map(([k, v]) => ebml(0x67C8, ebmlStr(0x45A3, mkvName[k] || k.toUpperCase()), ebmlStr(0x4487, v))))) : null;
   const tracks = ebml(0x1654AE6B,
     ebml(0xAE, ebmlUint(0xD7, 1), ebmlUint(0x73C5, 1), ebmlUint(0x83, 1), ebmlUint(0x9C, 0), ebmlStr(0x86, codecId), ebmlUint(0x23E383, Math.round(1e9 / video.fps)),
       ebml(0xE0, ebmlUint(0xB0, video.width), ebmlUint(0xBA, video.height))),

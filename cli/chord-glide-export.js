@@ -4,6 +4,8 @@
  *
  *   node chord-glide-export.js <piece.json> [options]
  *
+ *   The piece file can be .json or .chordglide (the same JSON).
+ *
  *   --midi        MIDI with glides (MPE, one channel per voice)
  *   --chords      MIDI with the settled chords, and each part's notes on a track of its own
  *   --musicxml    MusicXML: the chords, and a staff for each line, pattern or echo part
@@ -11,7 +13,9 @@
  *   --out <dir>   where to write (default: beside the piece file)
  *   --tempo <bpm> override the piece's export tempo
  *   --revoice     ignore saved notes from an older engine and voice the piece again
- *   --artist <n>  write this artist name into the files (the title is the piece name)
+ *   --artist <n>  write this artist name into the files (the title is the piece name);
+ *                 without it, the piece's own artist (Export → Details), if it has one;
+ *                 --artist "" writes none
  *
  * Audio (WAV, MP3) and video need a browser's audio engine: export those from
  * "Chord Glide.html". Requires Node 18 or later. No network, no dependencies.
@@ -54,7 +58,9 @@ const all = flag('--all') || !(flag('--midi') || flag('--chords') || flag('--mus
 const outDir = opt('--out') || path.dirname(path.resolve(file));
 fs.mkdirSync(outDir, { recursive: true });
 const base = (String(piece.name || 'Untitled piece').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Untitled piece').slice(0, 80);
-const o = { tempo, title: piece.name, artist: opt('--artist') || '' };
+// the artist: --artist if given (even empty, for none), else the piece's own (its tags, as the app saves them), else none
+const savedArtist = [raw.tags, piece.tags].map(t => t && typeof t === 'object' && typeof t.artist === 'string' ? t.artist.trim().slice(0, 80) : null).find(a => a !== null);
+const o = { tempo, title: piece.name, artist: args.includes('--artist') ? String(opt('--artist') || '').trim().slice(0, 80) : savedArtist || '' };
 const write = (name, data) => { const p = path.join(outDir, name); fs.writeFileSync(p, data); console.log('wrote ' + p + ' (' + data.length + ' bytes)'); };
 if (all || flag('--midi')) { const parts = E.midiGlideFiles(built, o); for (const m of parts) write(base + (parts.length > 1 ? ' (glides, voices ' + m.voices[0] + '–' + m.voices[1] + ').mid' : ' (glides).mid'), m.data); if (parts.length > 1) console.log('MIDI with glides holds 15 voices per file, so this piece is split across ' + parts.length + ' files.'); }
 if (all || flag('--chords')) write(base + ' (chords).mid', E.midiChords(built, o));

@@ -53,7 +53,16 @@ input[type=range] { accent-color: var(--accent); width: 100%; }
 .brand .logo { width: 30px; height: 30px; flex: none; }
 .brand-t { display: flex; flex-direction: column; line-height: 1.1; }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-height: 1.1; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
-.brand .by { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); margin-top: 1px; white-space: nowrap; }
+.byline { display: flex; justify-content: space-between; gap: 8px; margin-top: 1px; font-family: var(--font-data); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.byline .bver { opacity: 0.8; }
+/* the bars' buttons read as buttons on any theme: a little lighter than the bar, with an edge */
+:is(.topbar .grp > button, .topbar .menuwrap > button, .transport button.icon):not(.primary):not(.busybtn):not([aria-pressed="true"]) { background: color-mix(in srgb, var(--ink) 7%, var(--stage)); border-color: color-mix(in srgb, var(--ink) 17%, var(--stage)); }
+:is(.topbar .grp > button, .topbar .menuwrap > button, .transport button.icon):not(.primary):not(.busybtn):not([aria-pressed="true"]):hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 12%, var(--stage)); border-color: color-mix(in srgb, var(--ink) 40%, var(--stage)); }
+.topbar .menuwrap > button[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 18%, var(--stage)); border-color: var(--accent); }
+/* the app's own tooltip, for anything with a title: quicker than the browser's, and on keyboard focus too */
+.tip { position: fixed; z-index: 80; pointer-events: none; max-width: min(80vw, 320px); padding: 5px 9px; border-radius: 5px; background: var(--ink); color: var(--stage);
+  font-size: 12.5px; font-weight: 500; line-height: 1.35; white-space: normal; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.tip kbd { font-family: var(--font-data); font-size: 11px; margin-left: 7px; padding: 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--stage) 22%, transparent); }
 .topbar .grp.piece { flex: 1 1 220px; min-width: 0; gap: 6px; }
 .topbar .name { flex: 1 1 auto; min-width: 0; font-family: var(--font-display); font-weight: 500; font-size: 17px; padding: 4px 8px; border-color: transparent; background: transparent; }
 .topbar .name:hover { border-color: var(--rule); }
@@ -103,7 +112,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-h
   .busybtn .bt { display: none; }
   .topbar .icon#menubtn { width: 44px; height: 44px; border-color: transparent; }
 }
-dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh, 760px); }
+dialog.guide.opendlg, dialog.guide.settingsdlg, dialog.guide.exportdlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh, 760px); } /* Open, Settings and Export: one size */
 .open-nav button { display: flex; align-items: center; gap: 8px; }
 .open-nav .count { margin-left: auto; font-family: var(--font-data); font-size: 11.5px; font-weight: 400; color: var(--muted); }
 .open-nav .nav-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--rule); }
@@ -116,6 +125,7 @@ dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh,
 .open-tools input[type=search] { flex: 1; min-width: 0; padding: 6px 10px; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; }
 .sortby { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .sortby select { padding: 5px 8px; font-size: 13px; }
+.sortdir { white-space: nowrap; font-weight: 500; }
 .lib-note { margin: 0; padding: 8px 14px 0; font-size: 12.5px; color: var(--muted); }
 .lib-note:empty { display: none; }
 .lib-undo { display: flex; align-items: center; gap: 10px; margin: 8px 14px 0; padding: 6px 6px 6px 12px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); font-size: 13px; }
@@ -150,7 +160,7 @@ dialog.about.confirmdlg { width: min(460px, calc(100vw - 32px)); }
 .confirm-body p { margin: 0; color: var(--muted); line-height: 1.5; }
 .confirm-body .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 @media (max-width: 640px) {
-  dialog.guide.opendlg { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  dialog.guide.opendlg, dialog.guide.settingsdlg, dialog.guide.exportdlg { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
   .open-nav .nav-foot { margin: 0 0 0 auto; padding: 0 0 0 6px; border: 0; }
   .open-nav .nav-foot button { width: auto; white-space: nowrap; padding: 6px 10px; }
   .open-nav .long { display: none; } .open-nav .short { display: inline; }
@@ -264,11 +274,10 @@ button.arr-ms.solo[aria-pressed="true"] { background: var(--accent); color: var(
 .secloop { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 #secbtn.looping { color: var(--accent); }
 .secpop .note { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
-.pop.volpop { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; } /* after .pop in specificity, so it wins */
+.pop.volpop { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; } /* after .pop in specificity, so it wins */
 .volpop input[type=range] { width: 170px; max-width: 100%; }
 .volpop output { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
 .volpop .note { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
-.volpop .vicon { width: 34px; height: 30px; }
 #volbtn .i-mute, #mute .i-mute, #volbtn.muted .i-vol, #mute.muted .i-vol { display: none; }
 #volbtn.muted .i-mute, #mute.muted .i-mute { display: block; }
 #volbtn.quiet .w2, #mute.quiet .w2 { display: none; }
@@ -326,10 +335,19 @@ button.rerollall svg { width: 18px; height: 18px; }
 .rhist button em { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-style: normal; font-size: 11.5px; color: var(--accent); }
 .rhist button[aria-current="true"] { border-color: var(--accent); cursor: default; }
 /* the Export window: the files and the video side by side, each with its progress */
-dialog.about.exportdlg { width: min(940px, calc(100vw - 32px)); max-height: min(90vh, 920px); }
-.export-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding: 16px; align-items: start; }
-.xsec { display: grid; gap: 10px; min-width: 0; }
-.xsec .mod-title { margin-bottom: 2px; }
+.xsec { display: grid; gap: 12px; align-content: start; max-width: 720px; }
+.xsec h3 { margin-bottom: 0; }
+.xsec .lede { margin: 0; }
+.detgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 16px; }
+.det { display: grid; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.det.wide { grid-column: 1 / -1; }
+.det small { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.artistrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.artistrow .linkish { font-size: 12px; }
+.det input, .det textarea { font-size: 14px; letter-spacing: 0; text-transform: none; font-weight: 400; }
+.vartist { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.vartist .vcheck { flex: 0 0 auto; }
+.vartist input[type=text] { flex: 1 1 200px; width: auto; }
 #xprog, #vprog { width: 100%; height: 8px; accent-color: var(--accent); }
 .mod .video-box, .mod .seed, .xsec .video-box { border: 0; padding: 0; background: transparent; }
 /* the export formats, always shown, two to a row */
@@ -524,7 +542,6 @@ dialog.guide[open] { display: flex; flex-direction: column; }
 .guide-nav button { border: 0; text-align: left; padding: 8px 10px; font-weight: 500; color: var(--muted); border-radius: 4px; }
 .guide-nav button[aria-selected="true"] { background: var(--stage); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .guide-pages { overflow-y: auto; padding: 6px 26px 28px; }
-dialog.settingsdlg { width: min(860px, calc(100vw - 32px)); height: min(80vh, 760px); }
 .settings-page:not([hidden]) { display: grid; gap: 6px; align-content: start; }
 .settings-page p.hint { color: var(--muted); }
 .settings-page .seg { justify-self: start; }
@@ -597,19 +614,19 @@ figure.vl circle { fill: var(--ink); }
 
 <div class="wrap">
   <header class="topbar" aria-label="Piece">
-    <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg><div class="brand-t"><h1>Chord Glide</h1><span class="by">by Noizgenie</span></div></div>
+    <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg><div class="brand-t"><h1>Chord Glide</h1><span class="byline"><span class="by">by Noizgenie</span><span class="bver" id="brandver"></span></span></div></div>
     <div class="grp piece">
       <input id="name" class="name" type="text" aria-label="Piece name" maxlength="80">
       <span class="savewrap"><span id="savedot" class="savedot" role="img"></span><span id="status" class="status" role="status"></span><button id="revoice" type="button" class="small" hidden>Re-voice with this engine</button></span>
     </div>
     <div class="grp file" role="group" aria-label="File">
       <div class="menuwrap">
-        <button id="filebtn" type="button" class="filebtn" aria-haspopup="menu" aria-expanded="false" aria-controls="filemenu">File<svg class="chev" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button id="filebtn" type="button" class="filebtn" title="New, open, save a copy, export" aria-haspopup="menu" aria-expanded="false" aria-controls="filemenu">File<svg class="chev" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <div id="filemenu" class="pop menu" role="menu" aria-label="File" hidden>
           <button id="newpiece" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 11v6M9.25 14h6"/></svg><span>New piece</span></button>
           <button id="openbtn" type="button" role="menuitem" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3.5 18.5v-12.5h5.5l2 2h7.5v2.5"/><path d="M3.5 18.5l2.6-7.5h15.4l-2.6 7.5z"/></svg><span>Open…</span><kbd data-key="O"></kbd></button>
-          <button id="saveas" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 19.5H4.5v-15h11.5l3.5 3.5V12"/><path d="M8 4.5v4.5h7v-4.5"/><path d="M18 15v6M15 18h6"/></svg><span>Save as a new piece</span></button>
           <button id="menuimport" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 10.5v6.5M9.5 14.25l2.75 2.75 2.75-2.75"/></svg><span>Open a piece file…</span></button>
+          <button id="saveas" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 19.5H4.5v-15h11.5l3.5 3.5V12"/><path d="M8 4.5v4.5h7v-4.5"/><path d="M18 15v6M15 18h6"/></svg><span>Save as a new piece</span></button>
           <button id="menuexport" type="button" role="menuitem" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 16.5v3h15v-3"/></svg><span>Export…</span><kbd>E</kbd></button>
           <hr>
           <button type="button" role="menuitem" data-about="about" class="about-item"><span>About Chord Glide<small id="ver">Version 4.6 · engine 3.1</small></span></button>
@@ -623,9 +640,9 @@ figure.vl circle { fill: var(--ink); }
     </div>
     <div class="grp busy" id="videobusy" hidden><button type="button" id="busybtn" class="small busybtn" title="Open the Export window (E)"><span class="pulse" aria-hidden="true"></span>Video in progress<span class="bt"> · Show</span></button></div>
     <div class="grp end">
-      <button id="settingsbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Settings" title="Settings (⌘, / Ctrl+,)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9.5M18 7h2M4 17h2.5M11 17h9"/><circle cx="15.75" cy="7" r="2.25"/><circle cx="8.75" cy="17" r="2.25"/></svg></button>
+      <button id="settingsbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Settings" title="Settings (⌘, / Ctrl+,)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M9.97 4.68 L10.49 2.11 L13.51 2.11 L14.03 4.68 L15.75 5.39 L17.93 3.94 L20.06 6.07 L18.61 8.25 L19.32 9.97 L21.89 10.49 L21.89 13.51 L19.32 14.03 L18.61 15.75 L20.06 17.93 L17.93 20.06 L15.75 18.61 L14.03 19.32 L13.51 21.89 L10.49 21.89 L9.97 19.32 L8.25 18.61 L6.07 20.06 L3.94 17.93 L5.39 15.75 L4.68 14.03 L2.11 13.51 L2.11 10.49 L4.68 9.97 L5.39 8.25 L3.94 6.07 L6.07 3.94 L8.25 5.39Z"/><circle cx="12" cy="12" r="3.2"/></svg></button>
       <button id="guidebtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Guide" title="Guide (?)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.75"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor" stroke="none"/></svg></button>
-      <div class="menuwrap phonemenu"><button id="menubtn" type="button" class="icon" aria-haspopup="menu" aria-expanded="false" aria-controls="phonemenu" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button>
+      <div class="menuwrap phonemenu"><button id="menubtn" type="button" class="icon" title="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="phonemenu" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button>
         <div id="phonemenu" class="pop menu" role="menu" aria-label="Menu" hidden>
           <button type="button" role="menuitem" data-proxy="save">Save</button>
           <button type="button" role="menuitem" data-proxy="undo">Undo</button>
@@ -633,8 +650,8 @@ figure.vl circle { fill: var(--ink); }
           <hr>
           <button type="button" role="menuitem" data-proxy="newpiece">New piece</button>
           <button type="button" role="menuitem" data-proxy="openbtn">Open…</button>
-          <button type="button" role="menuitem" data-proxy="saveas">Save as a new piece</button>
           <button type="button" role="menuitem" data-proxy="menuimport">Open a piece file…</button>
+          <button type="button" role="menuitem" data-proxy="saveas">Save as a new piece</button>
           <button type="button" role="menuitem" data-proxy="menuexport">Export…</button>
           <hr>
           <button type="button" role="menuitem" data-proxy="settingsbtn">Settings</button>
@@ -673,9 +690,8 @@ figure.vl circle { fill: var(--ink); }
           <div class="volwrap">
             <button id="volbtn" class="icon" type="button" aria-label="Volume" aria-expanded="false" aria-controls="volpop" title="Volume (M mutes)"><svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M18 7a7 7 0 0 1 0 10"/></svg><svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 10l4 4M20 10l-4 4"/></svg></button>
             <div id="volpop" class="pop volpop" role="group" aria-label="Volume" hidden>
-              <button type="button" id="mute" class="icon vicon" aria-label="Mute" title="Mute (M)"><svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M18 7a7 7 0 0 1 0 10"/></svg><svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 10l4 4M20 10l-4 4"/></svg></button>
-              <input id="vol" type="range" min="0" max="1" step="0.01" aria-label="Volume"><output id="o-vol" for="vol"></output>
               <span class="note">For listening only; not saved with the piece.</span>
+              <input id="vol" type="range" min="0" max="1" step="0.01" aria-label="Volume"><output id="o-vol" for="vol"></output>
             </div>
           </div>
           <div class="viewwrap">
@@ -873,7 +889,7 @@ figure.vl circle { fill: var(--ink); }
             <div class="slider knob tonectl" data-for="fm" hidden><label for="fmsustain">Held</label><output id="o-fmsustain"></output><input id="fmsustain" type="range" min="0" max="12" step="0.1"></div>
             <div class="slider knob tonectl" data-for="fm" hidden><label for="fmtime">Settles</label><output id="o-fmtime"></output><input id="fmtime" type="range" min="0.02" max="4" step="0.01"></div>
             <div class="slider knob"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
-            <div class="slider knob"><label for="width">Width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
+            <div class="slider knob"><label for="width">Width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"><span class="ends"><span>spreads the voices across the stereo field; a part of one voice stays at its pan and is widened around it instead</span></span></div>
             <div class="slider knob"><label for="ensemble">Ensemble</label><output id="o-ensemble"></output><input id="ensemble" type="range" min="0" max="100" step="1"><span class="ends"><span>thickens the part, as a section of players is thicker than one</span></span></div>
           </div>
         </section>
@@ -979,12 +995,12 @@ figure.vl circle { fill: var(--ink); }
       <nav class="guide-nav open-nav" id="open-nav" role="tablist" aria-label="Pieces" aria-orientation="vertical">
         <button type="button" role="tab" id="ot-saved" aria-controls="o-panel" aria-selected="true" data-opage="saved">Your pieces<span class="count" id="n-saved"></span></button>
         <button type="button" role="tab" id="ot-examples" aria-controls="o-panel" aria-selected="false" data-opage="examples">Examples<span class="count" id="n-examples"></span></button>
-        <div class="nav-foot"><input id="importfile" type="file" accept=".json,application/json" hidden><button id="importbtn" type="button" class="small"><span class="long">Open a piece file…</span><span class="short">File…</span></button></div>
+        <div class="nav-foot"><input id="importfile" type="file" accept=".json,.chordglide,application/json" hidden><button id="importbtn" type="button" class="small"><span class="long">Open a piece file…</span><span class="short">File…</span></button></div>
       </nav>
       <div class="open-panel" id="o-panel" role="tabpanel" aria-labelledby="ot-saved">
         <div class="open-tools" id="open-tools">
           <input id="libsearch" type="search" placeholder="Search by name" aria-label="Search by name" autocomplete="off">
-          <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label>
+          <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label><button type="button" class="small sortdir" id="libdir"></button>
         </div>
         <p id="lib-note" class="hint lib-note"></p>
         <div id="lib-undo" class="lib-undo" role="status" hidden><span id="lib-undo-text"></span><button type="button" id="lib-undo-btn" class="small">Undo</button></div>
@@ -995,10 +1011,18 @@ figure.vl circle { fill: var(--ink); }
       </div>
     </div>
   </dialog>
-  <dialog id="exportdlg" class="about exportdlg" aria-labelledby="export-title">
+  <dialog id="exportdlg" class="about guide exportdlg" aria-labelledby="export-title">
     <div class="about-head"><h2 id="export-title">Export</h2><button type="button" id="export-close" class="small">Close</button></div>
-    <div class="export-body">
-      <section class="xsec" aria-labelledby="x-files"><h3 class="mod-title" id="x-files">Files</h3>
+    <div class="guide-body">
+      <nav class="guide-nav" id="export-nav" role="tablist" aria-label="Export pages" aria-orientation="vertical">
+          <button type="button" role="tab" id="xt-files" aria-controls="xp-files" aria-selected="true" data-xpage="files">Audio and files</button>
+          <button type="button" role="tab" id="xt-video" aria-controls="xp-video" aria-selected="false" data-xpage="video">Video</button>
+          <button type="button" role="tab" id="xt-details" aria-controls="xp-details" aria-selected="false" data-xpage="details">Details</button>
+      </nav>
+      <div class="guide-pages" id="export-pages">
+        <section class="guide-page xsec" id="xp-files" role="tabpanel" aria-labelledby="xt-files">
+          <h3 id="x-files">Audio and files</h3>
+          <p class="lede">The piece as audio, MIDI and notation, or as a piece file that reopens exactly.</p>
           <button type="button" id="xopen" hidden aria-expanded="false">Export</button>
           <div class="exports" id="xlist" role="group" aria-label="Export formats">
           <button type="button" data-export="json">Piece file<small>.json with its notes; reopens exactly</small></button>
@@ -1013,7 +1037,9 @@ figure.vl circle { fill: var(--ink); }
           <p class="hint" id="xhint"></p>
           <p id="xstatus" class="hint" role="status"></p>
 </section>
-      <section class="xsec" aria-labelledby="x-video"><h3 class="mod-title" id="x-video">Video</h3>
+        <section class="guide-page xsec" id="xp-video" role="tabpanel" aria-labelledby="xt-video" hidden>
+          <h3 id="x-video">Video</h3>
+          <p class="lede">The stage as a video, with the piece's sound.</p>
           <div class="video-box">
                     <p class="hint help" data-on="x-video">Auto zoom: <b>Automatic</b> zooms in over the first chord's glide and out at the end; <b>Custom times</b> sets your own, saved with the piece and used by Auto view on the stage too. <b>Fast movement</b> sets how a voice that moves faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.</p>
           <div class="vopts">
@@ -1035,7 +1061,7 @@ figure.vl circle { fill: var(--ink); }
             <span class="vzc"><input id="zout1" inputmode="decimal" aria-label="Zoom out ends at"><button type="button" class="small znow" data-z="3" title="Use the playhead">Now</button></span>
           </div>
           <p class="hint" id="vzoom-hint"></p>
-          <label class="vcheck" id="vartist-row"><input type="checkbox" id="vartist" checked> <span id="vartist-text">Artist name under the title</span></label>
+          <div class="vartist"><label class="vcheck" id="vartist-row"><input type="checkbox" id="vartist" checked> <span id="vartist-text">Artist name under the title</span></label><input type="text" id="vartistname" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Your artist name" aria-label="Artist name"></div>
           <div class="two">
             <button type="button" id="vrender" class="primary vr">Render video</button>
             <button type="button" id="vrecord">Record live</button>
@@ -1046,6 +1072,20 @@ figure.vl circle { fill: var(--ink); }
           <p class="hint help" id="vhint" data-on="vrecord">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
         </div>
 </section>
+        <section class="guide-page xsec" id="xp-details" role="tabpanel" aria-labelledby="xt-details" hidden>
+          <h3 id="x-details">Details</h3>
+          <p class="lede">What the files you export say about themselves, so music apps, players and video sites show it. Leave a field empty and it's left out.</p>
+          <div class="detgrid">
+            <label class="det wide">Title<input type="text" id="dtitle" maxlength="80" autocomplete="off" spellcheck="false"><small>The piece's name: changing it here renames the piece.</small></label>
+            <div class="det wide"><label for="artist">Artist</label><input type="text" id="artist" maxlength="80" autocomplete="off" spellcheck="false" placeholder="No artist"><small class="artistrow"><span id="artist-note"></span> <button type="button" class="linkish" id="artist-usedefault" hidden></button> <button type="button" class="linkish" id="artist-makedefault" hidden></button></small></div>
+            <label class="det">Album<input type="text" id="dalbum" maxlength="120" autocomplete="off" spellcheck="false"></label>
+            <label class="det">Year<input type="text" id="dyear" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="2026"></label>
+            <label class="det">Genre<input type="text" id="dgenre" maxlength="60" autocomplete="off" spellcheck="false" list="dgenres"><datalist id="dgenres"><option value="Ambient"><option value="Classical"><option value="Electronic"><option value="Experimental"><option value="Instrumental"><option value="New Age"><option value="Soundtrack"></datalist></label>
+            <label class="det wide">Comment<textarea id="dcomment" rows="2" maxlength="1000" spellcheck="true"></textarea></label>
+          </div>
+          <p class="hint">The artist, album, year, genre and comment are saved with this piece (a piece that hasn't set an artist uses your default). Every field goes into WAV, MP3 and rendered video (MP4, MOV or WebM); MIDI and MusicXML take the title and the artist (as the composer in MusicXML). Record live videos carry none of them.</p>
+        </section>
+      </div>
     </div>
   </dialog>
   <dialog id="discarddlg" class="about confirmdlg" aria-labelledby="discard-title" aria-describedby="discard-text">
@@ -1061,7 +1101,6 @@ figure.vl circle { fill: var(--ink); }
       <nav class="guide-nav" id="settings-nav" role="tablist" aria-label="Settings pages" aria-orientation="vertical">
           <button type="button" role="tab" id="st-look" aria-controls="s-look" aria-selected="false" data-spage="look">Trace look</button>
           <button type="button" role="tab" id="st-ui" aria-controls="s-ui" aria-selected="false" data-spage="ui">Interface</button>
-          <button type="button" role="tab" id="st-names" aria-controls="s-names" aria-selected="false" data-spage="names">Name on exports</button>
       </nav>
       <div class="guide-pages" id="settings-pages">
         <section class="guide-page settings-page" id="s-look" role="tabpanel" aria-labelledby="st-look">
@@ -1108,12 +1147,6 @@ figure.vl circle { fill: var(--ink); }
             <p class="hint">The longer explanations under the controls open from the <b>?</b> beside a control's name. Show them all instead while you're learning. On this device.</p>
           </div>
         </section>
-        <section class="guide-page settings-page" id="s-names" role="tabpanel" aria-labelledby="st-names" hidden>
-          <h3>Name on exports</h3>
-          <label class="label" for="artist">Artist name</label>
-          <input type="text" id="artist" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Leave empty to add no name">
-          <p class="hint">Written into WAV, MP3, rendered video, MIDI and MusicXML files as the artist, with the piece name as the title, so music apps and players show both. Saved on this device only and never put in piece files. Record live videos can't carry it in the file. Videos can also show it under the title; there's a tick box for that beside Render video.</p>
-        </section>
       </div>
     </div>
   </dialog>
@@ -1140,7 +1173,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The bar across the top holds everything about the piece as a whole. From left to right:</p>
           <dl class="barmap">
             <dt><span class="mini-name">Name</span><span class="savedot new"></span><span class="savedot saved"></span><span class="savedot dirty"></span></dt><dd><b>Piece name and save dot.</b> Click the name to rename the piece. The dot is hollow if the piece has never been saved, green when everything is saved, and amber when there are unsaved changes.</dd>
-            <dt><span class="mini" data-icon="filebtn"></span><span class="mini" data-icon="save"></span></dt><dd><b>File and Save.</b> The File menu holds <b>New piece</b>, which writes a fresh piece from a new harmony seed; <b>Open</b>, which shows your saved pieces and the examples, with what each one holds; <b>Save as a new piece</b>, which keeps the original and saves a copy; <b>Open a piece file</b>; <b>Export</b>, the window for audio, MIDI, notation and video (also <kbd>E</kbd>); and <b>About</b>, with the app's version. Save, beside it, keeps the piece in your library.</dd>
+            <dt><span class="mini" data-icon="filebtn"></span><span class="mini" data-icon="save"></span></dt><dd><b>File and Save.</b> The File menu holds <b>New piece</b>, which writes a fresh piece from a new harmony seed; <b>Open</b>, which shows your saved pieces and the examples, with what each one holds; <b>Open a piece file</b>; <b>Save as a new piece</b>, which keeps the original and saves a copy; <b>Export</b>, the window for audio, MIDI, notation and video (also <kbd>E</kbd>); and <b>About</b>, with the app's version. Save, beside it, keeps the piece in your library.</dd>
             <dt><span class="mini" data-icon="undo"></span><span class="mini" data-icon="redo"></span></dt><dd><b>Undo and Redo.</b> Step back and forward through your changes, including rerolls.</dd>
             <dt><span class="mini" data-icon="settingsbtn"></span><span class="mini" data-icon="guidebtn"></span></dt><dd><b>Settings and Guide.</b> Trace looks, themes and accent color; and this Guide. On a phone they, the File menu, Save, and undo and redo are in the menu at the right end of the bar.</dd>
           </dl>
@@ -1169,7 +1202,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>Sound</b> tab picks the tone and sets detune, stereo width, reverb and brightness, and a <b>volume shape</b> can fade the whole piece in, build it, swell it or fade it out. Each tone is a fixed mix of harmonics, whole-number multiples of the note: Pure is the note alone and Air nearly so, with a faint shimmer above; Soft, Warm, Glass and Reed are hand-tuned mixes; Triangle, Square, Pulse and Saw are the classic synthesizer waves; Organ uses drawbar-style levels; Brass follows FM synthesis; Harp has the gaps of a plucked string; Bowed and Cello are inspired by a bowed string, Cello with the most harmonics and gaps like those a bow creates; Octaves keeps only the octaves of the note, and Chime only its Fibonacci harmonics. In <b>Settings</b>, a <b>trace look</b> decides how the lines are drawn (phosphor, laser, aurora and more), and the <b>interface theme</b> and accent color dress the page.</p>
 
           <h4><span class="step">6</span>Add parts</h4>
-          <p>A piece can have more than one part. The <b>Part</b> menu above the tabs chooses which part the tabs edit; <b>Main</b> is the chords as you've voiced them. <b>+ Add</b> adds a <b>melody</b> or <b>bass</b> line, which starts from your chords so it plays in key straight away, or another <b>pad</b>: a group of voices that follows the chords in its own register, with its own random choices. Choose a part and the tabs follow it. For a line, Harmony becomes <b>Line</b>: write it like the chord box, a note and its length in steps (<code>G4:2</code>), <code>-</code> for a rest and <code>|</code> just for reading, and pick the step (eighth notes, quarter notes and so on). Voicing becomes <b>Voices</b>, where <code>0,&nbsp;-12</code> doubles the line an octave below. Motion holds portamento and vibrato, and Sound its tone, level, pan and <b>envelope</b>: how fast each note starts, how it settles and how long it fades. A pad part gets the full Voicing and Motion controls. What every part shares (the chords, chord length, glide, reverb, brightness, volume shape and the seeds) sits under <b>Whole piece</b> at the bottom of each tab. The <b>⋯</b> menu renames, moves, duplicates or removes the chosen part. Voices in a line rest between notes, shown as gaps in their lines. There are patterns, echoes and a kick too, and sections to arrange them in: <b>Parts and sections</b>, the next page, has them all. Try the <b>Three Parts</b> example.</p>
+          <p>A piece can have more than one part. The <b>Part</b> menu above the tabs chooses which part the tabs edit; <b>Main</b> is the chords as you've voiced them. <b>+ Add</b> adds a <b>melody</b> or <b>bass</b> line, which starts from your chords so it plays in key straight away, or another <b>pad</b>: a group of voices that follows the chords in its own register, with its own random choices. Choose a part and the tabs follow it. For a line, Harmony becomes <b>Line</b>: write it like the chord box, a note and its length in steps (<code>G4:2</code>), <code>-</code> for a rest and <code>|</code> just for reading, and pick the step (eighth notes, quarter notes and so on). Voicing becomes <b>Voices</b>, where <code>0,&nbsp;-12</code> doubles the line an octave below. Motion holds portamento and vibrato, and Sound its tone, level, pan and <b>envelope</b>: how fast each note starts, how it settles and how long it fades. <b>Width</b> spreads a part's voices across the stereo field; a part of one voice, such as a melody or bass line, stays at its pan and is widened around it instead, so it stays put and still sums cleanly to mono. A pad part gets the full Voicing and Motion controls. What every part shares (the chords, chord length, glide, reverb, brightness, volume shape and the seeds) sits under <b>Whole piece</b> at the bottom of each tab. The <b>⋯</b> menu renames, moves, duplicates or removes the chosen part. Voices in a line rest between notes, shown as gaps in their lines. There are patterns, echoes and a kick too, and sections to arrange them in: <b>Parts and sections</b>, the next page, has them all. Try the <b>Three Parts</b> example.</p>
 
           <h4><span class="step">7</span>Lock what you love, reroll the rest</h4>
           <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. On the <b>Reroll</b> tab (step 1), a lock keeps a layer as it is, and <b>Reroll the rest</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
@@ -1178,7 +1211,7 @@ figure.vl circle { fill: var(--ink); }
           <p>Your saved pieces are kept in this browser, and <b>Open</b> lists them with when each was made and last changed, the version that saved it, its length, parts and size. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">9</span>Export</h4>
-          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
+          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; the <b>Details</b> page adds an artist (yours by default, or the piece's own, or none), an album, year, genre and comment, saved with the piece and written into WAV, MP3 and video files, with the title and artist in MIDI and MusicXML too. Videos can also show your name under the title on screen: tick <b>Artist name under the title</b> on the Video page, with the name beside it, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
 
           <h4><span class="step">10</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -1336,6 +1369,12 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.7</span>Windows, tooltips and room<span class="when">17 Nov 2026</span></h4>
+          <p>Open, Settings and Export are now the same size and laid out alike: pages down the side, the page on the right. Export has two pages, <b>Audio and files</b> and <b>Video</b>, and opens on Video while one records or renders. On a phone each fills the screen.</p>
+          <p>Buttons and other controls show what they do in the app's own tooltip, after a moment's hover or as soon as you reach them with the keyboard, with any shortcut set apart. The top bar's and the player's buttons are filled in so they read as buttons on every theme, Settings has a gear, and the version sits beside "by Noizgenie".</p>
+          <p>Export has a third page, <b>Details</b>: the title (the piece's name), and an artist, album, year, genre and comment, all saved with the piece. A piece that hasn't set an artist uses your default (moved here from Settings, and also beside the video's "Artist name under the title"); a recreation can name its composer, or have none. WAV, MP3 and rendered videos carry all of them; MIDI and MusicXML the title and artist.</p>
+          <p>Open sorts either way: beside the sort choice, a button turns newest first into oldest first, A to Z into Z to A, largest first into smallest first, and stays as you left it on this device. <b>Width</b> on a part of one voice, such as a melody or bass line, now widens it around its pan instead of moving it off to one side, so such parts sound wider and more centred than before. <b>Open a piece file</b> also opens <code>.chordglide</code> files, the same JSON with a name of their own; pieces are still saved as <code>.json</code>. The Arrangement takes the room left in the window under the stage, so a piece of many parts shows them all when they fit, with nothing to scroll. In theater it never pushes the controls below it off the screen: on a shorter window the stage gives up some height first, and the arrangement scrolls.</p>
 
           <h4><span class="step ver">4.6</span>A tidier layout, with knobs<span class="when">17 Nov 2026</span></h4>
           <p>The top of the page is one slim bar: the app's name, smaller, with Noizgenie under it; the piece; a <b>File</b> menu (New piece, Open, Save as a new piece, Open a piece file, <b>Export</b>, and <b>About</b>, which has the version); Save, undo and redo; and Settings and the Guide. A passing message (opened, saved, a problem) shows in full under the piece's name until it fades. On a phone the bar is the piece and a menu with everything else.</p>
@@ -1519,7 +1558,7 @@ figure.vl circle { fill: var(--ink); }
         </section>
         <section class="guide-page" id="g-files" role="tabpanel" aria-labelledby="gt-files" hidden>
           <h3>Piece files</h3>
-          <p class="lede">A piece file (<b>File → Export</b>, then <b>Piece file</b>) holds everything needed to play a piece again: its chords, seeds, settings and parts, and the notes it was voiced with. Its format has a version, which goes up only when a piece can hold something older versions of the app can't play.</p>
+          <p class="lede">A piece file (<b>File → Export</b>, then <b>Piece file</b>) holds everything needed to play a piece again: its chords, seeds, settings and parts, and the notes it was voiced with. It's saved as a <code>.json</code> file; <b>Open a piece file</b> also opens <code>.chordglide</code> files, the same thing under a name of their own, and checks what's inside rather than going by the name. Its format has a version, which goes up only when a piece can hold something older versions of the app can't play.</p>
           <p>Chord Glide always saves a piece in the oldest format that holds everything it uses, so it opens in as many versions as it can. A piece you haven't given parts to is still format 3, and opens in every version since app 3. Every version opens every older format. Since app 3.1, a version given a newer format than it knows says so and leaves the file alone, rather than playing it with parts missing.</p>
 
           <h4><span class="step ver">7</span>Struck instruments, FM and note shapes<span class="when">app 4.5 and later</span></h4>
@@ -1541,7 +1580,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The <b>app</b> version (4.5) is the release. The <b>engine</b> version (3.1) changes only when the same chords and settings would be voiced differently; Engine history has them. The <b>file format</b> (3 to 7) changes only when a piece can hold something new. Most releases change neither of the last two.</p>
 
           <h4>For programs that write piece files</h4>
-          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. A piece that uses anything added in app 4.2 is <code>"formatVersion": 5</code>: time in bars (<code>"unit": "bar"</code> in <code>timing</code>, or a chord length like <code>:2bar</code>), sections in the chords or <code>plays</code> on a part, more than 12 parts, pattern parts and echoes (<code>preset</code> <code>"pattern"</code> or <code>"copy"</code>), a pitch drop, natural decays (<code>envelope.curve</code>), a glide shape or portamento over 2 seconds, slides, loudness, glide times or section markers in a line (<code>~</code>, <code>@</code>, <code>/</code>, <code>[</code>), loudness or glide shapes in any saved notes (<code>vel</code>, <code>ease</code>), breathing or ducking, <b>Never stops</b> (<code>nonstop</code>), <b>Every voice equal</b> (<code>"mix": "voices"</code>) or <b>Just</b> tuning (<code>"tuning": "just"</code>). Saving always writes the lowest version that holds what the piece uses, so a piece without those is still saved as 3 or 4 and older versions open it. A program writing piece files should do the same: a file that uses format 5's fields but says 4 opens in app 4.1, which then plays it without them. Top-level fields this version doesn't know are kept when a piece is saved again. A piece can also say when it was made and last changed (<code>created</code>, <code>modified</code>), and which version of the app made it and last saved it (<code>madeWith</code>, <code>app</code>); the Open window shows them, and they're optional. A piece that uses anything added in app 4.3 is <code>"formatVersion": 6</code>: the tone <code>"noise"</code>, <code>sound.ensemble</code> (0 to 100) on the piece or a part, <code>sound.eq</code> (<code>low</code>, <code>mid</code>, <code>high</code> in dB) or <code>sound.saturation</code> (0 to 100) on the piece, or on a part <code>sound.reverb</code> (a percentage of the piece's, 100 if not set) or <code>sound.brightness</code> (Hz, below 16000; with <code>opens</code>, 0 to 100, and <code>openTime</code> in seconds). A piece that uses anything added in app 4.5 is <code>"formatVersion": 7</code>: the tones <code>"bell"</code>, <code>"gong"</code>, <code>"marimba"</code>, <code>"drum"</code>, <code>"metaltri"</code> or <code>"fm"</code> (with <code>hardness</code> 0 to 100, <code>ring</code> 0.1 to 4 and <code>stop</code> for the struck ones, and <code>fmRatio</code>, <code>fmIndex</code>, <code>fmSustain</code> and <code>fmTime</code> for FM, in <code>sound</code>), or <code>envelope.shape</code> (<code>"swell"</code>, <code>"fade"</code> or <code>"arch"</code>, with <code>depth</code> 0 to 1) on a part.</p>
+          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>, named <code>.json</code> or <code>.chordglide</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. A piece that uses anything added in app 4.2 is <code>"formatVersion": 5</code>: time in bars (<code>"unit": "bar"</code> in <code>timing</code>, or a chord length like <code>:2bar</code>), sections in the chords or <code>plays</code> on a part, more than 12 parts, pattern parts and echoes (<code>preset</code> <code>"pattern"</code> or <code>"copy"</code>), a pitch drop, natural decays (<code>envelope.curve</code>), a glide shape or portamento over 2 seconds, slides, loudness, glide times or section markers in a line (<code>~</code>, <code>@</code>, <code>/</code>, <code>[</code>), loudness or glide shapes in any saved notes (<code>vel</code>, <code>ease</code>), breathing or ducking, <b>Never stops</b> (<code>nonstop</code>), <b>Every voice equal</b> (<code>"mix": "voices"</code>) or <b>Just</b> tuning (<code>"tuning": "just"</code>). Saving always writes the lowest version that holds what the piece uses, so a piece without those is still saved as 3 or 4 and older versions open it. A program writing piece files should do the same: a file that uses format 5's fields but says 4 opens in app 4.1, which then plays it without them. Top-level fields this version doesn't know are kept when a piece is saved again. A piece can also say when it was made and last changed (<code>created</code>, <code>modified</code>), and which version of the app made it and last saved it (<code>madeWith</code>, <code>app</code>); the Open window shows them, and they're optional. A piece that uses anything added in app 4.3 is <code>"formatVersion": 6</code>: the tone <code>"noise"</code>, <code>sound.ensemble</code> (0 to 100) on the piece or a part, <code>sound.eq</code> (<code>low</code>, <code>mid</code>, <code>high</code> in dB) or <code>sound.saturation</code> (0 to 100) on the piece, or on a part <code>sound.reverb</code> (a percentage of the piece's, 100 if not set) or <code>sound.brightness</code> (Hz, below 16000; with <code>opens</code>, 0 to 100, and <code>openTime</code> in seconds). A piece that uses anything added in app 4.5 is <code>"formatVersion": 7</code>: the tones <code>"bell"</code>, <code>"gong"</code>, <code>"marimba"</code>, <code>"drum"</code>, <code>"metaltri"</code> or <code>"fm"</code> (with <code>hardness</code> 0 to 100, <code>ring</code> 0.1 to 4 and <code>stop</code> for the struck ones, and <code>fmRatio</code>, <code>fmIndex</code>, <code>fmSustain</code> and <code>fmTime</code> for FM, in <code>sound</code>), or <code>envelope.shape</code> (<code>"swell"</code>, <code>"fade"</code> or <code>"arch"</code>, with <code>depth</code> 0 to 1) on a part.</p>
           <p class="guide-next"><button type="button" class="small" data-goto="about">Next: About →</button></p>
         </section>
         <section class="guide-page" id="g-about" role="tabpanel" aria-labelledby="gt-about" hidden>
