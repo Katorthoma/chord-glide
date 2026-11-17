@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.7';
+const APP_VERSION = '4.7.1';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -1105,7 +1105,28 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   openTo(Infinity);
   return { master, oscs, gains, lfos, now, tone: S.tone, mainN: parts[0].sub.N, levelN, headroom, fadeOnMaster, partBus, hear };
 }
-function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
+/* iPhone and iPad play a page's Web Audio as "ambient" sound, which silent mode (the ring/silent switch, or the Action button)
+   mutes, while music and video apps keep playing. Chord Glide is music, so it asks to be treated as music: on iOS 17 and later
+   through navigator.audioSession; before that, by playing an <audio> element of silence, on a loop, while it plays (any media
+   element playing moves the page to playback). Elsewhere neither does anything. */
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let quietEl = null;
+function asMusic(on) {
+  try { if (on && navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
+  if (!IOS || navigator.audioSession) return;
+  if (!on) { if (quietEl) quietEl.pause(); return; }
+  if (!quietEl) { // a quarter-second of silence: 8 kHz, 8-bit mono WAV, made here
+    const n = 2000, b = new Uint8Array(44 + n), dv = new DataView(b.buffer), str = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+    str(0, 'RIFF'); dv.setUint32(4, 36 + n, true); str(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, 8000, true); dv.setUint32(28, 8000, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); str(36, 'data'); dv.setUint32(40, n, true); b.fill(128, 44);
+    quietEl = new Audio(URL.createObjectURL(new Blob([b], { type: 'audio/wav' }))); quietEl.loop = true; quietEl.setAttribute('playsinline', ''); quietEl.setAttribute('x-webkit-airplay', 'deny');
+  }
+  const p = quietEl.play(); if (p && p.catch) p.catch(() => {});
+  // and stopped once nothing is sounding (the Guide's note button, or a recording, which end without Pause)
+  quietEl.idle = 0; if (!quietEl.watch) quietEl.watch = setInterval(() => { quietEl.idle = playing || recording ? 0 : quietEl.idle + 1; if (quietEl.idle >= 2 && !quietEl.paused) quietEl.pause(); }, 1500);
+}
+/* (iOS also stops a page's audio when a call comes in or Safari goes to the background: "interrupted", resumed here on the next play) */
+function ensureCtx() { asMusic(true); if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended' || actx.state === 'interrupted') { const r = actx.resume(); if (r && r.catch) r.catch(() => {}); } return actx; }
 function stopAudio(fade = 0.2) {
   if (!live || !actx) return;
   const now = actx.currentTime, g = live.master.gain;
@@ -1122,11 +1143,27 @@ function startAudio(from, extraOut, lead) {
   startAt = live.now - from;
 }
 function currentT() { return playing && actx && live ? Math.max(0, actx.currentTime - startAt) : offset; }
-function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; }
+/* While a piece plays, the screen stays on (where the browser offers it: Safari on iPhone and iPad since 16.4, Chrome, Edge), so
+   the phone doesn't dim and lock part-way through and stop the sound. Let go as soon as it stops. The browser lets go by itself
+   when the page is hidden, so it's asked again when the page comes back while still playing. */
+let wakeLock = null, wakeAsk = 0;
+function keepAwake(on) {
+  if (!navigator.wakeLock) return;
+  if (on) {
+    if (wakeLock || document.visibilityState !== 'visible') return;
+    const ask = ++wakeAsk; wakeLock = 'asking';
+    navigator.wakeLock.request('screen').then(l => {
+      if (ask !== wakeAsk || !playing) { l.release().catch(() => {}); if (ask === wakeAsk) wakeLock = null; return; }
+      wakeLock = l; l.addEventListener('release', () => { if (wakeLock === l) wakeLock = null; });
+    }).catch(() => { if (ask === wakeAsk) wakeLock = null; });
+  } else if (wakeLock) { wakeAsk++; if (wakeLock !== 'asking') wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && playing) keepAwake(true); });
+function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; keepAwake(playing); }
 function setPlaying(on) {
   if (on === playing || !built) return;
   if (on) { if (offset >= built.total + TAIL - 0.05) offset = 0; startAudio(offset); playing = true; }
-  else { offset = Math.min(currentT(), built.total + TAIL); stopAudio(); playing = false; }
+  else { offset = Math.min(currentT(), built.total + TAIL); stopAudio(); playing = false; asMusic(false); }
   setPlayIcon();
 }
 
@@ -3288,7 +3325,7 @@ readColors(); fit(); selectTab(tabs[0]);
   for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, hide, true);
   addEventListener('scroll', hide, true);
 }
-$('brandver').textContent = 'v' + APP_VERSION; $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
+$('brandver').textContent = 'v' + APP_VERSION.split('.').slice(0, 2).join('.'); /* the bar shows the release (4.7); About has the full version (4.7.1) */ $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
 fitArr();
 wireHelp(document); // the help texts in the page, then any the part editor adds as it's rebuilt
 new MutationObserver(() => wireHelp(document.querySelector('.rack') || document)).observe(document.querySelector('.rack') || document.body, { childList: true, subtree: true });

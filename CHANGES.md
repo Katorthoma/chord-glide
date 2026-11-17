@@ -1,3 +1,11 @@
+# Chord Glide 4.7.1 · 17 Nov 2026
+
+Engine 3.1 and the file formats are unchanged; pieces sound as in 4.7.
+
+- **Sound on iPhone and iPad in silent mode.** iOS treats a web page's sound as "ambient", so with the ring/silent switch (or the Action button) on silent, Play showed the piece moving but made no sound, in Safari and in every other iPhone browser (they all use Safari's engine). The app now asks to be treated as music, as music and video apps are: through `navigator.audioSession` on iOS 17 and later, or before that by playing a silent sound on a loop while it plays, so it's heard whatever the switch says. Like any music app, starting it pauses other audio. Audio that iOS interrupted (a call, or Safari in the background) starts again with the next Play.
+- **The screen stays on while a piece plays**, through the browser's Screen Wake Lock (Safari on iPhone and iPad from iOS 16.4, Chrome, Edge; elsewhere nothing changes), so a phone no longer dims and locks part-way through a piece and stops it. It's let go as soon as the piece stops, ends or is paused, and asked for again if you come back to the page while it's still playing. Locking the phone yourself, or switching to another app, still stops the sound: iOS pauses a page in the background.
+- The version under the name shows the release (v4.7); **About** shows the full version (4.7.1).
+
 # Chord Glide 4.7 · 17 Nov 2026
 
 Mostly interface. One change to how pieces sound (Width on a part of one voice, below); the engine (3.1) and the file format (still 7 at most) haven't changed.
