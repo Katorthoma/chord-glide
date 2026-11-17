@@ -1,3 +1,24 @@
+# Chord Glide 4.6 · 17 Nov 2026
+
+A layout release: nothing about how pieces sound, the engine (3.1) or the file format (still 7 at most) has changed.
+
+- **One slim top bar.** The separate title, version line and tagline are gone: the logo and a smaller name, with "by Noizgenie" under it, start the bar. Then the piece name with its save dot and status; a **File** menu (New piece, Open, Save as a new piece, Open a piece file, **Export…**, and **About**, which shows the version and opens the Guide's About page); Save, undo and redo; Settings and the Guide.
+  - A passing message (opened, saved, a problem) shows in full under the piece's name until it times out.
+  - **On a phone** the bar is the piece and a menu with everything else (Save, undo, redo, the File menu's items, Settings, Guide, About).
+- **A Reroll tab**, in place of the Export tab, now holds what was on the bar and in each tab's seed box: the four layers together, each with what a reroll changes, its seed, its lock and its own Reroll, then **Reroll the rest** (also the new shortcut **R**).
+  - **Reroll history**: this visit's rerolls of the piece, newest first, with each one's new seeds and the piece as it was before the first. Choosing one goes back to it as a change of its own, so Undo returns. Twelve at most; opening another piece clears it.
+- **Export is a window**, from File → Export… or the new shortcut **E**: the formats as buttons, all shown at once, with a progress bar as the audio renders and the MP3 encodes, beside the video settings and their own progress. With the window closed, a render's progress and result show on the bar, and while a video records or renders the bar has a **Video in progress** button (or E) to bring the window, and its Cancel, back.
+- **The panel is made of modules**: titled boxes of the settings that belong together.
+  - Harmony: Chords, Time. Voicing: Voices, How the voices sit. Motion: Glide, Departure. Sound: Instrument (tone and colour, then the struck or FM settings, with their knobs in one row with detune, width and ensemble); **Whole mix** (the tone-control curve, reverb, brightness, saturation, low, middle, high, balance and volume shape); Dynamics and echo. Reroll: Reroll (the rest), a box for each layer, Reroll history.
+  - A part's own settings are modules too: Level and filter, Envelope; Slides, Vibrato, Pitch drop; its line, pattern or echo.
+  - A module's arrow folds it away; folded modules stay folded on this device.
+  - With an added part chosen, its own modules come first, then the ones it shares under Whole piece; a module with nothing left to show for that part is hidden.
+  - When the panel is wide (theater, or under the stage on a narrower screen) the modules pack into columns, the Whole piece heading spans them, and the part picker and the tabs share one row.
+- **Knobs** for the settings that shape the tone: voicing amounts, stagger, detune, width, ensemble, reverb, brightness, EQ, saturation, hardness, ring, FM, breathe, duck, echo level and repeats, and a part's level, pan, reverb, filter, envelope, vibrato and pitch drop. They sit in even rows of up to five (six are three by two), spread across their box.
+  - Drag up or down (Shift for fine steps), or use the arrow keys, Page Up and Down, Home and End once one has focus; double-click resets it to its default (for an added part, the part's own default, as it would be with nothing set). EQ, pan and pitch drop fill out from zero.
+  - Each knob is the same range input as before underneath, so keyboard and screen-reader use is unchanged. Tempo, chord length, voices, glide time and portamento stay sliders.
+- Help texts that sat beside a single setting now sit on its module's title where the setting became a knob.
+
 # Chord Glide 4.5 · 16 Nov 2026
 
 Engine 3.1 is unchanged, and every piece that doesn't use the additions below sounds exactly as it did (the examples, rendered in 4.4 and 4.5, match to within rounding). A piece that uses them is saved as file format 7 (app 4.5 and later).

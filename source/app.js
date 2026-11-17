@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.5';
+const APP_VERSION = '4.6';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -98,6 +98,7 @@ let currentLibId = null, savedJSON = null;
 let openedJSON = null; // the piece as it was opened or made (for one that's never been saved): whether there's anything to lose
 let undoStack = [], redoStack = [], committed = null;
 let offset = 0, playing = false, startAt = 0;
+const rerollHist = []; // this piece's rerolls this visit, oldest first, after the piece as it was before the first: { layers, seeds, json }
 // TAIL (the fade and reverb after the last change, which the clock counts) and FADE (the closing fade inside it) are in engine.js
 let actx = null, live = null;
 let recording = null;
@@ -122,7 +123,80 @@ function drawEq() {
 function syncToneCtl(src) {
   const pn = typeof selNorm === 'function' ? selNorm() : null, tone = (src ? getPath(src('tone'), 'sound.tone') : null) || (pn ? pn.sound.tone : piece.sound.tone);
   document.querySelectorAll('.tonectl').forEach(el => { el.hidden = el.dataset.for === 'struck' ? !STRUCK[tone] : tone !== 'fm'; });
+  if (typeof tidyMods === 'function') tidyMods(); // (the knob row's length changes with the tone)
 }
+/* ---------- The panel's modules and knobs ----------
+   Each tab is a column of modules: a titled box of settings that belong together (section.mod with data-title), which can be folded
+   away (remembered on this device). In theater they pack into columns across the width. */
+const CHEV_UP = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+const foldedMods = new Set((() => { try { const v = JSON.parse(lsGet('cge.folded') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } })());
+function buildMods(root) {
+  for (const m of root.querySelectorAll('section.mod:not([data-built])')) {
+    m.dataset.built = '1';
+    const key = m.dataset.mod, title = m.dataset.title || '', head = document.createElement('div'), body = document.createElement('div'), h = document.createElement('h3'), x = document.createElement('button');
+    head.className = 'mod-h'; body.className = 'mod-b'; body.id = 'mb-' + key; h.className = 'mod-title'; h.id = 'mt-' + key; h.textContent = title;
+    if (m.dataset.helpKey) { h.dataset.helpKey = m.dataset.helpKey; delete m.dataset.helpKey; }
+    x.type = 'button'; x.className = 'mod-x'; x.innerHTML = CHEV_UP; x.setAttribute('aria-controls', body.id);
+    const fold = on => { m.classList.toggle('folded', on); body.hidden = on; x.setAttribute('aria-expanded', String(!on)); x.setAttribute('aria-label', (on ? 'Show ' : 'Fold away ') + title); x.title = on ? 'Show' : 'Fold away'; };
+    x.addEventListener('click', () => { const on = !m.classList.contains('folded'); fold(on); if (on) foldedMods.add(key); else foldedMods.delete(key); lsSet('cge.folded', JSON.stringify([...foldedMods])); });
+    while (m.firstChild) body.appendChild(m.firstChild);
+    head.append(h, x); m.append(head, body); m.setAttribute('aria-labelledby', h.id);
+    fold(foldedMods.has(key));
+  }
+}
+/* What a control's visibility is decided on: its knob, its half of a pair, or its row in the module */
+const rowOf = el => el.closest('.knobs > *, .knobrow > *, .two > *, .tonectl > *, .mod-b > *, .tabpanel > *');
+/* A module with nothing left to show (every setting in it hidden for the part being edited) is hidden too */
+function tidyMods() {
+  const shows = (x, stop) => { for (let e = x; e && e !== stop; e = e.parentElement) if (e.hidden) return false; return true; };
+  for (const sel of ['.rack .knobs', '.rack .knobrow']) for (const c of document.querySelectorAll(sel)) c.hidden = ![...c.querySelectorAll('input, select, textarea, button')].some(x => shows(x, c)); // (a row with nothing left in it takes no room)
+  // knobs in even rows of up to five: 6 as 3 × 2, 7 or 8 as 4 + 3 or 4 × 2
+  for (const c of document.querySelectorAll('.rack .knobs')) { const n = [...c.children].filter(k => !k.hidden).length || 1; c.style.setProperty('--kc', Math.ceil(n / Math.ceil(n / 5))); }
+  for (const m of document.querySelectorAll('.rack section.mod')) {
+    if (m.closest('.partblock') || m.hasAttribute('data-always')) continue; // (the part editor's own, and the reroll history, say what they're for even when empty)
+    const b = m.querySelector(':scope > .mod-b'); if (!b) continue;
+    m.hidden = ![...b.querySelectorAll('input, select, textarea, button')].some(x => { for (let e = x; e && e !== b; e = e.parentElement) if (e.hidden) return false; return true; });
+  }
+}
+/* A knob is a range input drawn as a dial. Drag it up or down (Shift for fine steps), or use the input's own keys once it has focus
+   (arrows, Page Up and Down, Home, End); double-click puts it back to its default. The input stays the control underneath, so
+   everything that reads or sets a slider works on a knob unchanged. EQ, pan and pitch drop fill out from their zero. */
+function knobArc(a, b) {
+  if (b - a < 0.004) return '';
+  const P = u => { const r = (-135 + 270 * u) * Math.PI / 180; return [22 + 17 * Math.sin(r), 22 - 17 * Math.cos(r)]; }, [x0, y0] = P(a), [x1, y1] = P(b);
+  return 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + 'A17 17 0 ' + ((b - a) * 270 > 180 ? 1 : 0) + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2);
+}
+function knobDefault(inp) {
+  if (inp.dataset.default !== undefined) return +inp.dataset.default;
+  const row = (typeof SLIDERS !== 'undefined' ? SLIDERS : []).find(r => r[0] === inp.id); if (!row) return null;
+  let v; try { v = getPath(defaultPiece(), row[1]); } catch (e) { v = undefined; }
+  return typeof v === 'number' ? v : /^(eq|saturation|ensemble|breathedepth|duckdepth)/.test(inp.id) ? 0 : null;
+}
+function initKnobs(root) {
+  for (const k of root.querySelectorAll('.slider.knob:not([data-dial])')) {
+    const inp = k.querySelector('input[type=range]'), out = k.querySelector('output'), ends = k.querySelector('.ends'); if (!inp) continue;
+    k.dataset.dial = '1';
+    const lo = +inp.min, hi = +inp.max, mid = lo < 0 && hi > 0 ? -lo / (hi - lo) : null;
+    const dial = document.createElement('span'); dial.className = 'dial';
+    dial.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true"><circle class="cap" cx="22" cy="22" r="12"/><path class="trk" d="' + knobArc(0, 1) + '"/><path class="val"/><line class="ptr"/></svg>';
+    const lbl = k.querySelector('label'); dial.title = (ends ? ends.textContent.replace(/\s+/g, ' ').trim() + '. ' : '') + 'Drag up or down; Shift for fine steps; double-click to reset.';
+    if (lbl && ends) lbl.title = ends.textContent.replace(/\s+/g, ' ').trim();
+    inp.after(dial);
+    const val = dial.querySelector('.val'), ptr = dial.querySelector('.ptr');
+    const draw = () => { const t = hi > lo ? Math.min(1, Math.max(0, (+inp.value - lo) / (hi - lo))) : 0, r = (-135 + 270 * t) * Math.PI / 180;
+      val.setAttribute('d', mid === null ? knobArc(0, t) : knobArc(Math.min(mid, t), Math.max(mid, t)));
+      ptr.setAttribute('x1', (22 + 4.5 * Math.sin(r)).toFixed(2)); ptr.setAttribute('y1', (22 - 4.5 * Math.cos(r)).toFixed(2)); ptr.setAttribute('x2', (22 + 10.5 * Math.sin(r)).toFixed(2)); ptr.setAttribute('y2', (22 - 10.5 * Math.cos(r)).toFixed(2)); };
+    draw(); inp.addEventListener('input', draw); if (out) new MutationObserver(draw).observe(out, { childList: true, characterData: true, subtree: true });
+    const set = v => { const st = +inp.step || 0, q = st ? lo + Math.round((v - lo) / st) * st : v, c = Math.min(hi, Math.max(lo, q)); if (Math.abs(c - +inp.value) < 1e-9) return false; inp.value = c; inp.dispatchEvent(new Event('input', { bubbles: true })); return true; };
+    let drag = null;
+    dial.addEventListener('pointerdown', e => { if (inp.disabled || e.button > 0) return; e.preventDefault(); inp.focus({ preventScroll: true }); dial.setPointerCapture(e.pointerId); drag = { y: e.clientY, v: +inp.value, shift: e.shiftKey, moved: false }; k.classList.add('turning'); });
+    dial.addEventListener('pointermove', e => { if (!drag) return; if (e.shiftKey !== drag.shift) Object.assign(drag, { y: e.clientY, v: +inp.value, shift: e.shiftKey }); if (set(drag.v + (drag.y - e.clientY) / (e.shiftKey ? 800 : 180) * (hi - lo))) drag.moved = true; });
+    const end = () => { if (!drag) return; const moved = drag.moved; drag = null; k.classList.remove('turning'); if (moved) inp.dispatchEvent(new Event('change', { bubbles: true })); };
+    dial.addEventListener('pointerup', end); dial.addEventListener('pointercancel', end); dial.addEventListener('lostpointercapture', end);
+    dial.addEventListener('dblclick', () => { if (inp.disabled) return; const d = knobDefault(inp); if (d !== null && set(d)) inp.dispatchEvent(new Event('change', { bubbles: true })); });
+  }
+}
+buildMods(document); initKnobs(document);
 /* ---------- Controls ---------- */
 const pct = v => Math.round(v) + '%';
 const SLIDERS = [
@@ -161,15 +235,14 @@ function syncUI() {
     if (document.activeElement !== $('seed-' + L)) $('seed-' + L).value = fmtSeed(piece.seeds[L]);
     const lk = piece.locks[L]; $('lock-' + L).setAttribute('aria-pressed', String(lk)); $('lock-' + L).textContent = lk ? 'Locked' : 'Unlocked';
     $('roll-' + L).disabled = lk;
-    const chip = document.querySelector('.layerlock[data-layer="' + L + '"]');
-    chip.setAttribute('aria-pressed', String(lk));
-    chip.title = L[0].toUpperCase() + L.slice(1) + (lk ? ' is locked: rerolls keep it. Click to unlock.' : ' is unlocked: Reroll changes it. Click to lock.');
   }
   $('rerollall').disabled = LAYERS.every(L => piece.locks[L]);
   $('v-' + piece.view.mode).checked = true; $('l-' + piece.view.labels).checked = true;
   showVolume();
   updateStatus(); updateUndo(); if (typeof syncLook === 'function') syncLook();
   if (typeof syncVolumeShape === 'function') syncVolumeShape();
+  if (typeof syncTopbar === 'function') syncTopbar();
+  tidyMods(); renderHist();
 }
 
 /* ---------- Build ---------- */
@@ -255,7 +328,7 @@ function applyPiece(p, { record = true, keepTime = false, fresh = false } = {}) 
   piece = prepPiece(p);
   if (fresh) { listen.mute.clear(); listen.solo.clear(); applyListen(); stageFocus.pin = stageFocus.hover = null; } // a different piece starts with every part audible (before the grid is drawn, so it shows that)
   syncUI(); rebuild(keepTime);
-  if (fresh) { undoStack = []; redoStack = []; updateUndo(); openedJSON = JSON.stringify(piece); } // a different piece: undo must not reach back into the previous one (and save over it)
+  if (fresh) { undoStack = []; redoStack = []; updateUndo(); openedJSON = JSON.stringify(piece); rerollHist.length = 0; renderHist(); } // a different piece: undo must not reach back into the previous one (and save over it)
   if (record && !fresh) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
 }
 function undo() { if (!undoStack.length) return; redoStack.push(committed); const s = undoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
@@ -316,7 +389,8 @@ function setStatus(msg, warn = false) {
 function updateStatus() {
   const dirty = savedJSON === null ? (currentLibId ? false : true) : JSON.stringify(piece) !== savedJSON;
   const base = currentLibId ? (dirty ? 'Unsaved changes' : 'Saved') : 'Not saved yet';
-  $('status').textContent = statusNote ? statusNote + ' · ' + base : base;
+  $('status').textContent = statusNote ? statusNote + ' · ' + base : base; $('status').title = $('status').textContent;
+  $('status').classList.toggle('note', !!statusNote); // a note shows in full, under the name, until it times out
   const dot = $('savedot'); dot.className = 'savedot ' + (currentLibId ? (dirty ? 'dirty' : 'saved') : 'new'); dot.title = base; dot.setAttribute('aria-label', base);
   $('status').classList.toggle('warn', statusWarn);
 }
@@ -1630,7 +1704,9 @@ async function initDownloads() {
     : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip.');
   if (!canSave()) { document.querySelectorAll('[data-export], #xopen, #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
 }
-function xstatus(m) { $('xstatus').textContent = m; }
+function xstatus(m) { $('xstatus').textContent = m; let busy = false; try { busy = exporting || !!rendering || !!recording; } catch (e) {} if (m && busy && !$('exportdlg').open) setStatus(m); } // (with the window closed, on the bar)
+/* The export's progress bar: a fraction, 'busy' while the length isn't known, null when done */
+function xprog(v) { const p = $('xprog'); if (v === null) { p.hidden = true; return; } p.hidden = false; if (v === 'busy') p.removeAttribute('value'); else p.value = v; }
 async function saveFile(filename, data) {
   if (saveMode === 'browser') {
     const blob = data instanceof Blob ? data : new Blob([data]);
@@ -1659,11 +1735,12 @@ function withRealization() {
   return p;
 }
 function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return pieceJson(p) + '\n'; }
-async function renderOffline(b) {
+async function renderOffline(b, onProg = null) {
   const sr = 48000, len = Math.ceil((b.total + TAIL) * sr);
   const ctx = new OfflineAudioContext(2, len, sr);
   buildGraph(ctx, b, 0, [ctx.destination], 1, true);
-  const buf = await ctx.startRendering();
+  const tick = onProg ? setInterval(() => onProg(Math.min(1, ctx.currentTime / (len / sr))), 150) : null; // how far it has got, where the browser says
+  const buf = await ctx.startRendering(); if (tick) clearInterval(tick);
   const L = buf.getChannelData(0), R = buf.getChannelData(1);
   let peak = 0; for (let i = 0; i < len; i++) { const a = Math.abs(L[i]), c = Math.abs(R[i]); if (a > peak) peak = a; if (c > peak) peak = c; }
   const k = peak > 0 ? 0.891 / peak : 1; // normalize to −1 dBFS
@@ -1693,7 +1770,7 @@ async function encodeMp3(a, kbps = 192, stop = null) {
   const parts = [];
   for (let i = 0, blk = 0; i < n; i += 1152, blk++) {
     const out = enc.encodeBuffer(l.subarray(i, i + 1152), r.subarray(i, i + 1152)); if (out.length) parts.push(new Uint8Array(out));
-    if (blk % 400 === 0) { if (stop && stop()) throw 'cancel'; xstatus((stop ? 'Encoding audio… ' : 'Encoding MP3… ') + Math.round(100 * i / n) + '%'); await (stop ? nextTask() : new Promise(r2 => setTimeout(r2, 0))); }
+    if (blk % 400 === 0) { if (stop && stop()) throw 'cancel'; xstatus((stop ? 'Encoding audio… ' : 'Encoding MP3… ') + Math.round(100 * i / n) + '%'); if (!stop) xprog(i / n); await (stop ? nextTask() : new Promise(r2 => setTimeout(r2, 0))); }
   }
   const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
   return mp3WithInfo(catBytes(parts)); // with an Info frame, so players know the exact length
@@ -1707,7 +1784,7 @@ async function doExport(kind) {
     if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
     const files = [];
     let audio = null;
-    if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built); }
+    if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); xprog('busy'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built, f => { if (f > 0) { xprog(f); xstatus('Rendering audio… ' + Math.round(f * 100) + '%'); } }); }
     if (kind === 'all') files.push({ name: name + '.json', data: utf8(pieceFile()) });
     if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr, opts) });
     let mp3Note = '';
@@ -1736,7 +1813,7 @@ async function doExport(kind) {
     else { xstatus('Packing…'); ok = await saveFile(name + ' (' + label + ').zip', new Blob([zipStore(files)])); }
     if (ok && (mp3Note || midiNote || partsNote)) xstatus($('xstatus').textContent + mp3Note + midiNote + partsNote);
   } catch (e) { xstatus(e && e.message ? e.message : 'Export failed.'); }
-  finally { exporting = false; updateAvailability(); }
+  finally { exporting = false; xprog(null); updateAvailability(); }
 }
 
 /* ---------- Video ---------- */
@@ -1745,8 +1822,9 @@ function pickMime() {
   const c = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1.4D401F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
   return c.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
 }
-const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.partbar', '.tabs'];
+const LOCK_SEL = ['.topbar .grp.piece', '.topbar .grp.file', '.topbar .grp.edit', '.topbar .grp.end', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '#p-reroll', '.partbar', '.tabs'];
 function lockUI(on) {
+  $('videobusy').hidden = !on; // (while a video records or renders: the way back to its window, and Cancel)
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
   document.querySelectorAll('[data-export], #xopen, #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo, #vzoom, #busy, .vzc input, .znow').forEach(el => el.disabled = on || !canSave());
   if (!on && typeof showArtistOption === 'function' && canSave()) showArtistOption(); // dimmed again if there's no name
@@ -1910,7 +1988,7 @@ async function renderVideo() {
     // 1. audio: the same render as the WAV export, compressed to AAC or Opus, or kept as 16-bit PCM for a .mov
     xstatus('Rendering audio…');
     await nextTask();
-    const pcm = await Promise.race([renderOffline(snap.built), cancelled]);
+    const pcm = await Promise.race([renderOffline(snap.built, f => { if (f > 0 && !rec.cancelled) xstatus('Rendering audio… ' + Math.round(f * 100) + '%'); }), cancelled]);
     if (rec.cancelled) throw 'cancel';
     let aSamples = [], aDesc = null, aDelay = 0;
     if (aconf.kind === 'aac') aDelay = await Promise.race([codecDelay(aconf.config), cancelled]); // priming for the edit list to skip
@@ -2093,7 +2171,7 @@ function starterLine(kind) {
 const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', ensemble: 'all', hardness: 'all', ring: 'all', stopend: 'all', fmratio: 'all', fmindex: 'all', fmsustain: 'all', fmtime: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
 const applies = (id, n) => PART_CTRL[id] === 'all' || (PART_CTRL[id] === 'pad' && n.preset === 'pad');
 ['chords', 'seed-harmony', 'tu-sec', 'chordsec', 'chordbars', 'tempo', 'meter', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'eqlow', 'mix', 'tuning', 'vshape']
-  .forEach(id => { const w = $(id).closest('.tabpanel > *'); if (w) w.dataset.whole = ''; }); // shared by every part
+  .forEach(id => { const w = $(id).closest('.mod'); if (w) w.dataset.whole = ''; }); // shared by every part
 const selRaw = () => selPart === 'main' ? null : (piece.parts || []).find(x => x.id === selPart) || null;
 // the chosen part with every setting filled in (only it is normalized, so a large piece of saved notes isn't copied each time)
 const selNorm = () => { const raw = selRaw(); if (!raw) return null; try { return (normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [raw] })).parts || [])[0] || null; } catch (e) { return null; } };
@@ -2352,7 +2430,7 @@ function syncPartColor() {
   const id = selPart, raw = id === 'main' ? piece : selRaw(); if (!raw) return;
   const r = arr.rows.find(x => x.id === id), c = okColor(raw.color) || (r ? r.color : autoColor(0));
   if (document.activeElement !== $('pcolor')) $('pcolor').value = c; $('pcolor-auto').disabled = !okColor(raw.color);
-  $('pcolor-lbl').textContent = (id === 'main' ? 'Main part' : raw.name || raw.id) + ' color';
+  $('pcolor-lbl').textContent = 'Color'; $('pcolor-lbl').title = (id === 'main' ? 'Main part' : raw.name || raw.id) + ' color';
 }
 $('pcolor').addEventListener('input', () => { setPartColor(selPart, $('pcolor').value, false); const row = $('arr-grid').querySelector('.arr-row[data-id="' + CSS.escape(selPart) + '"]'); if (row) row.style.setProperty('--c', $('pcolor').value); });
 $('pcolor').addEventListener('change', () => setPartColor(selPart, $('pcolor').value, true));
@@ -2386,14 +2464,22 @@ function applyPartView() {
   const n = selNorm(), on = !!n;
   document.querySelector('.rack').classList.toggle('on-part', on);
   document.querySelectorAll('.sect.whole').forEach(x => { x.hidden = !on; });
-  for (const id of Object.keys(PART_CTRL)) $(id).closest('.tabpanel > *').hidden = on && !applies(id, n);
+  for (const id of Object.keys(PART_CTRL)) rowOf($(id)).hidden = on && !applies(id, n);
+  // with an added part chosen: its own modules first, then the ones it shares under Whole piece (moved in the page, so the theater's
+  // columns follow too); with the main part, the page's own order
+  for (const tp of document.querySelectorAll('.tabpanel')) {
+    const kids = [...tp.children]; kids.forEach((c, i) => { if (c.dataset.ix === undefined) c.dataset.ix = i; });
+    const rank = c => !on ? 0 : c.classList.contains('partblock') ? 0 : c.classList.contains('whole') ? 2 : c.hasAttribute('data-whole') ? 3 : 1;
+    const want = kids.slice().sort((x, y) => rank(x) - rank(y) || x.dataset.ix - y.dataset.ix);
+    if (want.some((c, i) => c !== kids[i])) want.forEach(c => tp.appendChild(c));
+  }
   const line = on && n.preset === 'line', pat = on && n.preset === 'pattern', notes = on && n.preset === 'notes', echo = on && n.preset === 'copy';
   $('t-harmony').textContent = line ? 'Line' : pat ? 'Pattern' : notes ? 'Notes' : echo ? 'Echo' : 'Harmony';
   $('t-voicing').textContent = line || pat ? 'Voices' : 'Voicing';
   $('t-voicing').classList.toggle('dim', notes || echo); $('t-motion').classList.toggle('dim', notes || echo);
   $('partsel-hint').textContent = on ? 'The tabs below edit ' + n.name + '. Settings shared by every part are under Whole piece.' : 'The tabs below edit the main part.';
   renderPartBlocks(n);
-  refreshPartBar();
+  refreshPartBar(); tidyMods();
 }
 let peSeq = 0;
 const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag), { dataset, ...rest } = props; Object.assign(e, rest); if (dataset) Object.assign(e.dataset, dataset); kids.forEach(c => e.append(c)); return e; };
@@ -2405,23 +2491,43 @@ function renderPartBlocks(n) {
   for (const b of Object.values(blocks)) { b.textContent = ''; b.hidden = true; b.dataset.part = n ? n.id : ''; }
   if (!n) return;
   const raw = selRaw();
+  // what each of its knobs goes back to on a double-click: the part's settings as they'd be with none of its own (for a pad, the main part's)
+  const dn = (() => { try { const bare = JSON.parse(JSON.stringify(raw)); for (const k of ['envelope', 'vibrato', 'drop']) delete bare[k]; bare.sound = { tone: (raw.sound || {}).tone };
+    return normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [bare] })).parts[0]; } catch (e) { return null; } })();
+  const D = f => { try { const v = f(dn); return typeof v === 'number' && isFinite(v) ? v : undefined; } catch (e) { return undefined; } };
   // a control writes only its own setting (the rest keep their defaults, or for a pad, the main part's), so choosing a part changes nothing
   const own = key => (raw[key] && typeof raw[key] === 'object' && !Array.isArray(raw[key])) ? raw[key] : (raw[key] = {});
   const changed = () => { rebuildSoon(); refreshPartBar(); };
   const field = (label, input, extra = []) => { const id = 'pe' + (++peSeq); input.id = id; return mk('div', { className: 'group' }, [mk('label', { htmlFor: id, textContent: label }), input, ...extra]); };
-  const slider = (label, min, max, step, val, fmt, set) => {
+  const slider = (label, min, max, step, val, fmt, set, def) => {
     const id = 'pe' + (++peSeq), out = mk('output'), inp = mk('input', { type: 'range', id, min, max, step });
-    inp.value = val; out.textContent = fmt(+val);
+    inp.value = val; out.textContent = fmt(+val); if (def !== undefined) inp.dataset.default = def;
     inp.addEventListener('input', () => { set(+inp.value); out.textContent = fmt(+inp.value); changed(); });
     inp.addEventListener('change', commit);
     return mk('div', { className: 'slider' }, [mk('label', { htmlFor: id, textContent: label }), out, inp]);
   };
+  const knob = (label, ...args) => { const [short, long] = Array.isArray(label) ? label : [label]; const el = slider(short, ...args); el.classList.add('knob'); if (long) el.querySelector('label').title = long; return el; };
   const select = (label, html, val, set) => { const sel = mk('select', { innerHTML: html }); sel.value = String(val); sel.addEventListener('change', () => { set(sel.value); rebuild(true); refreshPartBar(); commit(); }); return field(label, sel); };
   const check = (label, val, set) => { const cb = mk('input', { type: 'checkbox', checked: !!val }); cb.addEventListener('change', () => { set(cb.checked); rebuild(true); refreshPartBar(); commit(); }); return mk('label', {}, [cb, ' ' + label]); };
   const opts = list => list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
   const sect = t => mk('p', { className: 'sect', textContent: t });
   const named = (el, key) => { el.dataset.helpKey = key; return el; }; // where a help text's (?) goes (data-on on the text names it)
-  const put = (key, ...els) => { if (els.length) { blocks[key].append(...els); blocks[key].hidden = false; } };
+  /* the part's settings go in modules at the top of each tab: a run of them under the tab's first title, then a new module at each
+     section heading (Vibrato, Envelope…); runs of knobs sit together in a row */
+  const firstTitle = { harmony: { line: 'Line', pattern: 'Pattern', copy: 'Echo of a part', notes: 'Saved notes' }[n.preset] || 'This part', voicing: 'Voices', motion: 'Slides', sound: 'Level and filter' };
+  const put = (key, ...els) => {
+    if (!els.length) return;
+    const groups = []; let cur = null;
+    for (const el of els) {
+      if (el.matches && el.matches('p.sect')) { cur = { title: el.textContent, help: el.dataset.helpKey, kids: [] }; groups.push(cur); continue; }
+      if (!cur) { cur = { title: firstTitle[key], kids: [] }; groups.push(cur); }
+      const last = cur.kids[cur.kids.length - 1];
+      if (el.classList && el.classList.contains('knob')) { if (last && last.classList.contains('knobs')) last.append(el); else cur.kids.push(mk('div', { className: 'knobs' }, [el])); }
+      else cur.kids.push(el);
+    }
+    for (const g of groups) { const m = mk('section', { className: 'mod', dataset: { mod: 'p' + key + '-' + g.title.toLowerCase().replace(/[^a-z]+/g, ''), title: g.title } }, g.kids); if (g.help) m.dataset.helpKey = g.help; blocks[key].append(m); }
+    buildMods(blocks[key]); initKnobs(blocks[key]); blocks[key].hidden = false; tidyMods();
+  };
   if (n.preset === 'pattern') {
     const ta = mk('textarea', { value: raw.pattern !== undefined ? raw.pattern : n.pattern, spellcheck: false }), err = mk('p', { className: 'err' });
     const showErr = () => { const e = parsePattern(ta.value).errors; err.hidden = !e.length; err.textContent = e.length ? 'Can\'t read ' + e.slice(0, 4).join(', ') + (e.length > 4 ? '…' : '') + '. Steps are R, B or a number, with \' or , for octaves, . to hold, - to rest, and a length after a colon (R:2).' : ''; };
@@ -2451,12 +2557,12 @@ function renderPartBlocks(n) {
       select('Glide shape', opts([['smooth', 'Smooth'], ['straight', 'Straight'], ['arc', 'Arc: out, then in (curves and circles)']]), n.glideShape, v => { raw.glideShape = v; }),
       mk('p', { className: 'hint help', dataset: { on: 'portamento' }, innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
       sect('Vibrato'),
-      slider('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }),
-      slider('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }),
-      slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }),
+      knob('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }, 0),
+      knob('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }, D(d => d.vibrato.rate)),
+      knob('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }, D(d => d.vibrato.delay)),
       named(sect('Pitch drop'), 'pitchdrop'),
-      slider('Drop', -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? 'from ' + v + ' st above' : 'from ' + -v + ' st below') : 'off', v => { own('drop').semis = v; }),
-      slider('Fall time', 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }),
+      knob(['Drop', 'Starts this far from its note'], -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? '+' + v + ' st' : '−' + -v + ' st') : 'off', v => { own('drop').semis = v; }, 0),
+      knob(['Fall', 'Fall time'], 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }, D(d => d.drop.time)),
       mk('p', { className: 'hint help', dataset: { on: 'pitchdrop' }, textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
   } else if (n.preset === 'copy') {
     const srcs = (piece.parts || []).filter(x => x.preset !== 'copy' && x.id !== n.id).map(x => [x.id, x.name || x.id]);
@@ -2474,23 +2580,21 @@ function renderPartBlocks(n) {
   } else {
     put('harmony', mk('p', { className: 'hint', textContent: 'Follows the chords under Whole piece, with its own voices, voicing, motion, sound and random choices.' }));
   }
-  put('sound', slider('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }),
-    slider('Pan', -1, 1, 0.05, n.sound.pan, fmtPan, v => { own('sound').pan = v; }),
-    named(slider('Reverb', 0, 300, 5, n.sound.reverb, v => v === 100 ? 'as the piece' : v ? v + '% of the piece\'s' : 'none', v => { own('sound').reverb = v; }), 'partreverb'),
-    mk('p', { className: 'hint help', dataset: { on: 'partreverb' }, textContent: 'How much of this part goes to the reverb, against the piece\'s Reverb setting: none keeps it close and dry (a bass, a kick), more sets it further back.' }),
-    named(slider('Brightness', 0, Math.log2(OPEN_HZ / 200), 0.01, Math.log2(n.sound.brightness / 200), v => { const hzv = partHz(v); return hzv >= OPEN_HZ ? 'open' : hzv < 1000 ? hzv + ' Hz' : (hzv / 1000).toFixed(1) + ' kHz'; }, v => { own('sound').brightness = partHz(v); }), 'partbright'),
-    slider('Each note opens it', 0, 100, 1, n.sound.opens, v => v ? pct(v) : 'off', v => { own('sound').opens = v; }),
-    slider('Closing time', 0.02, 3, 0.01, n.sound.openTime, fmtSec, v => { own('sound').openTime = v; }),
-    mk('p', { className: 'hint help', dataset: { on: 'partbright' }, textContent: 'This part\'s own filter, under the piece\'s: lower is darker and rounder. With "Each note opens it", every note starts brighter (up to four octaves, louder notes further) and closes back over the closing time, as a plucked or struck sound does. It needs Brightness below open.' }));
+  put('sound', named(sect('Level and filter'), 'partreverb'), knob('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }, D(d => d.sound.level) ?? 0),
+    knob('Pan', -1, 1, 0.05, n.sound.pan, v => Math.abs(v) < 0.001 ? 'center' : (v < 0 ? 'L ' : 'R ') + Math.round(Math.abs(v) * 100), v => { own('sound').pan = v; }, 0),
+    knob(['Reverb', 'Reverb: how much of the piece\'s'], 0, 300, 5, n.sound.reverb, v => v ? v + '%' : 'none', v => { own('sound').reverb = v; }, D(d => d.sound.reverb) ?? 100),
+    knob('Brightness', 0, Math.log2(OPEN_HZ / 200), 0.01, Math.log2(n.sound.brightness / 200), v => { const hzv = partHz(v); return hzv >= OPEN_HZ ? 'open' : hzv < 1000 ? hzv + ' Hz' : (hzv / 1000).toFixed(1) + ' kHz'; }, v => { own('sound').brightness = partHz(v); }, Math.log2(OPEN_HZ / 200)),
+    knob(['Opens', 'Each note opens it'], 0, 100, 1, n.sound.opens, v => v ? pct(v) : 'off', v => { own('sound').opens = v; }, D(d => d.sound.opens) ?? 0),
+    knob(['Closes', 'Closing time'], 0.02, 3, 0.01, n.sound.openTime, fmtSec, v => { own('sound').openTime = v; }, D(d => d.sound.openTime)),
+    mk('p', { className: 'hint help', dataset: { on: 'partreverb' }, textContent: 'How much of this part goes to the reverb, against the piece\'s Reverb setting: none keeps it close and dry (a bass, a kick), more sets it further back. This part\'s own filter, under the piece\'s: lower is darker and rounder. With "Each note opens it", every note starts brighter (up to four octaves, louder notes further) and closes back over the closing time, as a plucked or struck sound does. It needs Brightness below open.' }));
   if (n.preset !== 'pad' && n.preset !== 'copy' && STRUCK[n.sound.tone]) put('sound', sect('Envelope'), mk('p', { className: 'hint', textContent: 'A struck instrument rings by itself, so this part\'s envelope isn\'t used: Hardness, Ring length and At note end, below, shape it.' }));
   else if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
-    slider('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }),
-    slider('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }),
-    slider('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }),
-    slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }),
-    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }),
-    named(select('Over each note', opts([['none', 'Steady'], ['swell', 'Swells in'], ['fade', 'Fades away'], ['arch', 'Swells in, then eases off']]), n.envelope.shape || 'none', v => { if (v === 'none') { delete own('envelope').shape; delete own('envelope').depth; } else own('envelope').shape = v; renderPartBlocks(selNorm()); }), 'noteshape'),
-    ...(n.envelope.shape ? [slider('Shape depth', 0, 1, 0.01, n.envelope.depth === undefined ? 1 : n.envelope.depth, v => Math.round(v * 100) + '%', v => { own('envelope').depth = v; })] : []),
+    knob('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }, D(d => d.envelope.attack)),
+    knob('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }, D(d => d.envelope.decay)),
+    knob('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }, D(d => d.envelope.sustain)),
+    knob('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }, D(d => d.envelope.release)),
+    ...(n.envelope.shape ? [knob(['Depth', 'Shape depth'], 0, 1, 0.01, n.envelope.depth === undefined ? 1 : n.envelope.depth, v => Math.round(v * 100) + '%', v => { own('envelope').depth = v; }, 1)] : []),
+    mk('div', { className: 'two' }, [select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural (fades away)']]), n.envelope.curve, v => { own('envelope').curve = v; }), named(select('Over each note', opts([['none', 'Steady'], ['swell', 'Swells in'], ['fade', 'Fades away'], ['arch', 'Swells, then eases']]), n.envelope.shape || 'none', v => { if (v === 'none') { delete own('envelope').shape; delete own('envelope').depth; } else own('envelope').shape = v; renderPartBlocks(selNorm()); }), 'noteshape')]),
     mk('p', { className: 'hint help', dataset: { on: 'noteshape' }, textContent: 'A shape in each note\'s own time, on top of the envelope, so short and long notes take the same shape: Swells in rises from about a third over the first quarter of the note; Fades away eases to 40% by its end; Swells in, then eases off does both (to 55%). Depth blends from steady to the full shape.' }));
 }
 /* The part bar's menus */
@@ -2580,13 +2684,33 @@ for (const L of LAYERS) {
     piece.seeds[L] = v; afterChange();
   });
   $('lock-' + L).addEventListener('click', () => { piece.locks[L] = !piece.locks[L]; syncUI(); commit(); });
-  $('roll-' + L).addEventListener('click', () => { reroll(L); afterChange(); });
+  $('roll-' + L).addEventListener('click', () => { const before = committed; reroll(L); afterChange(); noteReroll([L], before); });
 }
 document.querySelectorAll('.layerlock').forEach(b => b.addEventListener('click', () => { const L = b.dataset.layer; piece.locks[L] = !piece.locks[L]; syncUI(); commit(); }));
+/* The Reroll tab's history: each reroll of this piece this visit, newest first, with the piece as it was before the first, to go
+   back to (as a change of its own, so Undo returns from it). Twelve at most; opening another piece clears it. */
+const cap = L => L[0].toUpperCase() + L.slice(1);
+function noteReroll(layers, before) {
+  if (committed === before) return;
+  if (!rerollHist.length && before) { try { rerollHist.push({ layers: null, seeds: Object.assign({}, JSON.parse(before).seeds), json: before }); } catch (e) {} }
+  rerollHist.push({ layers, seeds: Object.assign({}, piece.seeds), json: committed });
+  while (rerollHist.length > 13) rerollHist.shift();
+  renderHist();
+}
+function renderHist() {
+  const ol = $('rhist'); if (!ol) return; ol.textContent = ''; $('rhist-empty').hidden = rerollHist.length > 0;
+  rerollHist.slice().reverse().forEach(h => {
+    const now = h.json === committed, b = mk('button', { type: 'button', className: 'small' }), ls = h.layers || LAYERS;
+    b.append(mk('span', { textContent: h.layers ? 'Rerolled ' + h.layers.map(cap).join(', ') : 'Before rerolling' }), mk('small', { textContent: ls.map(L => L[0].toUpperCase() + ' ' + fmtSeed(h.seeds[L])).join('  ') }));
+    if (now) { b.setAttribute('aria-current', 'true'); b.append(mk('em', { textContent: 'now' })); }
+    b.addEventListener('click', () => { if (h.json === committed) return; piece = normalizePiece(JSON.parse(h.json)); syncUI(); rebuild(true); commit(); renderHist(); setStatus('Back to ' + (h.layers ? 'that reroll' : 'before rerolling')); });
+    ol.append(mk('li', {}, [b]));
+  });
+}
 $('rerollall').addEventListener('click', () => {
   const open = LAYERS.filter(L => !piece.locks[L]);
   if (!open.length) { setStatus('Every layer is locked. Unlock one to reroll it.'); return; }
-  open.forEach(reroll); afterChange(); setStatus('Rerolled ' + open.join(', '));
+  const before = committed; open.forEach(reroll); afterChange(); noteReroll(open, before); setStatus('Rerolled ' + open.join(', '));
 });
 document.querySelectorAll('input[name=view]').forEach(r => r.addEventListener('change', () => { piece.view.mode = r.value; screenCam.snap = true; commit(); }));
 document.querySelectorAll('input[name=labels]').forEach(r => r.addEventListener('change', () => { piece.view.labels = r.value; commit(); }));
@@ -2671,15 +2795,13 @@ $('importfile').addEventListener('change', async () => {
 document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => { closeExportMenu(true); doExport(b.dataset.export); }));
 /* The export menu: Export opens a list of formats; choosing one saves it. Arrow keys move through the list, Escape or a click
    elsewhere closes it. */
-function openExportMenu() { $('xlist').hidden = false; $('xopen').setAttribute('aria-expanded', 'true'); const first = [...$('xlist').querySelectorAll('button:not(:disabled)')][0]; if (first) first.focus(); }
-function closeExportMenu(refocus) { if ($('xlist').hidden) return; $('xlist').hidden = true; $('xopen').setAttribute('aria-expanded', 'false'); if (refocus) $('xopen').focus(); }
+function openExportMenu() { return; /* (the formats are always shown) */  $('xlist').hidden = false; $('xopen').setAttribute('aria-expanded', 'true'); const first = [...$('xlist').querySelectorAll('button:not(:disabled)')][0]; if (first) first.focus(); }
+function closeExportMenu(refocus) { return; /* (the formats are always shown) */ if ($('xlist').hidden) return; $('xlist').hidden = true; $('xopen').setAttribute('aria-expanded', 'false'); if (refocus) $('xopen').focus(); }
 $('xopen').addEventListener('click', () => $('xlist').hidden ? openExportMenu() : closeExportMenu(false));
 $('xlist').addEventListener('keydown', e => {
   const items = [...$('xlist').querySelectorAll('button:not(:disabled)')], i = items.indexOf(document.activeElement);
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = items.length; if (n) items[(i + (e.key === 'ArrowDown' ? 1 : n - 1) + n) % n].focus(); }
   else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); if (items.length) items[e.key === 'Home' ? 0 : items.length - 1].focus(); }
-  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeExportMenu(true); }
-  else if (e.key === 'Tab') closeExportMenu(false);
 });
 document.addEventListener('pointerdown', e => { if (!$('xlist').hidden && !e.target.closest('.xmenu')) closeExportMenu(false); });
 $('vrecord').addEventListener('click', () => recording ? finishRecording(true) : startRecording());
@@ -2695,14 +2817,40 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); savePiece(false); }
   else if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); if (!settingsDlg.open) $('settingsbtn').click(); }
-  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o' && !e.shiftKey) { e.preventDefault(); if (!openDlg.open && !settingsDlg.open && !aboutDlg.open) showOpen(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o' && !e.shiftKey) { e.preventDefault(); if (!openDlg.open && !settingsDlg.open && !aboutDlg.open && !exportDlg.open) showOpen(); }
   else if (e.key === ' ' && !typing && tag !== 'button' && !recording) { e.preventDefault(); setPlaying(!playing); }
 });
 
-/* Drop the divider on any bar group that starts a wrapped line */
-const barGroups = [...document.querySelectorAll('.bar-row > .grp')];
-function markLineStarts() { let top = null; barGroups.forEach(g => { g.classList.remove('linestart'); }); barGroups.forEach(g => { const t = g.offsetTop; g.classList.toggle('linestart', top !== null && t > top + 4); if (top === null || t > top + 4) top = t; }); }
-new ResizeObserver(markLineStarts).observe(document.querySelector('.bar-row'));
+/* ---------- The top bar's menus: File, the phone's menu, and what Reroll keeps ----------
+   Each opens below its button; arrow keys move through it, Escape or a click elsewhere closes it, and choosing an item closes it
+*/
+const MENUS = [['filebtn', 'filemenu'], ['menubtn', 'phonemenu']];
+function closeMenus(except) { for (const [b, m] of MENUS) if (m !== except && !$(m).hidden) { $(m).hidden = true; $(b).setAttribute('aria-expanded', 'false'); } }
+for (const [b, m] of MENUS) {
+  $(b).addEventListener('click', e => {
+    if (!$(m).hidden) { closeMenus(); return; }
+    closeMenus(m); syncTopbar(); $(m).hidden = false; $(b).setAttribute('aria-expanded', 'true');
+    if (e.detail === 0) { const f = $(m).querySelector('button:not([disabled]), input'); if (f) f.focus(); } // from the keyboard
+  });
+  $(m).addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenus(); $(b).focus(); return; }
+    const items = [...$(m).querySelectorAll('button:not([disabled]), input')], k = items.indexOf(document.activeElement), d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (d && items.length) { e.preventDefault(); items[(k + d + items.length) % items.length].focus(); }
+    else if ((e.key === 'Home' || e.key === 'End') && items.length) { e.preventDefault(); items[e.key === 'Home' ? 0 : items.length - 1].focus(); }
+  });
+  $(m).addEventListener('click', e => { if (e.target.closest('button')) closeMenus(); });
+}
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.menuwrap')) closeMenus(); });
+document.querySelectorAll('[data-proxy]').forEach(b => b.addEventListener('click', () => $(b.dataset.proxy).click()));
+$('menuimport').addEventListener('click', () => $('importfile').click());
+const exportDlg = $('exportdlg');
+function openExport() { if (!exportDlg.open) exportDlg.showModal(); }
+$('menuexport').addEventListener('click', openExport);
+$('export-close').addEventListener('click', () => exportDlg.close());
+$('busybtn').addEventListener('click', openExport);
+document.querySelectorAll('.pop.menu kbd[data-key]').forEach(k => { k.textContent = (/Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+') + k.dataset.key; });
+/* The menus' items enabled as their buttons are */
+function syncTopbar() { document.querySelectorAll('#phonemenu [data-proxy]').forEach(b => { b.disabled = $(b.dataset.proxy).disabled; }); }
 /* ---------- Theater, full screen, about ---------- */
 const stageEl = document.querySelector('.stage'), layoutEl = document.querySelector('.layout');
 function setTheater(on) {
@@ -2792,6 +2940,8 @@ function showGuidePage(k, focusTab) {
     const svg = src.querySelector('svg'); if (svg) m.appendChild(svg.cloneNode(true));
     if (src.classList.contains('primary')) m.classList.add('primary');
     if (m.dataset.icon === 'rerollall') { m.classList.add('wide'); m.append('Reroll'); }
+    if (m.dataset.icon === 'filebtn') { m.classList.add('wide'); m.prepend('File'); }
+    if (m.dataset.icon === 'keepbtn') { m.classList.add('wide'); m.textContent = ''; for (const c of src.childNodes) m.append(c.cloneNode(true)); }
   });
   const lockSvg = document.querySelector('.layerlock svg');
   document.querySelectorAll('.barmap .mini-lock').forEach(m => { m.prepend(lockSvg.cloneNode(true)); });
@@ -2873,15 +3023,18 @@ document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   for (const [pop, btn] of POPS) if (e.key === 'Escape' && !pop.hidden) { setPop(pop, btn, false); btn.focus(); return; }
   // Esc lets go of a part highlighted on the stage, wherever the keyboard is (a field keeps its own use of the key too); a dialog, a menu or full screen comes first
-  if (e.key === 'Escape' && stageFocus.pin && !aboutDlg.open && !settingsDlg.open && !openDlg.open && !$('discarddlg').open && !stageEl.classList.contains('pseudo-fs') && !isFull()) { stageFocus.pin = null; markArr(); }
+  if (e.key === 'Escape' && stageFocus.pin && !aboutDlg.open && !settingsDlg.open && !openDlg.open && !exportDlg.open && !$('discarddlg').open && !stageEl.classList.contains('pseudo-fs') && !isFull()) { stageFocus.pin = null; markArr(); }
+  if ((recording || rendering) && (e.key === 'e' || e.key === 'E') && !e.metaKey && !e.ctrlKey && !e.altKey && !exportDlg.open) { e.preventDefault(); openExport(); return; }
   if (rendering && e.key !== '?') return;
-  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || openDlg.open || $('discarddlg').open || recording) return;
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || openDlg.open || exportDlg.open || $('discarddlg').open || recording) return;
   if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }
   if (e.key === '?') { e.preventDefault(); openGuide(); return; }
   if (e.key === 'l' || e.key === 'L') { e.preventDefault(); showOpen(); return; }
   if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
   else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFull(!isFull()); }
+  else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); openExport(); }
+  else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); $('rerollall').click(); }
   else if (e.key === 'Escape' && stageEl.classList.contains('pseudo-fs')) setFull(false);
 });
 if (lsGet('cge.theater') === '1') setTheater(true);

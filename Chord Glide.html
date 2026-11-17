@@ -42,15 +42,9 @@ body {
   background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 24px 48px;
+  padding-block: 12px 48px;
 }
-.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; container-type: inline-size; }
-header { display: grid; gap: 4px; }
-h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 42px); line-height: 1.05; margin: 0; letter-spacing: -0.01em; }
-h1 { display: flex; align-items: center; gap: 0.32em; }
-h1 .logo { width: 0.92em; height: 0.92em; flex: none; }
-header p { margin: 0; color: var(--muted); max-width: 70ch; }
-.ver { font-family: var(--font-data); font-size: 12px; color: var(--muted); }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; container-type: inline-size; }
 
 button { font: inherit; font-size: 14px; font-weight: 600; border-radius: 4px; cursor: pointer; padding: 7px 12px; border: 1px solid var(--rule); background: transparent; color: var(--ink); white-space: nowrap; }
 button:hover:not(:disabled) { border-color: var(--ink); }
@@ -62,66 +56,63 @@ button.danger { color: var(--warn); }
 select, textarea, input[type=text], input[type=number] { font: inherit; width: 100%; color: var(--ink); background: var(--stage); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 9px; }
 input[type=range] { accent-color: var(--accent); width: 100%; }
 
-/* piece bar */
-.bar { display: grid; gap: 6px; padding: 8px 10px; background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; }
-/* grouped like a DAW control bar: piece, file, edit, layers, windows */
-.bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; }
-.bar .grp { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-left: 1px solid var(--rule); }
-.bar .grp.piece { flex: 1 1 260px; min-width: 0; padding-left: 0; border-left: 0; gap: 8px; }
-.bar .grp.end { margin-left: auto; }
-.bar .grp.linestart { border-left: 0; padding-left: 0; } /* first group on a wrapped line: no divider */
-.bar .name { flex: 1 1 auto; min-width: 0; font-family: var(--font-display); font-weight: 500; font-size: 18px; padding: 5px 9px; border-color: transparent; background: transparent; }
-.bar .name:hover { border-color: var(--rule); }
-.bar .name:focus { border-color: var(--accent); background: var(--paper); }
-.savedot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-right: 4px; }
+/* The top bar: the app, the piece, its file menu, Save, undo, Settings and Guide, on one line */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; padding: 6px 8px 6px 10px; background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; }
+.topbar .grp { display: flex; align-items: center; gap: 4px; padding: 0 10px; border-left: 1px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 9px; padding-right: 12px; }
+.brand .logo { width: 30px; height: 30px; flex: none; }
+.brand-t { display: flex; flex-direction: column; line-height: 1.1; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-height: 1.1; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
+.brand .by { font-family: var(--font-data); font-size: 10.5px; color: var(--muted); margin-top: 1px; white-space: nowrap; }
+.topbar .grp.piece { flex: 1 1 220px; min-width: 0; gap: 6px; }
+.topbar .name { flex: 1 1 auto; min-width: 0; font-family: var(--font-display); font-weight: 500; font-size: 17px; padding: 4px 8px; border-color: transparent; background: transparent; }
+.topbar .name:hover { border-color: var(--rule); }
+.topbar .name:focus { border-color: var(--accent); background: var(--paper); }
+.savewrap { display: flex; align-items: center; gap: 6px; flex: none; }
+.savedot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .savedot.saved { background: var(--ok); }
 .savedot.dirty { background: var(--warn); }
 .savedot.new { box-shadow: inset 0 0 0 1.6px var(--muted); }
-.layerlock { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px 5px 7px; font-size: 12.5px; color: var(--muted); }
-.layerlock svg { width: 15px; height: 15px; }
-.layerlock .i-open, .layerlock[aria-pressed="true"] .i-shut { display: inline; }
-.layerlock .i-shut, .layerlock[aria-pressed="true"] .i-open { display: none; }
-.layerlock[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
-.reroll { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; padding: 5px 11px 5px 8px; }
-.reroll svg { width: 18px; height: 18px; }
-.bar-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 1.3em; padding: 0 2px; }
-.status { font-size: 12.5px; color: var(--muted); }
+.status { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .status.warn { color: var(--warn); }
-.bar .grp.rr { border-left: 0; padding-left: 0; }
-/* Medium widths: name, file, edit and windows on the first line; layer locks and Reroll together on the second */
-@container (max-width: 1139px) {
-  .bar .bar-row { row-gap: 0; }
-  .bar .bar-row::after { content: ""; flex-basis: 100%; order: 5; } /* line break */
-  .bar .bar-row .grp.piece { order: 1; flex: 1 1 200px; }
-  .bar .bar-row .grp.file { order: 2; }
-  .bar .bar-row .grp.edit { order: 3; }
-  .bar .bar-row .grp.end { order: 4; padding-right: 0; }
-  .bar .bar-row .grp.layers { order: 6; border-left: 0; padding-left: 0; margin-top: 8px; }
-  .bar .bar-row .grp.rr { order: 7; border-left: 0; padding-left: 0; margin-top: 8px; }
+.topbar .grp.piece { position: relative; }
+/* a passing note (opened, saved, a problem) shows in full under the name until it times out */
+.status.note { position: absolute; z-index: 25; top: calc(100% + 9px); left: 6px; max-width: min(460px, 86vw); white-space: normal; padding: 7px 11px; background: var(--stage); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.22); color: var(--ink); font-size: 13px; }
+.status.note.warn { color: var(--warn); }
+.topbar .icon { width: 36px; height: 36px; }
+.filebtn, .keepbtn { display: inline-flex; align-items: center; gap: 5px; height: 36px; padding: 0 9px 0 11px; }
+.chev { width: 13px; height: 13px; flex: none; }
+.menuwrap { position: relative; display: flex; }
+.pop.menu { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; bottom: auto; transform: none; display: flex; flex-direction: column; gap: 1px; min-width: 250px; padding: 5px; }
+.pop.menu > button, .pop.menu > label { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-weight: 500; text-align: left; }
+.pop.menu > button:hover:not(:disabled), .pop.menu > button:focus-visible, .pop.menu > label:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.pop.menu > button svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.pop.menu kbd { margin-left: auto; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
+.pop.menu hr { width: 100%; border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+.pop.menu small { display: block; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
+.topbar .grp.end { margin-left: auto; padding-right: 0; }
+.topbar .grp.busy { border-left: 0; }
+.busybtn { display: inline-flex; align-items: center; gap: 7px; border-color: var(--accent); }
+.busybtn .bt { color: var(--muted); font-weight: 500; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: cg-pulse 1.2s ease-in-out infinite; }
+@keyframes cg-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+.phonemenu { display: none; }
+.phonemenu .pop.menu { left: auto; right: 0; }
+/* Narrower: the layers by initial, and no "Keep" */
+/* Phone: the piece, and everything else in the menu */
+@container (max-width: 760px) {
+  .topbar { flex-wrap: nowrap; gap: 4px; padding: 5px 4px 5px 8px; }
+  .topbar .grp.file, .topbar .grp.edit, #settingsbtn, #guidebtn, .brand-t { display: none; }
+  .brand { padding-right: 4px; } .brand .logo { width: 26px; height: 26px; }
+  .topbar .grp.piece { flex: 1 1 0; padding: 0 2px; border-left: 0; flex-direction: column; align-items: stretch; gap: 0; }
+  .topbar .name { font-size: 15px; padding: 2px 6px; }
+  .savewrap { padding-left: 6px; font-size: 11px; } .status { font-size: 11px; }
+  .topbar .grp { border-left: 0; padding: 0; }
+  .phonemenu { display: flex; }
+  .busybtn .bt { display: none; }
+  .topbar .icon#menubtn { width: 44px; height: 44px; border-color: transparent; }
 }
-/* Phone widths: name and windows; file, edit and Reroll; then four equal layer locks */
-@container (max-width: 600px) {
-  /* wrapped lines rather than a grid, so each line is only as wide as what's on it */
-  .bar .bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; }
-  .bar .bar-row::after { content: ""; flex-basis: 100%; order: 3; } /* after the name and windows */
-  .bar .bar-row .grp { border-left: 1px solid var(--rule); padding: 0 10px; margin-top: 0; }
-  .bar .bar-row .grp.piece { order: 1; flex: 1 1 0; min-width: 0; border-left: 0; padding-left: 0; }
-  .bar .bar-row .grp.end { order: 2; border-left: 0; padding: 0 0 0 6px; margin-left: 0; }
-  .bar .bar-row .grp.file { order: 4; border-left: 0; padding-left: 0; }
-  .bar .bar-row .grp.edit { order: 5; }
-  .bar .bar-row .grp.rr { order: 6; border-left: 0; padding: 0; margin-left: auto; }
-  .reroll { margin-left: 0; }
-  .bar .bar-row .grp.layers { order: 7; flex: 1 0 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0; border-left: 0; }
-  .layerlock { justify-content: center; gap: 4px; padding: 6px 3px; font-size: 12px; min-width: 0; }
-  .layerlock svg { width: 13px; height: 13px; flex: none; }
-}
-@container (max-width: 400px) { /* four file buttons, undo and redo, and Reroll on one line */
-  .bar .icon { width: 34px; } .bar .icon.primary { width: 40px; }
-  .bar .bar-row .grp.edit { padding: 0 6px; } .bar .bar-row .grp.file { padding-right: 6px; }
-}
-@container (max-width: 350px) { .reroll span { display: none; } .reroll { padding: 5px 8px; } }
-@container (max-width: 340px) { .layerlock svg { display: none; } }
-@container (max-width: 300px) { .bar .icon { width: 30px; } .bar .icon.primary { width: 36px; } }
 dialog.guide.opendlg { width: min(1060px, calc(100vw - 32px)); height: min(84vh, 760px); }
 .open-nav button { display: flex; align-items: center; gap: 8px; }
 .open-nav .count { margin-left: auto; font-family: var(--font-data); font-size: 11.5px; font-weight: 400; color: var(--muted); }
@@ -301,7 +292,62 @@ button.arr-ms.solo[aria-pressed="true"] { background: var(--accent); color: var(
 .tabs { display: grid; grid-template-columns: repeat(5, auto); border-bottom: 1px solid var(--rule); }
 .tabs button { min-width: 0; overflow: hidden; text-overflow: ellipsis; border: 0; border-radius: 0; padding: 10px 3px; font-size: clamp(12px, 3.6vw, 13px); color: var(--muted); border-bottom: 2px solid transparent; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-.tabpanel { padding: 14px; display: grid; gap: 14px; }
+.tabpanel { padding: 12px; display: grid; gap: 10px; align-content: start; }
+/* modules: a titled box of settings that belong together, which can be folded away */
+.mod { min-width: 0; border: 1px solid var(--rule); border-radius: 8px; background: color-mix(in srgb, var(--ink) 2.5%, var(--stage)); }
+.mod-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; padding: 2px 4px 2px 12px; }
+.mod-title, .mod-h .labrow { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mod-h .labrow { display: flex; align-items: center; gap: 6px; }
+.mod-x { width: 30px; height: 30px; padding: 0; border: 0; display: grid; place-items: center; color: var(--muted); }
+.mod-x svg { width: 14px; height: 14px; transition: transform 0.15s; }
+.mod.folded .mod-x svg { transform: rotate(180deg); }
+.mod-b { display: grid; gap: 11px; padding: 2px 12px 12px; min-width: 0; }
+.mod-b > textarea#chords { min-height: 150px; }
+/* knobs: a row of dials, each with its value and name under it */
+.knobs { display: grid; grid-template-columns: repeat(var(--kc, 5), minmax(0, 1fr)); justify-items: center; gap: 10px 4px; } /* balanced rows: six knobs are 3 × 2, not 5 + 1 (--kc, set from how many show) */
+.knobrow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+.knobrow > .group { flex: 1 1 150px; min-width: 0; }
+.knobrow > .knobs { display: flex; gap: 2px; }
+.knobrow > .knobs > .knob { width: 62px; }
+.slider.knob { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "dial" "out" "lab"; justify-items: center; align-content: start; gap: 0; text-align: center; min-width: 0; }
+.slider.knob .dial { grid-area: dial; width: 46px; height: 46px; display: block; cursor: ns-resize; touch-action: none; border-radius: 10px; }
+.slider.knob .dial svg { width: 46px; height: 46px; display: block; }
+.dial .cap { fill: color-mix(in srgb, var(--ink) 7%, var(--stage)); stroke: var(--rule); stroke-width: 1; }
+.dial .trk { fill: none; stroke: var(--rule); stroke-width: 4; stroke-linecap: round; }
+.dial .val { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+.dial .ptr { stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; }
+.slider.knob.turning .dial .cap { fill: color-mix(in srgb, var(--accent) 16%, var(--stage)); }
+.slider.knob output { grid-area: out; font-size: 11px; line-height: 15px; color: var(--ink); white-space: nowrap; margin-top: 1px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.slider.knob > label, .slider.knob > .labrow { grid-area: lab; font-size: 11.5px; line-height: 1.25; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slider.knob > .labrow { display: flex; align-items: center; justify-content: center; gap: 2px; }
+.slider.knob > .labrow > label { overflow: hidden; text-overflow: ellipsis; }
+.slider.knob .ends { display: none; }
+.slider.knob input[type=range] { position: absolute; top: 0; left: 50%; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.slider.knob input:focus-visible ~ .dial { outline: 2px solid var(--accent); outline-offset: 1px; }
+.slider.knob:has(input:disabled) .dial { opacity: 0.45; cursor: default; }
+.rack:not(.on-part) #partsel-hint { display: none; }
+/* the Reroll tab: Reroll the rest; each layer in its own box, with what a reroll changes, its seed, its lock and its own reroll; the history */
+.layer-c { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+button.rerollall { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; }
+button.rerollall svg { width: 18px; height: 18px; }
+.rhist { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.rhist button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; text-align: left; white-space: normal; padding: 7px 10px; }
+.rhist button small { grid-column: 1; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
+.rhist button em { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-style: normal; font-size: 11.5px; color: var(--accent); }
+.rhist button[aria-current="true"] { border-color: var(--accent); cursor: default; }
+/* the Export window: the files and the video side by side, each with its progress */
+dialog.about.exportdlg { width: min(940px, calc(100vw - 32px)); max-height: min(90vh, 920px); }
+.export-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding: 16px; align-items: start; }
+.xsec { display: grid; gap: 10px; min-width: 0; }
+.xsec .mod-title { margin-bottom: 2px; }
+#xprog, #vprog { width: 100%; height: 8px; accent-color: var(--accent); }
+.mod .video-box, .mod .seed, .xsec .video-box { border: 0; padding: 0; background: transparent; }
+/* the export formats, always shown, two to a row */
+.exportdlg .exports:not([hidden]) { position: static; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0; border: 0; box-shadow: none; background: transparent; }
+.exportdlg .exports button, .exportdlg .exports button + button { margin: 0; display: block; width: 100%; text-align: left; white-space: normal; line-height: 1.3; padding: 7px 9px; border: 1px solid var(--rule); border-radius: 6px; font-size: 13px; }
+.exportdlg .exports button small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+.exportdlg .exports button[data-export="all"] { grid-column: 1 / -1; margin: 0; padding-top: 7px; border: 1px solid var(--rule); border-radius: 6px; }
+.exportdlg .exports button:hover:not(:disabled) { border-color: var(--ink); background: transparent; }
 .group { display: grid; gap: 6px; }
 .group > label, .group > .labrow > label, .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; resize: vertical; min-height: 170px; }
@@ -380,7 +426,7 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .partbar .pop .acts button { text-align: center; }
 .rack.on-part .partbar { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .tabs button.dim { opacity: 0.55; }
-.partblock { display: grid; gap: 14px; order: -1; }
+.partblock { display: contents; }
 .partblock textarea { min-height: 96px; }
 .partblock .checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .partblock .checks label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
@@ -388,8 +434,17 @@ textarea { font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; 
 .partblock .two { align-items: end; }
 .sect { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 2px 0 -4px; }
 .tonebox { display: grid; gap: 14px; }
-.tonebox #eqflat { justify-self: start; margin-top: -6px; }
-.eqcurve { width: 100%; height: 72px; display: block; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); margin-bottom: -10px; }
+.eqwrap { position: relative; }
+.eqwrap .eqends { position: absolute; left: 7px; right: 7px; bottom: 3px; margin: 0; font-size: 10px; pointer-events: none; }
+.eqwrap #eqflat { position: absolute; top: 5px; right: 5px; font-size: 11.5px; padding: 2px 8px; background: var(--stage); }
+.tonerow { display: flex; align-items: flex-end; gap: 10px; }
+.tonerow > .group:first-child { flex: 1 1 auto; min-width: 0; }
+.tonerow > .pcolor { flex: none; }
+.pcolor-row { display: flex; gap: 4px; }
+.pcauto { width: 36px; padding: 0; display: grid; place-items: center; }
+.pcauto svg { width: 16px; height: 16px; }
+.group.inline { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; }
+.eqcurve { width: 100%; height: 64px; display: block; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); margin-bottom: -10px; }
 .eqcurve path { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .eqcurve .zero { stroke: var(--rule); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .eqends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: var(--font-data); margin-bottom: -4px; }
@@ -432,7 +487,20 @@ dialog.about::backdrop { background: rgba(10, 12, 11, 0.5); }
 /* same height as the normal two-column stage (its width is the page minus the 360px rack and 18px gap, at 16:10), just wider */
 @media (min-width: 921px) { .layout.theater .canvas-box { aspect-ratio: auto; height: calc((100cqw - 378px) * 0.625); } }
 .layout.theater .rack { max-width: none; }
-.layout.theater .tabpanel { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
+/* a wide panel (theater, or below the stage on a narrower screen): the modules pack into columns, and the part picker and the tabs
+   share a row */
+.rack { container: rack / inline-size; }
+@container rack (min-width: 620px) {
+  .tabpanel { display: block; column-width: 290px; column-gap: 12px; }
+  .tabpanel > *, .partblock > * { break-inside: avoid; margin-bottom: 12px; }
+  .sect.whole { column-span: all; }
+}
+@container rack (min-width: 860px) {
+  .rack-head { display: flex; flex-wrap: wrap; align-items: stretch; border-bottom: 1px solid var(--rule); }
+  .partbar { flex: 0 1 520px; border-bottom: 0; }
+  .tabs { flex: 1 1 360px; display: flex; align-items: flex-end; border-bottom: 0; padding: 0 8px; }
+  .tabs button { padding: 12px 16px 10px; flex: 0 0 auto; }
+}
 /* full screen: the stage fills the screen (native, or a fixed overlay where the browser refuses) */
 .stage:fullscreen, .stage.pseudo-fs { position: fixed; inset: 0; z-index: 50; border: 0; border-radius: 0; display: flex; flex-direction: column; width: 100%; height: 100%;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); background: var(--stage); }
@@ -538,44 +606,54 @@ figure.vl circle { fill: var(--ink); }
 </style>
 
 <div class="wrap">
-  <header>
-    <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.5 · engine 3.1 · by Noizgenie</span>
-    <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
-  </header>
-
-  <section class="bar" aria-label="Piece">
-    <div class="bar-row">
-      <div class="grp piece">
-        <input id="name" class="name" type="text" aria-label="Piece name" maxlength="80">
-        <span id="savedot" class="savedot" role="img"></span>
+  <header class="topbar" aria-label="Piece">
+    <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg><div class="brand-t"><h1>Chord Glide</h1><span class="by">by Noizgenie</span></div></div>
+    <div class="grp piece">
+      <input id="name" class="name" type="text" aria-label="Piece name" maxlength="80">
+      <span class="savewrap"><span id="savedot" class="savedot" role="img"></span><span id="status" class="status" role="status"></span><button id="revoice" type="button" class="small" hidden>Re-voice with this engine</button></span>
+    </div>
+    <div class="grp file" role="group" aria-label="File">
+      <div class="menuwrap">
+        <button id="filebtn" type="button" class="filebtn" aria-haspopup="menu" aria-expanded="false" aria-controls="filemenu">File<svg class="chev" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div id="filemenu" class="pop menu" role="menu" aria-label="File" hidden>
+          <button id="newpiece" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 11v6M9.25 14h6"/></svg><span>New piece</span></button>
+          <button id="openbtn" type="button" role="menuitem" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3.5 18.5v-12.5h5.5l2 2h7.5v2.5"/><path d="M3.5 18.5l2.6-7.5h15.4l-2.6 7.5z"/></svg><span>Open…</span><kbd data-key="O"></kbd></button>
+          <button id="saveas" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 19.5H4.5v-15h11.5l3.5 3.5V12"/><path d="M8 4.5v4.5h7v-4.5"/><path d="M18 15v6M15 18h6"/></svg><span>Save as a new piece</span></button>
+          <button id="menuimport" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 10.5v6.5M9.5 14.25l2.75 2.75 2.75-2.75"/></svg><span>Open a piece file…</span></button>
+          <button id="menuexport" type="button" role="menuitem" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 16.5v3h15v-3"/></svg><span>Export…</span><kbd>E</kbd></button>
+          <hr>
+          <button type="button" role="menuitem" data-about="about" class="about-item"><span>About Chord Glide<small id="ver">Version 4.6 · engine 3.1</small></span></button>
+        </div>
       </div>
-      <div class="grp file" role="group" aria-label="File">
-        <button id="newpiece" type="button" class="icon" aria-label="New piece" title="New piece"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 3.5h7.5l4 4v13H6.5z"/><path d="M14 3.5v4h4"/><path d="M12.25 11v6M9.25 14h6"/></svg></button>
-        <button id="openbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Open" title="Open (⌘O / Ctrl+O)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3.5 18.5v-12.5h5.5l2 2h7.5v2.5"/><path d="M3.5 18.5l2.6-7.5h15.4l-2.6 7.5z"/></svg></button>
-        <button id="save" type="button" class="icon primary" aria-label="Save" title="Save (⌘S / Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4.5 4.5h11.5l3.5 3.5v11.5h-15z"/><path d="M8 4.5v4.5h7v-4.5"/><rect x="7.5" y="13" width="9" height="6.5"/></svg></button>
-        <button id="saveas" type="button" class="icon" aria-label="Save as a new piece" title="Save as a new piece"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 19.5H4.5v-15h11.5l3.5 3.5V12"/><path d="M8 4.5v4.5h7v-4.5"/><path d="M18 15v6M15 18h6"/></svg></button>
-      </div>
-      <div class="grp edit" role="group" aria-label="Edit">
-        <button id="undo" type="button" class="icon" aria-label="Undo" title="Undo (⌘Z / Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M9 5.5 4.5 10 9 14.5"/><path d="M5 10h9a5.5 5.5 0 0 1 0 11h-3"/></svg></button>
-        <button id="redo" type="button" class="icon" aria-label="Redo" title="Redo (⇧⌘Z / Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M15 5.5 19.5 10 15 14.5"/><path d="M19 10h-9a5.5 5.5 0 0 0 0 11h3"/></svg></button>
-      </div>
-      <div class="grp layers" role="group" aria-label="Layers: lock to keep, then reroll the rest">
-        <button type="button" class="layerlock" data-layer="harmony" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>H<span class="rest">armony</span></span></button>
-        <button type="button" class="layerlock" data-layer="voicing" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>V<span class="rest">oicing</span></span></button>
-        <button type="button" class="layerlock" data-layer="motion" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>M<span class="rest">otion</span></span></button>
-        <button type="button" class="layerlock" data-layer="sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="5.5" y="11" width="13" height="9.5" rx="1.8"/><path class="i-shut" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/><path class="i-open" d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg><span>S<span class="rest">ound</span></span></button>
-      </div>
-      <div class="grp rr">
-        <button id="rerollall" type="button" class="reroll" aria-label="Reroll unlocked layers" title="New seeds for every unlocked layer"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3.5"/><g fill="currentColor" stroke="none"><circle cx="8.6" cy="8.6" r="1.4"/><circle cx="15.4" cy="8.6" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8.6" cy="15.4" r="1.4"/><circle cx="15.4" cy="15.4" r="1.4"/></g></svg><span>Reroll</span></button>
-      </div>
-      <div class="grp end">
-        <button id="settingsbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Settings" title="Settings (⌘, / Ctrl+,)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9.5M18 7h2M4 17h2.5M11 17h9"/><circle cx="15.75" cy="7" r="2.25"/><circle cx="8.75" cy="17" r="2.25"/></svg></button>
-        <button id="guidebtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Guide" title="Guide (?)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.75"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor" stroke="none"/></svg></button>
+      <button id="save" type="button" class="icon primary" aria-label="Save" title="Save (⌘S / Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4.5 4.5h11.5l3.5 3.5v11.5h-15z"/><path d="M8 4.5v4.5h7v-4.5"/><rect x="7.5" y="13" width="9" height="6.5"/></svg></button>
+    </div>
+    <div class="grp edit" role="group" aria-label="Edit">
+      <button id="undo" type="button" class="icon" aria-label="Undo" title="Undo (⌘Z / Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M9 5.5 4.5 10 9 14.5"/><path d="M5 10h9a5.5 5.5 0 0 1 0 11h-3"/></svg></button>
+      <button id="redo" type="button" class="icon" aria-label="Redo" title="Redo (⇧⌘Z / Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M15 5.5 19.5 10 15 14.5"/><path d="M19 10h-9a5.5 5.5 0 0 0 0 11h3"/></svg></button>
+    </div>
+    <div class="grp busy" id="videobusy" hidden><button type="button" id="busybtn" class="small busybtn" title="Open the Export window (E)"><span class="pulse" aria-hidden="true"></span>Video in progress<span class="bt"> · Show</span></button></div>
+    <div class="grp end">
+      <button id="settingsbtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Settings" title="Settings (⌘, / Ctrl+,)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9.5M18 7h2M4 17h2.5M11 17h9"/><circle cx="15.75" cy="7" r="2.25"/><circle cx="8.75" cy="17" r="2.25"/></svg></button>
+      <button id="guidebtn" type="button" class="icon" aria-haspopup="dialog" aria-label="Guide" title="Guide (?)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.75"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor" stroke="none"/></svg></button>
+      <div class="menuwrap phonemenu"><button id="menubtn" type="button" class="icon" aria-haspopup="menu" aria-expanded="false" aria-controls="phonemenu" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg></button>
+        <div id="phonemenu" class="pop menu" role="menu" aria-label="Menu" hidden>
+          <button type="button" role="menuitem" data-proxy="save">Save</button>
+          <button type="button" role="menuitem" data-proxy="undo">Undo</button>
+          <button type="button" role="menuitem" data-proxy="redo">Redo</button>
+          <hr>
+          <button type="button" role="menuitem" data-proxy="newpiece">New piece</button>
+          <button type="button" role="menuitem" data-proxy="openbtn">Open…</button>
+          <button type="button" role="menuitem" data-proxy="saveas">Save as a new piece</button>
+          <button type="button" role="menuitem" data-proxy="menuimport">Open a piece file…</button>
+          <button type="button" role="menuitem" data-proxy="menuexport">Export…</button>
+          <hr>
+          <button type="button" role="menuitem" data-proxy="settingsbtn">Settings</button>
+          <button type="button" role="menuitem" data-proxy="guidebtn">Guide</button>
+          <button type="button" role="menuitem" data-about="about">About Chord Glide</button>
+        </div>
       </div>
     </div>
-    <div class="bar-status"><span id="status" class="status" role="status"></span><button id="revoice" type="button" class="small" hidden>Re-voice with this engine</button></div>
-  </section>
+  </header>
 
   <main class="layout">
     <section class="stage" aria-label="Voice trace">
@@ -656,6 +734,7 @@ figure.vl circle { fill: var(--ink); }
     </section>
 
     <aside class="rack" aria-label="Controls">
+      <div class="rack-head">
       <div class="partbar">
         <label for="partsel" class="label">Part</label>
         <select id="partsel" aria-describedby="partsel-hint"></select>
@@ -689,185 +768,264 @@ figure.vl circle { fill: var(--ink); }
         <button role="tab" id="t-voicing" aria-controls="p-voicing" aria-selected="false" type="button">Voicing</button>
         <button role="tab" id="t-motion" aria-controls="p-motion" aria-selected="false" type="button">Motion</button>
         <button role="tab" id="t-sound" aria-controls="p-sound" aria-selected="false" type="button">Sound</button>
-        <button role="tab" id="t-export" aria-controls="p-export" aria-selected="false" type="button">Export</button>
+        <button role="tab" id="t-reroll" aria-controls="p-reroll" aria-selected="false" type="button">Reroll</button>
+      </div>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-harmony" aria-labelledby="t-harmony">
         <div class="partblock" id="pp-harmony" hidden></div>
         <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
-        <div class="group">
-          <label for="chords">Chords</label>
-          <textarea id="chords" spellcheck="false"></textarea>
-          <p class="hint help">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds, <code>Amaj9:2bar</code> for two bars, <code>Amaj9:3beat</code> for three beats. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. A line like <code>[Groove x2 +2]</code> starts a section: a name, then optionally how many times it plays and a key change in semitones. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
+        <section class="mod" data-mod="chords" data-title="Chords">
+          <textarea id="chords" spellcheck="false" aria-labelledby="mt-chords"></textarea>
+          <p class="hint help" data-on="mt-chords">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds, <code>Amaj9:2bar</code> for two bars, <code>Amaj9:3beat</code> for three beats. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. A line like <code>[Groove x2 +2]</code> starts a section: a name, then optionally how many times it plays and a key change in semitones. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
           <div id="err" class="notices" role="status" aria-live="polite" hidden></div>
-        </div>
-        <div class="seed" data-layer="harmony">
-          <span class="label">Harmony seed</span>
-          <input type="text" id="seed-harmony" aria-label="Harmony seed">
-          <button type="button" class="lock small" id="lock-harmony" aria-pressed="true">Locked</button>
-          <button type="button" class="small" id="roll-harmony">Reroll</button>
-          <p class="hint help" style="grid-column:1/-1">Rerolling the harmony writes a new progression in place of these chords. Keep it locked while you explore voicings.</p>
-        </div>
-        <div class="group timebox"><span class="label" id="time-lbl">Time</span>
-          <div class="seg" role="radiogroup" aria-labelledby="time-lbl"><input type="radio" name="timeunit" id="tu-sec" value="sec"><label for="tu-sec">Seconds</label><input type="radio" name="timeunit" id="tu-bar" value="bar"><label for="tu-bar">Bars</label></div>
-          <p class="hint help">How chords without a length of their own are timed. Switching keeps the length you hear. Any chord can give its own: <code>:6</code> seconds, <code>:2bar</code>, <code>:3beat</code>.</p>
-        </div>
-        <div class="slider" id="row-chordsec"><label for="chordsec">Chord length</label><output id="o-chordsec"></output><input id="chordsec" type="range" min="1.5" max="12" step="0.1"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
-        <div class="slider" id="row-chordbars" hidden><label for="chordbars">Chord length</label><output id="o-chordbars"></output><input id="chordbars" type="range" min="0.25" max="8" step="0.25"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
-        <div class="slider"><label for="tempo">Tempo</label><output id="o-tempo"></output><input id="tempo" type="range" min="30" max="180" step="1"><span class="ends"><span>times bars and beats, lines, and MIDI and MusicXML</span></span></div>
-        <div class="group"><label for="meter">Beats per bar</label><select id="meter"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="9">9</option><option value="12">12</option></select></div>
-        <div class="group" style="grid-column:1/-1"><label for="tuning">Tuning</label>
-          <select id="tuning"><option value="equal">Equal temperament</option><option value="just">Just (pure chords, can drift)</option></select>
-          <p class="hint help">Just tunes each chord's notes as pure ratios from its root and keeps a note it shares with the chord before exactly where it was, so chords ring without beating. A progression that comes round can drift: C Am Dm G sinks 22 cents each time, and C G Dm Am rises as much. Every part follows the chords' tuning.</p>
-        </div>
+        </section>
+        <section class="mod" data-mod="time" data-title="Time">
+          <div class="seg" role="radiogroup" aria-labelledby="mt-time"><input type="radio" name="timeunit" id="tu-sec" value="sec"><label for="tu-sec">Seconds</label><input type="radio" name="timeunit" id="tu-bar" value="bar"><label for="tu-bar">Bars</label></div>
+          <p class="hint help" data-on="mt-time">How chords without a length of their own are timed. Switching keeps the length you hear. Any chord can give its own: <code>:6</code> seconds, <code>:2bar</code>, <code>:3beat</code>.</p>
+          <div class="slider" id="row-chordsec"><label for="chordsec">Chord length</label><output id="o-chordsec"></output><input id="chordsec" type="range" min="1.5" max="12" step="0.1"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
+          <div class="slider" id="row-chordbars" hidden><label for="chordbars">Chord length</label><output id="o-chordbars"></output><input id="chordbars" type="range" min="0.25" max="8" step="0.25"><span class="ends"><span>used when a chord has no length of its own</span></span></div>
+          <div class="slider"><label for="tempo">Tempo</label><output id="o-tempo"></output><input id="tempo" type="range" min="30" max="180" step="1"><span class="ends"><span>times bars and beats, lines, and MIDI and MusicXML</span></span></div>
+          <div class="two">
+            <div class="group"><label for="meter">Beats per bar</label><select id="meter"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="9">9</option><option value="12">12</option></select></div>
+            <div class="group"><label for="tuning" id="tuning-lbl">Tuning</label>
+              <select id="tuning"><option value="equal">Equal temperament</option><option value="just">Just (pure chords, can drift)</option></select>
+            </div>
+          </div>
+          <p class="hint help" data-on="tuning-lbl">Just tunes each chord's notes as pure ratios from its root and keeps a note it shares with the chord before exactly where it was, so chords ring without beating. A progression that comes round can drift: C Am Dm G sinks 22 cents each time, and C G Dm Am rises as much. Every part follows the chords' tuning.</p>
+        </section>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-voicing" aria-labelledby="t-voicing" hidden>
         <div class="partblock" id="pp-voicing" hidden></div>
         <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
-        <div class="seed" data-layer="voicing">
-          <span class="label">Voicing seed</span>
-          <input type="text" id="seed-voicing" aria-label="Voicing seed">
-          <button type="button" class="lock small" id="lock-voicing" aria-pressed="false">Unlocked</button>
-          <button type="button" class="small" id="roll-voicing">Reroll</button>
-          <p class="hint help" style="grid-column:1/-1">Same chords, a different realization. Variation sets how far a reroll can wander.</p>
-        </div>
-        <div class="slider"><label for="voices">Voices</label><output id="o-voices"></output><input id="voices" type="range" min="3" max="32" step="1"></div>
-        <div class="slider"><label for="continuity">Continuity</label><output id="o-continuity"></output><input id="continuity" type="range" min="0" max="100" step="1"><span class="ends"><span>voices leap</span><span>voices step</span></span></div>
-        <div class="slider"><label for="coverage">Chord-tone coverage</label><output id="o-coverage"></output><input id="coverage" type="range" min="0" max="100" step="1"><span class="ends"><span>loose</span><span>every tone present</span></span></div>
-        <div class="slider"><label for="stacking">Stacking</label><output id="o-stacking"></output><input id="stacking" type="range" min="0" max="100" step="1"><span class="ends"><span>avoid unisons</span><span>prefer unisons</span></span></div>
-        <div class="slider"><label for="spacing">Even spacing</label><output id="o-spacing"></output><input id="spacing" type="range" min="0" max="100" step="1"><span class="ends"><span>clusters ok</span><span>evenly spread</span></span></div>
-        <div class="slider"><label for="variation">Variation</label><output id="o-variation"></output><input id="variation" type="range" min="0" max="100" step="1"><span class="ends"><span>always the best fit</span><span>adventurous</span></span></div>
-        <div class="slider"><label for="spread">Opening spread</label><output id="o-spread"></output><input id="spread" type="range" min="0" max="100" step="1"><span class="ends"><span>stacked</span><span>spread out</span></span></div>
-        <div class="two">
-          <div class="group"><label for="top">Highest note</label><select id="top"></select></div>
-          <div class="group"><label for="bassoct">Bass octave</label><select id="bassoct"><option value="1">C1–B1</option><option value="2">C2–B2</option><option value="3">C3–B3</option></select></div>
-        </div>
-        <div class="group"><label for="bassmode">Bass</label>
-          <select id="bassmode">
-            <option value="root">Root (or slash note)</option>
-            <option value="nearest">Nearest chord tone</option>
-            <option value="pedal">Pedal (holds the first bass note)</option>
-            <option value="none">No separate bass</option>
-          </select>
-        </div>
+        <section class="mod" data-mod="voices" data-title="Voices">
+          <div class="slider"><label for="voices">Voices</label><output id="o-voices"></output><input id="voices" type="range" min="3" max="32" step="1"></div>
+          <div class="two">
+            <div class="group"><label for="top">Highest note</label><select id="top"></select></div>
+            <div class="group"><label for="bassoct">Bass octave</label><select id="bassoct"><option value="1">C1–B1</option><option value="2">C2–B2</option><option value="3">C3–B3</option></select></div>
+          </div>
+          <div class="group"><label for="bassmode">Bass</label>
+            <select id="bassmode">
+              <option value="root">Root (or slash note)</option>
+              <option value="nearest">Nearest chord tone</option>
+              <option value="pedal">Pedal (holds the first bass note)</option>
+              <option value="none">No separate bass</option>
+            </select>
+          </div>
+        </section>
+        <section class="mod" data-mod="sit" data-title="How the voices sit">
+          <div class="knobs">
+            <div class="slider knob"><label for="continuity">Continuity</label><output id="o-continuity"></output><input id="continuity" type="range" min="0" max="100" step="1"><span class="ends"><span>voices leap</span><span>voices step</span></span></div>
+            <div class="slider knob"><label for="coverage">Coverage</label><output id="o-coverage"></output><input id="coverage" type="range" min="0" max="100" step="1"><span class="ends"><span>loose</span><span>every tone present</span></span></div>
+            <div class="slider knob"><label for="stacking">Stacking</label><output id="o-stacking"></output><input id="stacking" type="range" min="0" max="100" step="1"><span class="ends"><span>avoid unisons</span><span>prefer unisons</span></span></div>
+            <div class="slider knob"><label for="spacing">Spacing</label><output id="o-spacing"></output><input id="spacing" type="range" min="0" max="100" step="1"><span class="ends"><span>clusters ok</span><span>evenly spread</span></span></div>
+            <div class="slider knob"><label for="variation">Variation</label><output id="o-variation"></output><input id="variation" type="range" min="0" max="100" step="1"><span class="ends"><span>always the best fit</span><span>adventurous</span></span></div>
+            <div class="slider knob"><label for="spread">Spread</label><output id="o-spread"></output><input id="spread" type="range" min="0" max="100" step="1"><span class="ends"><span>stacked</span><span>spread out</span></span></div>
+          </div>
+        </section>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-motion" aria-labelledby="t-motion" hidden>
         <div class="partblock" id="pp-motion" hidden></div>
         <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
-        <div class="seed" data-layer="motion">
-          <span class="label">Motion seed</span>
-          <input type="text" id="seed-motion" aria-label="Motion seed">
-          <button type="button" class="lock small" id="lock-motion" aria-pressed="false">Unlocked</button>
-          <button type="button" class="small" id="roll-motion">Reroll</button>
-          <p class="hint help" style="grid-column:1/-1">Used by the random departure order. More motion controls will draw on it later.</p>
-        </div>
-        <div class="slider"><label for="glide">Glide time</label><output id="o-glide"></output><input id="glide" type="range" min="0" max="12" step="0.1"></div>
-        <div class="group"><label for="easing">Glide curve</label>
-          <select id="easing"><option value="smooth">Smoothstep (S-curve)</option><option value="smoother">Smootherstep (flatter ends)</option><option value="cosine">Cosine</option><option value="linear">Linear</option></select>
-        </div>
-        <div class="group"><label for="order">Departure order</label>
-          <select id="order">
-            <option value="together">Simultaneous</option>
-            <option value="low-high">Low to high</option>
-            <option value="high-low">High to low</option>
-            <option value="largest">Largest leap first</option>
-            <option value="smallest">Smallest leap first</option>
-            <option value="random">Random</option>
-          </select>
-        </div>
-        <div class="slider"><label for="stagger">Stagger</label><output id="o-stagger"></output><input id="stagger" type="range" min="0" max="100" step="1"><span class="ends"><span>together</span><span>one by one</span></span></div>
+        <section class="mod" data-mod="glide" data-title="Glide">
+          <div class="slider"><label for="glide">Glide time</label><output id="o-glide"></output><input id="glide" type="range" min="0" max="12" step="0.1"></div>
+          <div class="group"><label for="easing">Curve</label>
+            <select id="easing"><option value="smooth">Smoothstep (S-curve)</option><option value="smoother">Smootherstep (flatter ends)</option><option value="cosine">Cosine</option><option value="linear">Linear</option></select>
+          </div>
+        </section>
+        <section class="mod" data-mod="departure" data-title="Departure">
+          <div class="knobrow">
+            <div class="group"><label for="order">Order</label>
+              <select id="order">
+                <option value="together">Simultaneous</option>
+                <option value="low-high">Low to high</option>
+                <option value="high-low">High to low</option>
+                <option value="largest">Largest leap first</option>
+                <option value="smallest">Smallest leap first</option>
+                <option value="random">Random</option>
+              </select>
+            </div>
+            <div class="knobs">
+              <div class="slider knob"><label for="stagger">Stagger</label><output id="o-stagger"></output><input id="stagger" type="range" min="0" max="100" step="1"><span class="ends"><span>together</span><span>one by one</span></span></div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div class="tabpanel" role="tabpanel" id="p-sound" aria-labelledby="t-sound" hidden>
         <div class="partblock" id="pp-sound" hidden></div>
         <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
-        <div class="seed" data-layer="sound">
-          <span class="label">Sound seed</span>
-          <input type="text" id="seed-sound" aria-label="Sound seed">
-          <button type="button" class="lock small" id="lock-sound" aria-pressed="false">Unlocked</button>
-          <button type="button" class="small" id="roll-sound">Reroll</button>
-          <p class="hint help" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
-        </div>
-        <div class="group"><label for="tone">Tone</label>
-          <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup><optgroup label="Struck (they ring on)"><option value="bell">Bell</option><option value="gong">Gong (plate)</option><option value="marimba">Marimba</option><option value="drum">Drum (membrane)</option><option value="metaltri">Metal triangle</option></optgroup><optgroup label="Moving"><option value="fm">FM (bright at each note)</option></optgroup><optgroup label="Unpitched"><option value="noise">Noise (drums, wind)</option></optgroup></select>
-          <p class="hint help"><b>Struck</b> instruments ring on by themselves after each note, every partial with its own decay, and follow glides (a bell that bends); the line on the stage is the struck pitch, fading as the ring dies. <b>FM</b> is bright as each note starts and mellows as it settles. Noise is hiss in a band around each note instead of a pitch, for drums and wind: with a short envelope, a low note is a thump, a middle one a snare and a high one (C8 and up) a hi-hat. A glide sweeps it. Detune does nothing to it.</p>
-        </div>
-        <div class="tonectl" data-for="struck" hidden>
-          <div class="slider"><label for="hardness" id="hardness-lbl">Hardness</label><output id="o-hardness"></output><input id="hardness" type="range" min="0" max="100" step="1"><span class="ends"><span>softer mallet: darker</span><span>harder: brighter</span></span></div>
-          <div class="slider"><label for="ring">Ring length</label><output id="o-ring"></output><input id="ring" type="range" min="0.1" max="4" step="0.05"></div>
-          <div class="group"><label for="stopend">At note end</label><select id="stopend"><option value="false">Rings on</option><option value="true">Stops (damped)</option></select></div>
-          <p class="hint help" data-on="hardness-lbl">Hardness: a harder strike brings out the upper partials. Ring length: every partial rings this many times as long. At note end: rings on, as a real instrument does after it's struck, or is damped at the note's end, like a hand on a cymbal. Each note strikes afresh; a slide (<code>~</code>) glides the ringing note without a new strike. The partials' ratios come from simple physics (a drumhead, a bar, a rod, a plate) and, for the bell, tradition: musical approximations, not recordings.</p>
-        </div>
-        <div class="tonectl" data-for="fm" hidden>
-          <div class="group"><label for="fmratio" id="fmratio-lbl">Ratio</label><select id="fmratio"><option value="0.5">0.5 (an octave below)</option><option value="1">1</option><option value="1.414">1.414 (bell-like)</option><option value="2">2</option><option value="3">3</option><option value="3.5">3.5 (metallic)</option><option value="4">4</option><option value="5">5</option><option value="7">7</option></select></div>
-          <div class="slider"><label for="fmindex">Brightness at each note</label><output id="o-fmindex"></output><input id="fmindex" type="range" min="0" max="12" step="0.1"></div>
-          <div class="slider"><label for="fmsustain">Brightness held</label><output id="o-fmsustain"></output><input id="fmsustain" type="range" min="0" max="12" step="0.1"></div>
-          <div class="slider"><label for="fmtime">Settles over</label><output id="o-fmtime"></output><input id="fmtime" type="range" min="0.02" max="4" step="0.01"></div>
-          <p class="hint help" data-on="fmratio-lbl">FM (frequency modulation): a second, inaudible sine swings the note's pitch very fast, which adds partials. Ratio: how fast, against the note (whole numbers sound harmonic; 1.414 and 3.5 bell-like and metallic). Brightness: how far it swings, so how many partials, as each note starts (louder notes brighter) and once it has settled, over the time set. Very high brightness on high notes can fold harsh partials back down.</p>
-        </div>
-        <div class="group pcolor" id="pcolor-box" hidden><label for="pcolor" id="pcolor-lbl">Color</label>
-          <div class="pcolor-row"><input type="color" id="pcolor"><button type="button" class="small" id="pcolor-auto">Automatic</button></div>
-          <p class="hint help">The part's colour in the Arrangement, and its lines' colour on the stage when the view's Line colors is By part. Saved with the piece; Automatic picks one from the part's place in the list.</p>
-        </div>
-        <div class="slider"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
-        <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
-        <div class="slider"><label for="ensemble">Ensemble</label><output id="o-ensemble"></output><input id="ensemble" type="range" min="0" max="100" step="1"><span class="ends"><span>thickens the part, as a section of players is thicker than one</span></span></div>
-        <div class="slider"><label for="reverb">Reverb</label><output id="o-reverb"></output><input id="reverb" type="range" min="0" max="100" step="1"></div>
-        <div class="slider"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
-        <div class="tonebox" id="tonebox">
-          <p class="sect" id="tone-lbl">Tone controls</p>
-          <p class="hint help" data-on="tone-lbl">Three bands over the whole mix, after the reverb: Low is everything under about 160 Hz (weight, rumble), Middle a broad band around 1 kHz (body, voice), High everything over about 5 kHz (air, hiss). The line shows the result. Brightness, above, is a separate filter that only darkens.</p>
-          <svg id="eqcurve" class="eqcurve" viewBox="0 0 280 72" preserveAspectRatio="none" role="img" aria-label="The tone controls' response, from 20 Hz to 20 kHz"><line x1="0" y1="36" x2="280" y2="36" class="zero"/><path id="eqpath" d="M0 36H280"/></svg>
-          <div class="eqends"><span>20 Hz</span><span>200</span><span>2 kHz</span><span>20 kHz</span></div>
-          <div class="slider"><label for="eqlow">Low</label><output id="o-eqlow"></output><input id="eqlow" type="range" min="-12" max="12" step="0.5"></div>
-          <div class="slider"><label for="eqmid">Middle</label><output id="o-eqmid"></output><input id="eqmid" type="range" min="-12" max="12" step="0.5"></div>
-          <div class="slider"><label for="eqhigh">High</label><output id="o-eqhigh"></output><input id="eqhigh" type="range" min="-12" max="12" step="0.5"></div>
-          <button type="button" class="small" id="eqflat">Flat</button>
-          <div class="slider"><label for="saturation">Saturation</label><output id="o-saturation"></output><input id="saturation" type="range" min="0" max="100" step="1"><span class="ends"><span>rounds the loud moments and adds warmth, then grit</span></span>
-            <p class="hint help">The whole mix through a soft curve, as tape or a valve does when pushed: a little thickens it, a lot distorts. It acts on loud moments most, so it also evens the level out.</p></div>
-        </div>
-        <div class="group"><label for="mix">Balance</label>
-          <select id="mix"><option value="parts">Each part on its own</option><option value="voices">Every voice equal (one sound)</option></select>
-          <p class="hint help">Each part on its own: every part is about as loud as the main part, however many voices it has. Every voice equal: the piece plays as one instrument of all its voices, so a part of six voices is six times as strong as one of one, and doubled lines stand out. Part levels still apply either way.</p>
-        </div>
-        <div class="group"><label for="vshape">Volume shape</label>
-          <select id="vshape"><option value="none">None (steady)</option><option value="fadein">Fade in</option><option value="crescendo">Crescendo</option><option value="swell">Swell</option><option value="fadeout">Fade out</option><option value="custom" hidden>Custom</option></select>
-          <p class="hint help" id="vshape-hint">A shape over the whole piece, on top of the volume control. Set for the piece's current length.</p>
-        </div>
-        <p class="sect">Over time</p>
-        <div class="slider"><label for="breathedepth">Breathe at chord changes</label><output id="o-breathedepth"></output><input id="breathedepth" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>dips and swells back at each change, like strings re-bowing</span></span></div>
-        <div class="slider"><label for="breathetime">Breath length</label><output id="o-breathetime"></output><input id="breathetime" type="range" min="0.1" max="3" step="0.05"></div>
-        <div class="group"><label for="duckunder">Duck under</label><select id="duckunder"><option value="">Nothing</option></select></div>
-        <div class="slider"><label for="duckdepth">Duck depth</label><output id="o-duckdepth"></output><input id="duckdepth" type="range" min="0" max="0.95" step="0.01"><span class="ends"><span>how far it dips each time that part strikes a note</span></span></div>
-        <div class="slider"><label for="ducktime">Duck recovery</label><output id="o-ducktime"></output><input id="ducktime" type="range" min="0.05" max="2" step="0.01"></div>
-        <div class="group"><label for="echotime">Echo</label>
-          <select id="echotime"><option value="off">Off</option><option value="1/16">Sixteenth note</option><option value="1/8">Eighth note</option><option value="3/16">Dotted eighth</option><option value="1/4">Quarter note</option><option value="3/8">Dotted quarter</option><option value="1/2">Half note</option></select>
-          <p class="hint help">The part again a note-length later, at the tempo, each repeat quieter. Heard but not drawn; for an echo you can see, add an Echo part.</p>
-        </div>
-        <div class="slider"><label for="echomix">Echo level</label><output id="o-echomix"></output><input id="echomix" type="range" min="0" max="1" step="0.01"></div>
-        <div class="slider"><label for="echofb">Repeats</label><output id="o-echofb"></output><input id="echofb" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>how much of each repeat carries on to the next</span></span></div>
-        <div class="group"><label for="echopan">Repeats go</label><select id="echopan"><option value="true">Left and right, in turn</option><option value="false">Where the part is</option></select></div>
+        <section class="mod" data-mod="instrument" data-title="Instrument">
+          <div class="tonerow">
+            <div class="group"><label for="tone" id="tone-lbl">Tone</label>
+              <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup><optgroup label="Struck (they ring on)"><option value="bell">Bell</option><option value="gong">Gong (plate)</option><option value="marimba">Marimba</option><option value="drum">Drum (membrane)</option><option value="metaltri">Metal triangle</option></optgroup><optgroup label="Moving"><option value="fm">FM (bright at each note)</option></optgroup><optgroup label="Unpitched"><option value="noise">Noise (drums, wind)</option></optgroup></select>
+            </div>
+            <div class="group pcolor" id="pcolor-box" hidden><label for="pcolor" id="pcolor-lbl">Color</label>
+              <div class="pcolor-row"><input type="color" id="pcolor"><button type="button" class="small pcauto" id="pcolor-auto" aria-label="Automatic color" title="Automatic: a colour from the part's place in the list"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/></svg></button></div>
+            </div>
+          </div>
+          <p class="hint help" data-on="tone-lbl"><b>Struck</b> instruments ring on by themselves after each note, every partial with its own decay, and follow glides (a bell that bends); the line on the stage is the struck pitch, fading as the ring dies. <b>FM</b> is bright as each note starts and mellows as it settles. Noise is hiss in a band around each note instead of a pitch, for drums and wind: with a short envelope, a low note is a thump, a middle one a snare and a high one (C8 and up) a hi-hat. A glide sweeps it. Detune does nothing to it.</p>
+          <p class="hint help" data-on="pcolor-lbl">The part's colour in the Arrangement, and its lines' colour on the stage when the view's Line colors is By part. Saved with the piece; Automatic picks one from the part's place in the list.</p>
+          <div class="tonectl" data-for="struck" hidden>
+            <div class="group inline"><label for="stopend" id="stopend-lbl">At note end</label><select id="stopend"><option value="false">Rings on</option><option value="true">Stops (damped)</option></select></div>
+            <p class="hint help" data-on="stopend-lbl">Hardness: a harder strike brings out the upper partials. Ring length: every partial rings this many times as long. At note end: rings on, as a real instrument does after it's struck, or is damped at the note's end, like a hand on a cymbal. Each note strikes afresh; a slide (<code>~</code>) glides the ringing note without a new strike. The partials' ratios come from simple physics (a drumhead, a bar, a rod, a plate) and, for the bell, tradition: musical approximations, not recordings.</p>
+          </div>
+          <div class="tonectl" data-for="fm" hidden>
+            <div class="group inline"><label for="fmratio" id="fmratio-lbl">Ratio</label><select id="fmratio"><option value="0.5">0.5 (an octave below)</option><option value="1">1</option><option value="1.414">1.414 (bell-like)</option><option value="2">2</option><option value="3">3</option><option value="3.5">3.5 (metallic)</option><option value="4">4</option><option value="5">5</option><option value="7">7</option></select></div>
+            <p class="hint help" data-on="fmratio-lbl">FM (frequency modulation): a second, inaudible sine swings the note's pitch very fast, which adds partials. Ratio: how fast, against the note (whole numbers sound harmonic; 1.414 and 3.5 bell-like and metallic). Brightness: how far it swings, so how many partials, as each note starts (louder notes brighter) and once it has settled, over the time set. Very high brightness on high notes can fold harsh partials back down.</p>
+          </div>
+          <div class="knobs">
+            <div class="slider knob tonectl" data-for="struck" hidden><label for="hardness" id="hardness-lbl">Hardness</label><output id="o-hardness"></output><input id="hardness" type="range" min="0" max="100" step="1"><span class="ends"><span>softer mallet: darker</span><span>harder: brighter</span></span></div>
+            <div class="slider knob tonectl" data-for="struck" hidden><label for="ring">Ring</label><output id="o-ring"></output><input id="ring" type="range" min="0.1" max="4" step="0.05"></div>
+            <div class="slider knob tonectl" data-for="fm" hidden><label for="fmindex">Start</label><output id="o-fmindex"></output><input id="fmindex" type="range" min="0" max="12" step="0.1"></div>
+            <div class="slider knob tonectl" data-for="fm" hidden><label for="fmsustain">Held</label><output id="o-fmsustain"></output><input id="fmsustain" type="range" min="0" max="12" step="0.1"></div>
+            <div class="slider knob tonectl" data-for="fm" hidden><label for="fmtime">Settles</label><output id="o-fmtime"></output><input id="fmtime" type="range" min="0.02" max="4" step="0.01"></div>
+            <div class="slider knob"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
+            <div class="slider knob"><label for="width">Width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
+            <div class="slider knob"><label for="ensemble">Ensemble</label><output id="o-ensemble"></output><input id="ensemble" type="range" min="0" max="100" step="1"><span class="ends"><span>thickens the part, as a section of players is thicker than one</span></span></div>
+          </div>
+        </section>
+        <section class="mod" data-mod="master" data-title="Whole mix" id="tonebox">
+          <p class="hint help" data-on="mt-master">Three bands over the whole mix, after the reverb: Low is everything under about 160 Hz (weight, rumble), Middle a broad band around 1 kHz (body, voice), High everything over about 5 kHz (air, hiss). The line shows the result. Brightness, above, is a separate filter that only darkens. <b>Saturation</b>: The whole mix through a soft curve, as tape or a valve does when pushed: a little thickens it, a lot distorts. It acts on loud moments most, so it also evens the level out.</p>
+          <div class="eqwrap"><svg id="eqcurve" class="eqcurve" viewBox="0 0 280 72" preserveAspectRatio="none" role="img" aria-label="The tone controls' response, from 20 Hz to 20 kHz"><line x1="0" y1="36" x2="280" y2="36" class="zero"/><path id="eqpath" d="M0 36H280"/></svg><button type="button" class="small" id="eqflat">Flat</button><div class="eqends"><span>20 Hz</span><span>200</span><span>2 kHz</span><span>20 kHz</span></div></div>
+          <div class="knobs">
+            <div class="slider knob"><label for="reverb">Reverb</label><output id="o-reverb"></output><input id="reverb" type="range" min="0" max="100" step="1"></div>
+            <div class="slider knob"><label for="brightness">Brightness</label><output id="o-brightness"></output><input id="brightness" type="range" min="800" max="12000" step="100"></div>
+            <div class="slider knob"><label for="saturation">Saturation</label><output id="o-saturation"></output><input id="saturation" type="range" min="0" max="100" step="1"><span class="ends"><span>rounds the loud moments and adds warmth, then grit</span></span></div>
+            <div class="slider knob"><label for="eqlow">Low</label><output id="o-eqlow"></output><input id="eqlow" type="range" min="-12" max="12" step="0.5"></div>
+            <div class="slider knob"><label for="eqmid">Middle</label><output id="o-eqmid"></output><input id="eqmid" type="range" min="-12" max="12" step="0.5"></div>
+            <div class="slider knob"><label for="eqhigh">High</label><output id="o-eqhigh"></output><input id="eqhigh" type="range" min="-12" max="12" step="0.5"></div>
+          </div>
+          <div class="two">
+            <div class="group"><label for="mix" id="mix-lbl">Balance</label>
+              <select id="mix"><option value="parts">Each part on its own</option><option value="voices">Every voice equal (one sound)</option></select>
+            </div>
+            <div class="group"><label for="vshape" id="vshape-lbl">Volume shape</label>
+              <select id="vshape"><option value="none">None (steady)</option><option value="fadein">Fade in</option><option value="crescendo">Crescendo</option><option value="swell">Swell</option><option value="fadeout">Fade out</option><option value="custom" hidden>Custom</option></select>
+            </div>
+          </div>
+          <p class="hint help" data-on="mix-lbl">Each part on its own: every part is about as loud as the main part, however many voices it has. Every voice equal: the piece plays as one instrument of all its voices, so a part of six voices is six times as strong as one of one, and doubled lines stand out. Part levels still apply either way.</p>
+          <p class="hint help" id="vshape-hint" data-on="vshape-lbl">A shape over the whole piece, on top of the volume control. Set for the piece's current length.</p>
+        </section>
+        <section class="mod" data-mod="dynamics" data-title="Dynamics and echo">
+          <div class="knobs">
+            <div class="slider knob"><label for="breathedepth">Breathe</label><output id="o-breathedepth"></output><input id="breathedepth" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>dips and swells back at each change, like strings re-bowing</span></span></div>
+            <div class="slider knob"><label for="breathetime">Breath</label><output id="o-breathetime"></output><input id="breathetime" type="range" min="0.1" max="3" step="0.05"></div>
+            <div class="slider knob"><label for="duckdepth">Duck</label><output id="o-duckdepth"></output><input id="duckdepth" type="range" min="0" max="0.95" step="0.01"><span class="ends"><span>how far it dips each time that part strikes a note</span></span></div>
+            <div class="slider knob"><label for="ducktime">Recovery</label><output id="o-ducktime"></output><input id="ducktime" type="range" min="0.05" max="2" step="0.01"></div>
+          </div>
+          <div class="two">
+            <div class="group"><label for="duckunder">Duck under</label><select id="duckunder"><option value="">Nothing</option></select></div>
+            <div class="group"><label for="echotime" id="echotime-lbl">Echo</label>
+              <select id="echotime"><option value="off">Off</option><option value="1/16">Sixteenth note</option><option value="1/8">Eighth note</option><option value="3/16">Dotted eighth</option><option value="1/4">Quarter note</option><option value="3/8">Dotted quarter</option><option value="1/2">Half note</option></select>
+            </div>
+          </div>
+          <p class="hint help" data-on="echotime-lbl">The part again a note-length later, at the tempo, each repeat quieter. Heard but not drawn; for an echo you can see, add an Echo part.</p>
+          <div class="knobrow">
+            <div class="knobs">
+              <div class="slider knob"><label for="echomix">Level</label><output id="o-echomix"></output><input id="echomix" type="range" min="0" max="1" step="0.01"></div>
+              <div class="slider knob"><label for="echofb">Repeats</label><output id="o-echofb"></output><input id="echofb" type="range" min="0" max="0.9" step="0.01"><span class="ends"><span>how much of each repeat carries on to the next</span></span></div>
+            </div>
+            <div class="group"><label for="echopan">Repeats go</label><select id="echopan"><option value="true">Left and right, in turn</option><option value="false">Where the part is</option></select></div>
+          </div>
+        </section>
       </div>
 
-      <div class="tabpanel" role="tabpanel" id="p-export" aria-labelledby="t-export" hidden>
-        <div class="xmenu">
-        <button type="button" id="xopen" class="primary xopen" aria-haspopup="menu" aria-expanded="false" aria-controls="xlist">Export<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-        <div class="exports" id="xlist" role="menu" aria-label="Export formats" hidden>
-          <button type="button" role="menuitem" data-export="json">Piece file<small>.json with its notes; reopens exactly</small></button>
-          <button type="button" role="menuitem" data-export="wav">WAV<small>24-bit, 48 kHz</small></button>
-          <button type="button" role="menuitem" data-export="mp3">MP3<small>192 kbps</small></button>
-          <button type="button" role="menuitem" data-export="midi">MIDI with glides<small id="midi-note">one channel per voice (MPE)</small></button>
-          <button type="button" role="menuitem" data-export="midichords">MIDI chords and notes<small>the chords, and each part's notes on its own track</small></button>
-          <button type="button" role="menuitem" data-export="musicxml">MusicXML<small>the chords where they settle, and a staff for each line or pattern</small></button>
-          <button type="button" role="menuitem" data-export="all">Everything<small>all of the above in one .zip</small></button>
+      <div class="tabpanel" role="tabpanel" id="p-reroll" aria-labelledby="t-reroll" hidden>
+        <p class="sect whole" hidden>Whole piece <span>shared by every part</span></p>
+        <section class="mod" data-mod="rerollrest" data-title="Reroll" data-whole>
+          <p class="hint">Every random choice starts from a seed, one for each layer. Lock a layer to keep it as it is; Reroll gives every unlocked one a new seed.</p>
+          <button type="button" id="rerollall" class="primary rerollall" aria-label="Reroll the unlocked layers" title="New seeds for every unlocked layer (R)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3.5"/><g fill="currentColor" stroke="none"><circle cx="8.6" cy="8.6" r="1.4"/><circle cx="15.4" cy="8.6" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8.6" cy="15.4" r="1.4"/><circle cx="15.4" cy="15.4" r="1.4"/></g></svg><span>Reroll the rest</span></button>
+        </section>
+        <section class="mod" data-mod="l-harmony" data-title="Harmony">
+          <p class="layer-c">The chords. A reroll writes a whole new progression in place of yours, so it starts locked.</p>
+          <div class="seed" data-layer="harmony">
+            <input type="text" id="seed-harmony" aria-label="Harmony seed">
+            <button type="button" class="lock small" id="lock-harmony" aria-pressed="true">Locked</button>
+            <button type="button" class="small" id="roll-harmony">Reroll</button>
+            </div>
+        </section>
+        <section class="mod" data-mod="l-voicing" data-title="Voicing">
+          <p class="layer-c">Which note each voice sings, within the same chords. Variation, on the Voicing tab, sets how far a reroll can wander.</p>
+          <div class="seed" data-layer="voicing">
+            <input type="text" id="seed-voicing" aria-label="Voicing seed">
+            <button type="button" class="lock small" id="lock-voicing" aria-pressed="false">Unlocked</button>
+            <button type="button" class="small" id="roll-voicing">Reroll</button>
+            </div>
+        </section>
+        <section class="mod" data-mod="l-motion" data-title="Motion">
+          <p class="layer-c">The order the voices leave in, when the departure order is Random.</p>
+          <div class="seed" data-layer="motion">
+            <input type="text" id="seed-motion" aria-label="Motion seed">
+            <button type="button" class="lock small" id="lock-motion" aria-pressed="false">Unlocked</button>
+            <button type="button" class="small" id="roll-motion">Reroll</button>
+            </div>
+        </section>
+        <section class="mod" data-mod="l-sound" data-title="Sound">
+          <p class="layer-c">Each voice's detune and place in the stereo field, and the shape of the reverb.</p>
+          <div class="seed" data-layer="sound">
+            <input type="text" id="seed-sound" aria-label="Sound seed">
+            <button type="button" class="lock small" id="lock-sound" aria-pressed="false">Unlocked</button>
+            <button type="button" class="small" id="roll-sound">Reroll</button>
+            </div>
+        </section>
+        <section class="mod" data-mod="history" data-title="Reroll history" data-whole data-always>
+          <ol class="rhist" id="rhist"></ol>
+          <p class="hint" id="rhist-empty">Your rerolls of this piece will be listed here, newest first, so you can go back to one you liked.</p>
+        </section>
+      </div>
+      <div class="rack-foot">
+        <button type="button" class="linkish guide-link" data-about=""><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>Read the Guide</button>
+        <span class="hint">or press <kbd>?</kbd> anytime</span>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="opendlg" class="about guide opendlg" aria-labelledby="open-title">
+    <div class="about-head"><h2 id="open-title">Open</h2><button type="button" id="open-close" class="small">Close</button></div>
+    <div class="guide-body">
+      <nav class="guide-nav open-nav" id="open-nav" role="tablist" aria-label="Pieces" aria-orientation="vertical">
+        <button type="button" role="tab" id="ot-saved" aria-controls="o-panel" aria-selected="true" data-opage="saved">Your pieces<span class="count" id="n-saved"></span></button>
+        <button type="button" role="tab" id="ot-examples" aria-controls="o-panel" aria-selected="false" data-opage="examples">Examples<span class="count" id="n-examples"></span></button>
+        <div class="nav-foot"><input id="importfile" type="file" accept=".json,application/json" hidden><button id="importbtn" type="button" class="small"><span class="long">Open a piece file…</span><span class="short">File…</span></button></div>
+      </nav>
+      <div class="open-panel" id="o-panel" role="tabpanel" aria-labelledby="ot-saved">
+        <div class="open-tools" id="open-tools">
+          <input id="libsearch" type="search" placeholder="Search by name" aria-label="Search by name" autocomplete="off">
+          <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label>
         </div>
+        <p id="lib-note" class="hint lib-note"></p>
+        <div id="lib-undo" class="lib-undo" role="status" hidden><span id="lib-undo-text"></span><button type="button" id="lib-undo-btn" class="small">Undo</button></div>
+        <div class="open-split" id="open-split">
+          <ul id="lib-list" class="lib-list" role="listbox" aria-label="Pieces" tabindex="0"></ul>
+          <div id="lib-detail" class="lib-detail"></div>
         </div>
-        <p class="hint" id="xhint"></p>
-        <div class="video-box">
-          <span class="label" id="video-lbl">Video</span>
-          <p class="hint help" data-on="video-lbl">Auto zoom: <b>Automatic</b> zooms in over the first chord's glide and out at the end; <b>Custom times</b> sets your own, saved with the piece and used by Auto view on the stage too. <b>Fast movement</b> sets how a voice that moves faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.</p>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="exportdlg" class="about exportdlg" aria-labelledby="export-title">
+    <div class="about-head"><h2 id="export-title">Export</h2><button type="button" id="export-close" class="small">Close</button></div>
+    <div class="export-body">
+      <section class="xsec" aria-labelledby="x-files"><h3 class="mod-title" id="x-files">Files</h3>
+          <button type="button" id="xopen" hidden aria-expanded="false">Export</button>
+          <div class="exports" id="xlist" role="group" aria-label="Export formats">
+          <button type="button" data-export="json">Piece file<small>.json with its notes; reopens exactly</small></button>
+          <button type="button" data-export="wav">WAV<small>24-bit, 48 kHz</small></button>
+          <button type="button" data-export="mp3">MP3<small>192 kbps</small></button>
+          <button type="button" data-export="midi">MIDI with glides<small id="midi-note">one channel per voice (MPE)</small></button>
+          <button type="button" data-export="midichords">MIDI chords and notes<small>the chords, and each part's notes on its own track</small></button>
+          <button type="button" data-export="musicxml">MusicXML<small>the chords where they settle, and a staff for each line or pattern</small></button>
+          <button type="button" data-export="all">Everything<small>all of the above in one .zip</small></button>
+        </div>
+          <progress id="xprog" max="1" hidden></progress>
+          <p class="hint" id="xhint"></p>
+          <p id="xstatus" class="hint" role="status"></p>
+</section>
+      <section class="xsec" aria-labelledby="x-video"><h3 class="mod-title" id="x-video">Video</h3>
+          <div class="video-box">
+                    <p class="hint help" data-on="x-video">Auto zoom: <b>Automatic</b> zooms in over the first chord's glide and out at the end; <b>Custom times</b> sets your own, saved with the piece and used by Auto view on the stage too. <b>Fast movement</b> sets how a voice that moves faster than the zoomed-out picture can show is drawn; zoomed in, every move is drawn.</p>
           <div class="vopts">
             <label>Shape<select id="vaspect"><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option><option value="1:1">Square 1:1</option></select></label>
             <label class="vr">Size<select id="vsize"><option value="1080">1080p</option><option value="1440">1440p</option></select></label>
@@ -897,35 +1055,7 @@ figure.vl circle { fill: var(--ink); }
           <p class="hint" id="vest" aria-live="polite"></p>
           <p class="hint help" id="vhint" data-on="vrecord">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
         </div>
-        <p id="xstatus" class="hint" role="status"></p>
-      </div>
-      <div class="rack-foot">
-        <button type="button" class="linkish guide-link" data-about=""><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>Read the Guide</button>
-        <span class="hint">or press <kbd>?</kbd> anytime</span>
-      </div>
-    </aside>
-  </main>
-
-  <dialog id="opendlg" class="about guide opendlg" aria-labelledby="open-title">
-    <div class="about-head"><h2 id="open-title">Open</h2><button type="button" id="open-close" class="small">Close</button></div>
-    <div class="guide-body">
-      <nav class="guide-nav open-nav" id="open-nav" role="tablist" aria-label="Pieces" aria-orientation="vertical">
-        <button type="button" role="tab" id="ot-saved" aria-controls="o-panel" aria-selected="true" data-opage="saved">Your pieces<span class="count" id="n-saved"></span></button>
-        <button type="button" role="tab" id="ot-examples" aria-controls="o-panel" aria-selected="false" data-opage="examples">Examples<span class="count" id="n-examples"></span></button>
-        <div class="nav-foot"><input id="importfile" type="file" accept=".json,application/json" hidden><button id="importbtn" type="button" class="small"><span class="long">Open a piece file…</span><span class="short">File…</span></button></div>
-      </nav>
-      <div class="open-panel" id="o-panel" role="tabpanel" aria-labelledby="ot-saved">
-        <div class="open-tools" id="open-tools">
-          <input id="libsearch" type="search" placeholder="Search by name" aria-label="Search by name" autocomplete="off">
-          <label class="sortby">Sort<select id="libsort"><option value="modified">Last changed</option><option value="created">Date made</option><option value="name">Name</option><option value="size">Size</option></select></label>
-        </div>
-        <p id="lib-note" class="hint lib-note"></p>
-        <div id="lib-undo" class="lib-undo" role="status" hidden><span id="lib-undo-text"></span><button type="button" id="lib-undo-btn" class="small">Undo</button></div>
-        <div class="open-split" id="open-split">
-          <ul id="lib-list" class="lib-list" role="listbox" aria-label="Pieces" tabindex="0"></ul>
-          <div id="lib-detail" class="lib-detail"></div>
-        </div>
-      </div>
+</section>
     </div>
   </dialog>
   <dialog id="discarddlg" class="about confirmdlg" aria-labelledby="discard-title" aria-describedby="discard-text">
@@ -1020,12 +1150,11 @@ figure.vl circle { fill: var(--ink); }
           <p>The bar across the top holds everything about the piece as a whole. From left to right:</p>
           <dl class="barmap">
             <dt><span class="mini-name">Name</span><span class="savedot new"></span><span class="savedot saved"></span><span class="savedot dirty"></span></dt><dd><b>Piece name and save dot.</b> Click the name to rename the piece. The dot is hollow if the piece has never been saved, green when everything is saved, and amber when there are unsaved changes.</dd>
-            <dt><span class="mini" data-icon="newpiece"></span><span class="mini" data-icon="openbtn"></span><span class="mini" data-icon="save"></span><span class="mini" data-icon="saveas"></span></dt><dd><b>New, Open, Save, Save as new.</b> New writes a fresh piece from a new harmony seed. Open shows your saved pieces and the examples, with what each one holds, and opens piece files. Save as new keeps the original and saves a copy.</dd>
+            <dt><span class="mini" data-icon="filebtn"></span><span class="mini" data-icon="save"></span></dt><dd><b>File and Save.</b> The File menu holds <b>New piece</b>, which writes a fresh piece from a new harmony seed; <b>Open</b>, which shows your saved pieces and the examples, with what each one holds; <b>Save as a new piece</b>, which keeps the original and saves a copy; <b>Open a piece file</b>; <b>Export</b>, the window for audio, MIDI, notation and video (also <kbd>E</kbd>); and <b>About</b>, with the app's version. Save, beside it, keeps the piece in your library.</dd>
             <dt><span class="mini" data-icon="undo"></span><span class="mini" data-icon="redo"></span></dt><dd><b>Undo and Redo.</b> Step back and forward through your changes, including rerolls.</dd>
-            <dt><span class="mini-lock" data-locked="true">Harmony</span><span class="mini-lock" data-locked="false">Voicing</span></dt><dd><b>Layer locks.</b> A piece has four layers, and each one gets its own seed: the number its random choices start from. A <b>locked</b> layer (filled in, with a closed padlock) stays exactly as it is when you reroll. An <b>unlocked</b> layer (outlined, with an open padlock) gets a new seed. Click a lock to switch it.</dd>
-            <dt><span class="mini" data-icon="rerollall"></span></dt><dd><b>Reroll.</b> Gives every unlocked layer a new seed, all at once. It's greyed out when everything is locked.</dd>
-            <dt><span class="mini" data-icon="settingsbtn"></span><span class="mini" data-icon="guidebtn"></span></dt><dd><b>Settings and Guide.</b> Trace looks, themes and accent color; and this Guide.</dd>
+            <dt><span class="mini" data-icon="settingsbtn"></span><span class="mini" data-icon="guidebtn"></span></dt><dd><b>Settings and Guide.</b> Trace looks, themes and accent color; and this Guide. On a phone they, the File menu, Save, and undo and redo are in the menu at the right end of the bar.</dd>
           </dl>
+          <p>The <b>Reroll</b> tab, beside Sound, is where the piece's chance lives. A piece has four layers, and each one gets its own seed: the number its random choices start from. Each layer there shows what a reroll changes, its seed, a lock and its own Reroll. A <b>locked</b> layer stays exactly as it is when you reroll; <b>Reroll the rest</b> (or <kbd>R</kbd>) gives every unlocked layer a new seed, all at once. Under them, the reroll history lists your rerolls of this piece, newest first, with the piece as it was before the first, so you can go back to one you liked.</p>
           <p>What each layer covers when it's rerolled:</p>
           <ul>
             <li><b>Harmony:</b> the chords. Rerolling it writes a whole new progression in place of yours, so it starts locked.</li>
@@ -1041,7 +1170,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The longer explanations of each control wait behind the <b>?</b> beside its name: press it to read them in place. <b>Settings → Interface → Help text</b> shows them all instead.</p>
 
           <h4><span class="step">3</span>Shape the voicing</h4>
-          <p>The <b>Voicing</b> tab decides which note each voice sings. Choose how many voices, then balance the sliders: <b>continuity</b> (small steps), <b>coverage</b> (every chord note present), <b>stacking</b> (unisons avoided or welcomed), <b>spacing</b> and <b>variation</b>. Each slider is a weight in the score that picks every voice's next note, as step 9 of The math explains. The highest note and the bass rule set the range.</p>
+          <p>The <b>Voicing</b> tab decides which note each voice sings. Choose how many voices, then turn the knobs: <b>continuity</b> (small steps), <b>coverage</b> (every chord note present), <b>stacking</b> (unisons avoided or welcomed), <b>spacing</b> and <b>variation</b>. Each slider is a weight in the score that picks every voice's next note, as step 9 of The math explains. The highest note and the bass rule set the range.</p>
 
           <h4><span class="step">4</span>Set the motion</h4>
           <p>The <b>Motion</b> tab controls how voices travel: the <b>glide time</b>, the shape of the <b>curve</b>, and the <b>departure order</b>. Add <b>stagger</b> and the voices leave one after another, low to high, high to low, largest leap first, or at random.</p>
@@ -1053,13 +1182,13 @@ figure.vl circle { fill: var(--ink); }
           <p>A piece can have more than one part. The <b>Part</b> menu above the tabs chooses which part the tabs edit; <b>Main</b> is the chords as you've voiced them. <b>+ Add</b> adds a <b>melody</b> or <b>bass</b> line, which starts from your chords so it plays in key straight away, or another <b>pad</b>: a group of voices that follows the chords in its own register, with its own random choices. Choose a part and the tabs follow it. For a line, Harmony becomes <b>Line</b>: write it like the chord box, a note and its length in steps (<code>G4:2</code>), <code>-</code> for a rest and <code>|</code> just for reading, and pick the step (eighth notes, quarter notes and so on). Voicing becomes <b>Voices</b>, where <code>0,&nbsp;-12</code> doubles the line an octave below. Motion holds portamento and vibrato, and Sound its tone, level, pan and <b>envelope</b>: how fast each note starts, how it settles and how long it fades. A pad part gets the full Voicing and Motion controls. What every part shares (the chords, chord length, glide, reverb, brightness, volume shape and the seeds) sits under <b>Whole piece</b> at the bottom of each tab. The <b>⋯</b> menu renames, moves, duplicates or removes the chosen part. Voices in a line rest between notes, shown as gaps in their lines. There are patterns, echoes and a kick too, and sections to arrange them in: <b>Parts and sections</b>, the next page, has them all. Try the <b>Three Parts</b> example.</p>
 
           <h4><span class="step">7</span>Lock what you love, reroll the rest</h4>
-          <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. The lock buttons in the top bar (step 1) keep a layer as it is, and <b>Reroll</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
+          <p>Four seeds (<b>harmony</b>, <b>voicing</b>, <b>motion</b> and <b>sound</b>) make every random choice repeatable. On the <b>Reroll</b> tab (step 1), a lock keeps a layer as it is, and <b>Reroll the rest</b> gives every unlocked layer a fresh seed. Keep the chords, reroll the voicing, and listen. Undo brings back anything you liked better.</p>
 
           <h4><span class="step">8</span>Save, and reopen exactly</h4>
           <p>Your saved pieces are kept in this browser, and <b>Open</b> lists them with when each was made and last changed, the version that saved it, its length, parts and size. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">9</span>Export</h4>
-          <p>The <b>Export</b> tab's <b>Export</b> menu saves a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
+          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; add your name under <b>Name on exports</b> in Settings and it's written in as the artist too. Videos can also show it under the title on screen: tick <b>Artist name under the title</b> beside Render video, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
 
           <h4><span class="step">10</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -1205,7 +1334,7 @@ figure.vl circle { fill: var(--ink); }
           <dl class="keylist"><dt><kbd>Space</kbd></dt><dd>Play or pause</dd><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></dl>
 
           <h4><span class="step">◐</span>View</h4>
-          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
+          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page</dd><dt><kbd>E</kbd></dt><dd>Export: audio, MIDI, notation and video</dd><dt><kbd>R</kbd></dt><dd>Reroll every unlocked layer</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
 
           <h4><span class="step">↺</span>Editing</h4>
           <dl class="keylist"><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd><dt><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Redo</dd><dt><kbd>⌘</kbd> <kbd>S</kbd></dt><dd>Save the piece</dd></dl>
@@ -1217,6 +1346,13 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.6</span>A tidier layout, with knobs<span class="when">17 Nov 2026</span></h4>
+          <p>The top of the page is one slim bar: the app's name, smaller, with Noizgenie under it; the piece; a <b>File</b> menu (New piece, Open, Save as a new piece, Open a piece file, <b>Export</b>, and <b>About</b>, which has the version); Save, undo and redo; and Settings and the Guide. A passing message (opened, saved, a problem) shows in full under the piece's name until it fades. On a phone the bar is the piece and a menu with everything else.</p>
+          <p>The layer locks and Reroll moved off the bar to a tab of their own, <b>Reroll</b>, in place of Export. All four layers are there together, each with what a reroll changes, its seed, its lock and its own reroll, then <b>Reroll the rest</b> (also <kbd>R</kbd>). Under them, a <b>reroll history</b> lists this visit's rerolls of the piece, newest first, with the piece as it was before the first: choose one to go back to it. The seeds left the other tabs.</p>
+          <p><b>Export</b> is a window, from the File menu or <kbd>E</kbd>: the file formats as buttons, all shown at once, with a progress bar while audio renders and encodes, beside the video settings and their progress. Close it while a video records or renders and the bar shows <b>Video in progress</b>, to bring it, and Cancel, back.</p>
+          <p>Each tab is made of <b>modules</b>: titled boxes of the settings that belong together. Sound is down to three (Instrument; Whole mix, with the reverb, brightness, tone controls, saturation, balance and volume shape; Dynamics and echo), and a part's own settings are modules too. The arrow on a module folds it away, and it stays folded on this device. With an added part chosen, its own settings come first, then what it shares under Whole piece. In theater, or below the stage on a narrower screen, the modules pack into columns, and the part picker and the tabs share a row.</p>
+          <p>Settings that shape the tone are <b>knobs</b>, in even rows (six are three by two): drag up or down (hold Shift for fine steps), or Tab to one and use the arrow keys, Page Up and Down, Home and End; double-click puts it back to its default. EQ, pan and pitch drop fill out from zero. Tempo, chord length, the number of voices, glide time and portamento stay sliders. Nothing about how pieces sound has changed.</p>
 
           <h4><span class="step ver">4.5</span>Instruments that ring<span class="when">16 Nov 2026</span></h4>
           <p>Tone has new choices. <b>Struck</b>: a <b>Bell</b>, a <b>Gong</b>, a <b>Marimba</b>, a <b>Drum</b> and a <b>Metal triangle</b>, each made of several partials at the instrument's own ratios, each with its own decay, struck at every note and ringing on by itself, following glides, so a bell can bend. Each has <b>Hardness</b>, <b>Ring length</b> and whether it rings on or <b>Stops</b> at the note's end. <b>FM</b>: bright as each note starts and mellowing as it settles, with a ratio, the brightness at each note and held, and how long it takes to settle. And any part's envelope can take a shape <b>Over each note</b> (swelling in, fading away, or both), in each note's own time, so one part plays short and long notes alike. A piece that uses these is saved as file format 7; every other piece is unchanged. A new example, <b>Bells at Dusk</b>, plays them all.</p>
@@ -1393,7 +1529,7 @@ figure.vl circle { fill: var(--ink); }
         </section>
         <section class="guide-page" id="g-files" role="tabpanel" aria-labelledby="gt-files" hidden>
           <h3>Piece files</h3>
-          <p class="lede">A piece file (<b>Export</b>, then <b>Piece file</b>) holds everything needed to play a piece again: its chords, seeds, settings and parts, and the notes it was voiced with. Its format has a version, which goes up only when a piece can hold something older versions of the app can't play.</p>
+          <p class="lede">A piece file (<b>File → Export</b>, then <b>Piece file</b>) holds everything needed to play a piece again: its chords, seeds, settings and parts, and the notes it was voiced with. Its format has a version, which goes up only when a piece can hold something older versions of the app can't play.</p>
           <p>Chord Glide always saves a piece in the oldest format that holds everything it uses, so it opens in as many versions as it can. A piece you haven't given parts to is still format 3, and opens in every version since app 3. Every version opens every older format. Since app 3.1, a version given a newer format than it knows says so and leaves the file alone, rather than playing it with parts missing.</p>
 
           <h4><span class="step ver">7</span>Struck instruments, FM and note shapes<span class="when">app 4.5 and later</span></h4>
@@ -3413,7 +3549,7 @@ const EXAMPLE_PIECES = [{"format":"chord-glide-piece","formatVersion":3,"name":"
 {"format":"chord-glide-piece","formatVersion":7,"name":"Bells at Dusk","chords":"[Toll]\nDm:2bar Bb:2bar\nGm:2bar A:2bar\n[Dance]\nDm Bb F C\nDm Bb Gm A\n[Dance2]\nDm Bb F C\nGm Bb A:2bar\n[Bend]\nBb:2bar F/A:2bar\nGm:2bar A:2bar\n[Final]\nDm:2bar Bb:2bar\nGm A Dm:2bar","voices":4,"plays":["Toll","Bend","Final"],"color":"#f2c46b","timing":{"chordSec":2.86,"glide":0.9,"easing":"smooth","tempo":84,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":75,"coverage":80,"stacking":30,"spacing":45,"variation":10,"spread":55,"top":79,"bassMode":"root","bassOctave":2},"motion":{"order":"together","stagger":0},"sound":{"tone":"bell","detune":3,"width":70,"reverb":46,"brightness":7000,"hardness":42,"ring":1.1,"stop":false},"seeds":{"harmony":1,"voicing":4505,"motion":31415,"sound":2718},"locks":{"harmony":true,"voicing":false,"motion":false,"sound":false},"view":{"mode":"auto","labels":"notes","trace":{"look":"neon","glow":55,"weight":1,"byPart":true}},"parts":[{"id":"gong","name":"Gong","preset":"line","line":"[Toll] D2:16 G1:16\n[Final] D2:16 -:8 D2:8","step":"1/4","plays":["Toll","Final"],"color":"#e0864f","sound":{"tone":"gong","level":4,"pan":-0.15,"width":10,"detune":3,"hardness":35,"ring":1.4},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"marimba","name":"Marimba","preset":"pattern","pattern":"1 3 2 4 3 5 4 3","from":50,"step":"1/8","plays":["Dance","Dance2","Final"],"color":"#c98bff","sound":{"tone":"marimba","level":-8,"pan":-0.35,"width":30,"detune":3,"hardness":58,"ring":1},"envelope":{"attack":0.003,"decay":0.5,"sustain":0,"release":0.5,"curve":"exp"}},{"id":"drum","name":"Drum","preset":"pattern","pattern":"D2 - - D2 - D2 A2 -","step":"1/8","plays":["Dance","Dance2"],"color":"#ff6b6b","sound":{"tone":"drum","level":-1,"pan":0.05,"width":5,"detune":3,"hardness":45,"ring":1.1},"envelope":{"attack":0.003,"decay":0.5,"sustain":0,"release":0.5,"curve":"exp"}},{"id":"triangle","name":"Metal triangle","preset":"line","line":"[Dance2] E6:8 E6:8 E6:8 E6:4 E6:2 E6:2\n[Final] E6:8 -:16 E6:8","step":"1/4","plays":["Dance2","Final"],"color":"#9be7ff","sound":{"tone":"metaltri","level":-5,"pan":0.4,"width":10,"detune":3,"hardness":70,"ring":0.8},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"lead","name":"FM melody","preset":"line","line":"[Dance] A4:2 D5:2 F5:3 E5:1 | D5:2 F5:2 Bb5:3 A5:1 | A5:3 G5:1 F5:2 C5:2 | E5:6 G5:2 | F5:2 E5:2 D5:3 A4:1 | Bb4:2 D5:2 F5:4 | G5:3 F5:1 D5:2 Bb4:2 | C#5:4 E5:2 A4:2\n[Dance2] F5:2 A5:2 D6:3 C6:1 | Bb5:2 A5:2 F5:3 D5:1 | C6:3 A5:1 F5:2 A5:2 | G5:6 E5:2 | Bb5:3 A5:1 G5:2 D5:2 | F5:3 G5:1 A5:2 Bb5:2 | A5:6 G5:1 F5:1 | E5:4 C#5:4","step":"1/8","plays":["Dance","Dance2"],"color":"#5ee0b0","sound":{"tone":"fm","level":-2,"pan":0.1,"width":15,"detune":3,"fmRatio":2,"fmIndex":5,"fmSustain":1.1,"fmTime":0.5,"reverb":110},"envelope":{"attack":0.01,"decay":0.3,"sustain":0.75,"release":0.25,"curve":"exp","shape":"arch","depth":0.7},"vibrato":{"cents":9,"rate":5.4,"delay":0.35}},{"id":"bend","name":"Bending bell","preset":"line","line":"[Bend] D5:4 ~F5:4/1.6 | C5:4 ~A4:4/2 | Bb4:4 ~D5:4/1.6 | C#5:4 ~E5:4/2.4","step":"1/4","plays":["Bend"],"color":"#ffe08a","sound":{"tone":"bell","level":-1,"pan":0.2,"width":10,"detune":3,"hardness":55,"ring":1.6},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"strings","name":"Swelling strings","preset":"line","line":"[Bend] F3:8 A3:8 D3:8 C#3:8\n[Final] D3:8 F3:8 D3:4 C#3:4 D3:8","step":"1/4","plays":["Bend","Final"],"color":"#7fa8ff","transpose":[0,12],"sound":{"tone":"bowed","level":-9,"pan":-0.25,"width":40,"detune":3,"ensemble":45},"envelope":{"attack":0.08,"decay":0.4,"sustain":0.85,"release":0.6,"curve":"exp","shape":"swell","depth":1},"vibrato":{"cents":6,"rate":5.2,"delay":0.5}},{"id":"bed","name":"String bed","preset":"pad","voices":4,"plays":["Dance","Dance2"],"color":"#8fb5d9","sound":{"tone":"bowed","level":-13,"pan":0,"width":60,"detune":3,"ensemble":50},"voicing":{"top":72,"bassMode":"none"}}]}];
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.5';
+const APP_VERSION = '4.6';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -3511,6 +3647,7 @@ let currentLibId = null, savedJSON = null;
 let openedJSON = null; // the piece as it was opened or made (for one that's never been saved): whether there's anything to lose
 let undoStack = [], redoStack = [], committed = null;
 let offset = 0, playing = false, startAt = 0;
+const rerollHist = []; // this piece's rerolls this visit, oldest first, after the piece as it was before the first: { layers, seeds, json }
 // TAIL (the fade and reverb after the last change, which the clock counts) and FADE (the closing fade inside it) are in engine.js
 let actx = null, live = null;
 let recording = null;
@@ -3535,7 +3672,80 @@ function drawEq() {
 function syncToneCtl(src) {
   const pn = typeof selNorm === 'function' ? selNorm() : null, tone = (src ? getPath(src('tone'), 'sound.tone') : null) || (pn ? pn.sound.tone : piece.sound.tone);
   document.querySelectorAll('.tonectl').forEach(el => { el.hidden = el.dataset.for === 'struck' ? !STRUCK[tone] : tone !== 'fm'; });
+  if (typeof tidyMods === 'function') tidyMods(); // (the knob row's length changes with the tone)
 }
+/* ---------- The panel's modules and knobs ----------
+   Each tab is a column of modules: a titled box of settings that belong together (section.mod with data-title), which can be folded
+   away (remembered on this device). In theater they pack into columns across the width. */
+const CHEV_UP = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+const foldedMods = new Set((() => { try { const v = JSON.parse(lsGet('cge.folded') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } })());
+function buildMods(root) {
+  for (const m of root.querySelectorAll('section.mod:not([data-built])')) {
+    m.dataset.built = '1';
+    const key = m.dataset.mod, title = m.dataset.title || '', head = document.createElement('div'), body = document.createElement('div'), h = document.createElement('h3'), x = document.createElement('button');
+    head.className = 'mod-h'; body.className = 'mod-b'; body.id = 'mb-' + key; h.className = 'mod-title'; h.id = 'mt-' + key; h.textContent = title;
+    if (m.dataset.helpKey) { h.dataset.helpKey = m.dataset.helpKey; delete m.dataset.helpKey; }
+    x.type = 'button'; x.className = 'mod-x'; x.innerHTML = CHEV_UP; x.setAttribute('aria-controls', body.id);
+    const fold = on => { m.classList.toggle('folded', on); body.hidden = on; x.setAttribute('aria-expanded', String(!on)); x.setAttribute('aria-label', (on ? 'Show ' : 'Fold away ') + title); x.title = on ? 'Show' : 'Fold away'; };
+    x.addEventListener('click', () => { const on = !m.classList.contains('folded'); fold(on); if (on) foldedMods.add(key); else foldedMods.delete(key); lsSet('cge.folded', JSON.stringify([...foldedMods])); });
+    while (m.firstChild) body.appendChild(m.firstChild);
+    head.append(h, x); m.append(head, body); m.setAttribute('aria-labelledby', h.id);
+    fold(foldedMods.has(key));
+  }
+}
+/* What a control's visibility is decided on: its knob, its half of a pair, or its row in the module */
+const rowOf = el => el.closest('.knobs > *, .knobrow > *, .two > *, .tonectl > *, .mod-b > *, .tabpanel > *');
+/* A module with nothing left to show (every setting in it hidden for the part being edited) is hidden too */
+function tidyMods() {
+  const shows = (x, stop) => { for (let e = x; e && e !== stop; e = e.parentElement) if (e.hidden) return false; return true; };
+  for (const sel of ['.rack .knobs', '.rack .knobrow']) for (const c of document.querySelectorAll(sel)) c.hidden = ![...c.querySelectorAll('input, select, textarea, button')].some(x => shows(x, c)); // (a row with nothing left in it takes no room)
+  // knobs in even rows of up to five: 6 as 3 × 2, 7 or 8 as 4 + 3 or 4 × 2
+  for (const c of document.querySelectorAll('.rack .knobs')) { const n = [...c.children].filter(k => !k.hidden).length || 1; c.style.setProperty('--kc', Math.ceil(n / Math.ceil(n / 5))); }
+  for (const m of document.querySelectorAll('.rack section.mod')) {
+    if (m.closest('.partblock') || m.hasAttribute('data-always')) continue; // (the part editor's own, and the reroll history, say what they're for even when empty)
+    const b = m.querySelector(':scope > .mod-b'); if (!b) continue;
+    m.hidden = ![...b.querySelectorAll('input, select, textarea, button')].some(x => { for (let e = x; e && e !== b; e = e.parentElement) if (e.hidden) return false; return true; });
+  }
+}
+/* A knob is a range input drawn as a dial. Drag it up or down (Shift for fine steps), or use the input's own keys once it has focus
+   (arrows, Page Up and Down, Home, End); double-click puts it back to its default. The input stays the control underneath, so
+   everything that reads or sets a slider works on a knob unchanged. EQ, pan and pitch drop fill out from their zero. */
+function knobArc(a, b) {
+  if (b - a < 0.004) return '';
+  const P = u => { const r = (-135 + 270 * u) * Math.PI / 180; return [22 + 17 * Math.sin(r), 22 - 17 * Math.cos(r)]; }, [x0, y0] = P(a), [x1, y1] = P(b);
+  return 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + 'A17 17 0 ' + ((b - a) * 270 > 180 ? 1 : 0) + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2);
+}
+function knobDefault(inp) {
+  if (inp.dataset.default !== undefined) return +inp.dataset.default;
+  const row = (typeof SLIDERS !== 'undefined' ? SLIDERS : []).find(r => r[0] === inp.id); if (!row) return null;
+  let v; try { v = getPath(defaultPiece(), row[1]); } catch (e) { v = undefined; }
+  return typeof v === 'number' ? v : /^(eq|saturation|ensemble|breathedepth|duckdepth)/.test(inp.id) ? 0 : null;
+}
+function initKnobs(root) {
+  for (const k of root.querySelectorAll('.slider.knob:not([data-dial])')) {
+    const inp = k.querySelector('input[type=range]'), out = k.querySelector('output'), ends = k.querySelector('.ends'); if (!inp) continue;
+    k.dataset.dial = '1';
+    const lo = +inp.min, hi = +inp.max, mid = lo < 0 && hi > 0 ? -lo / (hi - lo) : null;
+    const dial = document.createElement('span'); dial.className = 'dial';
+    dial.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true"><circle class="cap" cx="22" cy="22" r="12"/><path class="trk" d="' + knobArc(0, 1) + '"/><path class="val"/><line class="ptr"/></svg>';
+    const lbl = k.querySelector('label'); dial.title = (ends ? ends.textContent.replace(/\s+/g, ' ').trim() + '. ' : '') + 'Drag up or down; Shift for fine steps; double-click to reset.';
+    if (lbl && ends) lbl.title = ends.textContent.replace(/\s+/g, ' ').trim();
+    inp.after(dial);
+    const val = dial.querySelector('.val'), ptr = dial.querySelector('.ptr');
+    const draw = () => { const t = hi > lo ? Math.min(1, Math.max(0, (+inp.value - lo) / (hi - lo))) : 0, r = (-135 + 270 * t) * Math.PI / 180;
+      val.setAttribute('d', mid === null ? knobArc(0, t) : knobArc(Math.min(mid, t), Math.max(mid, t)));
+      ptr.setAttribute('x1', (22 + 4.5 * Math.sin(r)).toFixed(2)); ptr.setAttribute('y1', (22 - 4.5 * Math.cos(r)).toFixed(2)); ptr.setAttribute('x2', (22 + 10.5 * Math.sin(r)).toFixed(2)); ptr.setAttribute('y2', (22 - 10.5 * Math.cos(r)).toFixed(2)); };
+    draw(); inp.addEventListener('input', draw); if (out) new MutationObserver(draw).observe(out, { childList: true, characterData: true, subtree: true });
+    const set = v => { const st = +inp.step || 0, q = st ? lo + Math.round((v - lo) / st) * st : v, c = Math.min(hi, Math.max(lo, q)); if (Math.abs(c - +inp.value) < 1e-9) return false; inp.value = c; inp.dispatchEvent(new Event('input', { bubbles: true })); return true; };
+    let drag = null;
+    dial.addEventListener('pointerdown', e => { if (inp.disabled || e.button > 0) return; e.preventDefault(); inp.focus({ preventScroll: true }); dial.setPointerCapture(e.pointerId); drag = { y: e.clientY, v: +inp.value, shift: e.shiftKey, moved: false }; k.classList.add('turning'); });
+    dial.addEventListener('pointermove', e => { if (!drag) return; if (e.shiftKey !== drag.shift) Object.assign(drag, { y: e.clientY, v: +inp.value, shift: e.shiftKey }); if (set(drag.v + (drag.y - e.clientY) / (e.shiftKey ? 800 : 180) * (hi - lo))) drag.moved = true; });
+    const end = () => { if (!drag) return; const moved = drag.moved; drag = null; k.classList.remove('turning'); if (moved) inp.dispatchEvent(new Event('change', { bubbles: true })); };
+    dial.addEventListener('pointerup', end); dial.addEventListener('pointercancel', end); dial.addEventListener('lostpointercapture', end);
+    dial.addEventListener('dblclick', () => { if (inp.disabled) return; const d = knobDefault(inp); if (d !== null && set(d)) inp.dispatchEvent(new Event('change', { bubbles: true })); });
+  }
+}
+buildMods(document); initKnobs(document);
 /* ---------- Controls ---------- */
 const pct = v => Math.round(v) + '%';
 const SLIDERS = [
@@ -3574,15 +3784,14 @@ function syncUI() {
     if (document.activeElement !== $('seed-' + L)) $('seed-' + L).value = fmtSeed(piece.seeds[L]);
     const lk = piece.locks[L]; $('lock-' + L).setAttribute('aria-pressed', String(lk)); $('lock-' + L).textContent = lk ? 'Locked' : 'Unlocked';
     $('roll-' + L).disabled = lk;
-    const chip = document.querySelector('.layerlock[data-layer="' + L + '"]');
-    chip.setAttribute('aria-pressed', String(lk));
-    chip.title = L[0].toUpperCase() + L.slice(1) + (lk ? ' is locked: rerolls keep it. Click to unlock.' : ' is unlocked: Reroll changes it. Click to lock.');
   }
   $('rerollall').disabled = LAYERS.every(L => piece.locks[L]);
   $('v-' + piece.view.mode).checked = true; $('l-' + piece.view.labels).checked = true;
   showVolume();
   updateStatus(); updateUndo(); if (typeof syncLook === 'function') syncLook();
   if (typeof syncVolumeShape === 'function') syncVolumeShape();
+  if (typeof syncTopbar === 'function') syncTopbar();
+  tidyMods(); renderHist();
 }
 
 /* ---------- Build ---------- */
@@ -3668,7 +3877,7 @@ function applyPiece(p, { record = true, keepTime = false, fresh = false } = {}) 
   piece = prepPiece(p);
   if (fresh) { listen.mute.clear(); listen.solo.clear(); applyListen(); stageFocus.pin = stageFocus.hover = null; } // a different piece starts with every part audible (before the grid is drawn, so it shows that)
   syncUI(); rebuild(keepTime);
-  if (fresh) { undoStack = []; redoStack = []; updateUndo(); openedJSON = JSON.stringify(piece); } // a different piece: undo must not reach back into the previous one (and save over it)
+  if (fresh) { undoStack = []; redoStack = []; updateUndo(); openedJSON = JSON.stringify(piece); rerollHist.length = 0; renderHist(); } // a different piece: undo must not reach back into the previous one (and save over it)
   if (record && !fresh) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
 }
 function undo() { if (!undoStack.length) return; redoStack.push(committed); const s = undoStack.pop(); committed = s; piece = normalizePiece(JSON.parse(s)); syncUI(); rebuild(true); saveDraftSoon(); }
@@ -3729,7 +3938,8 @@ function setStatus(msg, warn = false) {
 function updateStatus() {
   const dirty = savedJSON === null ? (currentLibId ? false : true) : JSON.stringify(piece) !== savedJSON;
   const base = currentLibId ? (dirty ? 'Unsaved changes' : 'Saved') : 'Not saved yet';
-  $('status').textContent = statusNote ? statusNote + ' · ' + base : base;
+  $('status').textContent = statusNote ? statusNote + ' · ' + base : base; $('status').title = $('status').textContent;
+  $('status').classList.toggle('note', !!statusNote); // a note shows in full, under the name, until it times out
   const dot = $('savedot'); dot.className = 'savedot ' + (currentLibId ? (dirty ? 'dirty' : 'saved') : 'new'); dot.title = base; dot.setAttribute('aria-label', base);
   $('status').classList.toggle('warn', statusWarn);
 }
@@ -5043,7 +5253,9 @@ async function initDownloads() {
     : (HOST.saveHint || 'Audio, MIDI and MusicXML arrive inside a .zip.');
   if (!canSave()) { document.querySelectorAll('[data-export], #xopen, #vrecord, #vrender').forEach(b => b.disabled = true); xstatus('Saving files isn\'t available in this view.'); }
 }
-function xstatus(m) { $('xstatus').textContent = m; }
+function xstatus(m) { $('xstatus').textContent = m; let busy = false; try { busy = exporting || !!rendering || !!recording; } catch (e) {} if (m && busy && !$('exportdlg').open) setStatus(m); } // (with the window closed, on the bar)
+/* The export's progress bar: a fraction, 'busy' while the length isn't known, null when done */
+function xprog(v) { const p = $('xprog'); if (v === null) { p.hidden = true; return; } p.hidden = false; if (v === 'busy') p.removeAttribute('value'); else p.value = v; }
 async function saveFile(filename, data) {
   if (saveMode === 'browser') {
     const blob = data instanceof Blob ? data : new Blob([data]);
@@ -5072,11 +5284,12 @@ function withRealization() {
   return p;
 }
 function pieceFile() { const p = withRealization(); p.name = safeName($('name').value); p.exported = new Date().toISOString(); p.app = APP_VERSION; return pieceJson(p) + '\n'; }
-async function renderOffline(b) {
+async function renderOffline(b, onProg = null) {
   const sr = 48000, len = Math.ceil((b.total + TAIL) * sr);
   const ctx = new OfflineAudioContext(2, len, sr);
   buildGraph(ctx, b, 0, [ctx.destination], 1, true);
-  const buf = await ctx.startRendering();
+  const tick = onProg ? setInterval(() => onProg(Math.min(1, ctx.currentTime / (len / sr))), 150) : null; // how far it has got, where the browser says
+  const buf = await ctx.startRendering(); if (tick) clearInterval(tick);
   const L = buf.getChannelData(0), R = buf.getChannelData(1);
   let peak = 0; for (let i = 0; i < len; i++) { const a = Math.abs(L[i]), c = Math.abs(R[i]); if (a > peak) peak = a; if (c > peak) peak = c; }
   const k = peak > 0 ? 0.891 / peak : 1; // normalize to −1 dBFS
@@ -5106,7 +5319,7 @@ async function encodeMp3(a, kbps = 192, stop = null) {
   const parts = [];
   for (let i = 0, blk = 0; i < n; i += 1152, blk++) {
     const out = enc.encodeBuffer(l.subarray(i, i + 1152), r.subarray(i, i + 1152)); if (out.length) parts.push(new Uint8Array(out));
-    if (blk % 400 === 0) { if (stop && stop()) throw 'cancel'; xstatus((stop ? 'Encoding audio… ' : 'Encoding MP3… ') + Math.round(100 * i / n) + '%'); await (stop ? nextTask() : new Promise(r2 => setTimeout(r2, 0))); }
+    if (blk % 400 === 0) { if (stop && stop()) throw 'cancel'; xstatus((stop ? 'Encoding audio… ' : 'Encoding MP3… ') + Math.round(100 * i / n) + '%'); if (!stop) xprog(i / n); await (stop ? nextTask() : new Promise(r2 => setTimeout(r2, 0))); }
   }
   const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
   return mp3WithInfo(catBytes(parts)); // with an Info frame, so players know the exact length
@@ -5120,7 +5333,7 @@ async function doExport(kind) {
     if (kind === 'json') { await saveFile(name + '.json', pieceFile()); return; }
     const files = [];
     let audio = null;
-    if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built); }
+    if (kind === 'wav' || kind === 'mp3' || kind === 'all') { xstatus('Rendering audio…'); xprog('busy'); await new Promise(r => setTimeout(r, 30)); audio = await renderOffline(built, f => { if (f > 0) { xprog(f); xstatus('Rendering audio… ' + Math.round(f * 100) + '%'); } }); }
     if (kind === 'all') files.push({ name: name + '.json', data: utf8(pieceFile()) });
     if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr, opts) });
     let mp3Note = '';
@@ -5149,7 +5362,7 @@ async function doExport(kind) {
     else { xstatus('Packing…'); ok = await saveFile(name + ' (' + label + ').zip', new Blob([zipStore(files)])); }
     if (ok && (mp3Note || midiNote || partsNote)) xstatus($('xstatus').textContent + mp3Note + midiNote + partsNote);
   } catch (e) { xstatus(e && e.message ? e.message : 'Export failed.'); }
-  finally { exporting = false; updateAvailability(); }
+  finally { exporting = false; xprog(null); updateAvailability(); }
 }
 
 /* ---------- Video ---------- */
@@ -5158,8 +5371,9 @@ function pickMime() {
   const c = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1.4D401F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
   return c.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
 }
-const LOCK_SEL = ['.bar', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '.partbar', '.tabs'];
+const LOCK_SEL = ['.topbar .grp.piece', '.topbar .grp.file', '.topbar .grp.edit', '.topbar .grp.end', '#library', '.transport', '#p-harmony', '#p-voicing', '#p-motion', '#p-sound', '#p-reroll', '.partbar', '.tabs'];
 function lockUI(on) {
+  $('videobusy').hidden = !on; // (while a video records or renders: the way back to its window, and Cancel)
   LOCK_SEL.forEach(s => { const el = document.querySelector(s); if (el) el.inert = on; });
   document.querySelectorAll('[data-export], #xopen, #vaspect, #vsize, #vfps, #vformat, #vquality, #vartist, #tempo, #vzoom, #busy, .vzc input, .znow').forEach(el => el.disabled = on || !canSave());
   if (!on && typeof showArtistOption === 'function' && canSave()) showArtistOption(); // dimmed again if there's no name
@@ -5323,7 +5537,7 @@ async function renderVideo() {
     // 1. audio: the same render as the WAV export, compressed to AAC or Opus, or kept as 16-bit PCM for a .mov
     xstatus('Rendering audio…');
     await nextTask();
-    const pcm = await Promise.race([renderOffline(snap.built), cancelled]);
+    const pcm = await Promise.race([renderOffline(snap.built, f => { if (f > 0 && !rec.cancelled) xstatus('Rendering audio… ' + Math.round(f * 100) + '%'); }), cancelled]);
     if (rec.cancelled) throw 'cancel';
     let aSamples = [], aDesc = null, aDelay = 0;
     if (aconf.kind === 'aac') aDelay = await Promise.race([codecDelay(aconf.config), cancelled]); // priming for the edit list to skip
@@ -5506,7 +5720,7 @@ function starterLine(kind) {
 const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', ensemble: 'all', hardness: 'all', ring: 'all', stopend: 'all', fmratio: 'all', fmindex: 'all', fmsustain: 'all', fmtime: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
 const applies = (id, n) => PART_CTRL[id] === 'all' || (PART_CTRL[id] === 'pad' && n.preset === 'pad');
 ['chords', 'seed-harmony', 'tu-sec', 'chordsec', 'chordbars', 'tempo', 'meter', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'eqlow', 'mix', 'tuning', 'vshape']
-  .forEach(id => { const w = $(id).closest('.tabpanel > *'); if (w) w.dataset.whole = ''; }); // shared by every part
+  .forEach(id => { const w = $(id).closest('.mod'); if (w) w.dataset.whole = ''; }); // shared by every part
 const selRaw = () => selPart === 'main' ? null : (piece.parts || []).find(x => x.id === selPart) || null;
 // the chosen part with every setting filled in (only it is normalized, so a large piece of saved notes isn't copied each time)
 const selNorm = () => { const raw = selRaw(); if (!raw) return null; try { return (normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [raw] })).parts || [])[0] || null; } catch (e) { return null; } };
@@ -5765,7 +5979,7 @@ function syncPartColor() {
   const id = selPart, raw = id === 'main' ? piece : selRaw(); if (!raw) return;
   const r = arr.rows.find(x => x.id === id), c = okColor(raw.color) || (r ? r.color : autoColor(0));
   if (document.activeElement !== $('pcolor')) $('pcolor').value = c; $('pcolor-auto').disabled = !okColor(raw.color);
-  $('pcolor-lbl').textContent = (id === 'main' ? 'Main part' : raw.name || raw.id) + ' color';
+  $('pcolor-lbl').textContent = 'Color'; $('pcolor-lbl').title = (id === 'main' ? 'Main part' : raw.name || raw.id) + ' color';
 }
 $('pcolor').addEventListener('input', () => { setPartColor(selPart, $('pcolor').value, false); const row = $('arr-grid').querySelector('.arr-row[data-id="' + CSS.escape(selPart) + '"]'); if (row) row.style.setProperty('--c', $('pcolor').value); });
 $('pcolor').addEventListener('change', () => setPartColor(selPart, $('pcolor').value, true));
@@ -5799,14 +6013,22 @@ function applyPartView() {
   const n = selNorm(), on = !!n;
   document.querySelector('.rack').classList.toggle('on-part', on);
   document.querySelectorAll('.sect.whole').forEach(x => { x.hidden = !on; });
-  for (const id of Object.keys(PART_CTRL)) $(id).closest('.tabpanel > *').hidden = on && !applies(id, n);
+  for (const id of Object.keys(PART_CTRL)) rowOf($(id)).hidden = on && !applies(id, n);
+  // with an added part chosen: its own modules first, then the ones it shares under Whole piece (moved in the page, so the theater's
+  // columns follow too); with the main part, the page's own order
+  for (const tp of document.querySelectorAll('.tabpanel')) {
+    const kids = [...tp.children]; kids.forEach((c, i) => { if (c.dataset.ix === undefined) c.dataset.ix = i; });
+    const rank = c => !on ? 0 : c.classList.contains('partblock') ? 0 : c.classList.contains('whole') ? 2 : c.hasAttribute('data-whole') ? 3 : 1;
+    const want = kids.slice().sort((x, y) => rank(x) - rank(y) || x.dataset.ix - y.dataset.ix);
+    if (want.some((c, i) => c !== kids[i])) want.forEach(c => tp.appendChild(c));
+  }
   const line = on && n.preset === 'line', pat = on && n.preset === 'pattern', notes = on && n.preset === 'notes', echo = on && n.preset === 'copy';
   $('t-harmony').textContent = line ? 'Line' : pat ? 'Pattern' : notes ? 'Notes' : echo ? 'Echo' : 'Harmony';
   $('t-voicing').textContent = line || pat ? 'Voices' : 'Voicing';
   $('t-voicing').classList.toggle('dim', notes || echo); $('t-motion').classList.toggle('dim', notes || echo);
   $('partsel-hint').textContent = on ? 'The tabs below edit ' + n.name + '. Settings shared by every part are under Whole piece.' : 'The tabs below edit the main part.';
   renderPartBlocks(n);
-  refreshPartBar();
+  refreshPartBar(); tidyMods();
 }
 let peSeq = 0;
 const mk = (tag, props = {}, kids = []) => { const e = document.createElement(tag), { dataset, ...rest } = props; Object.assign(e, rest); if (dataset) Object.assign(e.dataset, dataset); kids.forEach(c => e.append(c)); return e; };
@@ -5818,23 +6040,43 @@ function renderPartBlocks(n) {
   for (const b of Object.values(blocks)) { b.textContent = ''; b.hidden = true; b.dataset.part = n ? n.id : ''; }
   if (!n) return;
   const raw = selRaw();
+  // what each of its knobs goes back to on a double-click: the part's settings as they'd be with none of its own (for a pad, the main part's)
+  const dn = (() => { try { const bare = JSON.parse(JSON.stringify(raw)); for (const k of ['envelope', 'vibrato', 'drop']) delete bare[k]; bare.sound = { tone: (raw.sound || {}).tone };
+    return normalizePiece(Object.assign({}, piece, { realization: undefined, parts: [bare] })).parts[0]; } catch (e) { return null; } })();
+  const D = f => { try { const v = f(dn); return typeof v === 'number' && isFinite(v) ? v : undefined; } catch (e) { return undefined; } };
   // a control writes only its own setting (the rest keep their defaults, or for a pad, the main part's), so choosing a part changes nothing
   const own = key => (raw[key] && typeof raw[key] === 'object' && !Array.isArray(raw[key])) ? raw[key] : (raw[key] = {});
   const changed = () => { rebuildSoon(); refreshPartBar(); };
   const field = (label, input, extra = []) => { const id = 'pe' + (++peSeq); input.id = id; return mk('div', { className: 'group' }, [mk('label', { htmlFor: id, textContent: label }), input, ...extra]); };
-  const slider = (label, min, max, step, val, fmt, set) => {
+  const slider = (label, min, max, step, val, fmt, set, def) => {
     const id = 'pe' + (++peSeq), out = mk('output'), inp = mk('input', { type: 'range', id, min, max, step });
-    inp.value = val; out.textContent = fmt(+val);
+    inp.value = val; out.textContent = fmt(+val); if (def !== undefined) inp.dataset.default = def;
     inp.addEventListener('input', () => { set(+inp.value); out.textContent = fmt(+inp.value); changed(); });
     inp.addEventListener('change', commit);
     return mk('div', { className: 'slider' }, [mk('label', { htmlFor: id, textContent: label }), out, inp]);
   };
+  const knob = (label, ...args) => { const [short, long] = Array.isArray(label) ? label : [label]; const el = slider(short, ...args); el.classList.add('knob'); if (long) el.querySelector('label').title = long; return el; };
   const select = (label, html, val, set) => { const sel = mk('select', { innerHTML: html }); sel.value = String(val); sel.addEventListener('change', () => { set(sel.value); rebuild(true); refreshPartBar(); commit(); }); return field(label, sel); };
   const check = (label, val, set) => { const cb = mk('input', { type: 'checkbox', checked: !!val }); cb.addEventListener('change', () => { set(cb.checked); rebuild(true); refreshPartBar(); commit(); }); return mk('label', {}, [cb, ' ' + label]); };
   const opts = list => list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
   const sect = t => mk('p', { className: 'sect', textContent: t });
   const named = (el, key) => { el.dataset.helpKey = key; return el; }; // where a help text's (?) goes (data-on on the text names it)
-  const put = (key, ...els) => { if (els.length) { blocks[key].append(...els); blocks[key].hidden = false; } };
+  /* the part's settings go in modules at the top of each tab: a run of them under the tab's first title, then a new module at each
+     section heading (Vibrato, Envelope…); runs of knobs sit together in a row */
+  const firstTitle = { harmony: { line: 'Line', pattern: 'Pattern', copy: 'Echo of a part', notes: 'Saved notes' }[n.preset] || 'This part', voicing: 'Voices', motion: 'Slides', sound: 'Level and filter' };
+  const put = (key, ...els) => {
+    if (!els.length) return;
+    const groups = []; let cur = null;
+    for (const el of els) {
+      if (el.matches && el.matches('p.sect')) { cur = { title: el.textContent, help: el.dataset.helpKey, kids: [] }; groups.push(cur); continue; }
+      if (!cur) { cur = { title: firstTitle[key], kids: [] }; groups.push(cur); }
+      const last = cur.kids[cur.kids.length - 1];
+      if (el.classList && el.classList.contains('knob')) { if (last && last.classList.contains('knobs')) last.append(el); else cur.kids.push(mk('div', { className: 'knobs' }, [el])); }
+      else cur.kids.push(el);
+    }
+    for (const g of groups) { const m = mk('section', { className: 'mod', dataset: { mod: 'p' + key + '-' + g.title.toLowerCase().replace(/[^a-z]+/g, ''), title: g.title } }, g.kids); if (g.help) m.dataset.helpKey = g.help; blocks[key].append(m); }
+    buildMods(blocks[key]); initKnobs(blocks[key]); blocks[key].hidden = false; tidyMods();
+  };
   if (n.preset === 'pattern') {
     const ta = mk('textarea', { value: raw.pattern !== undefined ? raw.pattern : n.pattern, spellcheck: false }), err = mk('p', { className: 'err' });
     const showErr = () => { const e = parsePattern(ta.value).errors; err.hidden = !e.length; err.textContent = e.length ? 'Can\'t read ' + e.slice(0, 4).join(', ') + (e.length > 4 ? '…' : '') + '. Steps are R, B or a number, with \' or , for octaves, . to hold, - to rest, and a length after a colon (R:2).' : ''; };
@@ -5864,12 +6106,12 @@ function renderPartBlocks(n) {
       select('Glide shape', opts([['smooth', 'Smooth'], ['straight', 'Straight'], ['arc', 'Arc: out, then in (curves and circles)']]), n.glideShape, v => { raw.glideShape = v; }),
       mk('p', { className: 'hint help', dataset: { on: 'portamento' }, innerHTML: 'A slide (<code>~</code>) glides for up to the whole note. With Arc, each run of slides alternates a curve that leaves steeply with one that arrives steeply: <code>C4 ~E4 ~C4</code> with a long portamento draws the top of a circle.' }),
       sect('Vibrato'),
-      slider('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }),
-      slider('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }),
-      slider('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }),
+      knob('Depth', 0, 60, 1, n.vibrato.cents, v => v ? v + ' ¢' : 'off', v => { own('vibrato').cents = v; }, 0),
+      knob('Rate', 1, 10, 0.1, n.vibrato.rate, v => v.toFixed(1) + ' Hz', v => { own('vibrato').rate = v; }, D(d => d.vibrato.rate)),
+      knob('Delay', 0, 2, 0.05, n.vibrato.delay, fmtSec, v => { own('vibrato').delay = v; }, D(d => d.vibrato.delay)),
       named(sect('Pitch drop'), 'pitchdrop'),
-      slider('Drop', -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? 'from ' + v + ' st above' : 'from ' + -v + ' st below') : 'off', v => { own('drop').semis = v; }),
-      slider('Fall time', 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }),
+      knob(['Drop', 'Starts this far from its note'], -24, 48, 1, n.drop.semis, v => v ? (v > 0 ? '+' + v + ' st' : '−' + -v + ' st') : 'off', v => { own('drop').semis = v; }, 0),
+      knob(['Fall', 'Fall time'], 0.01, 1, 0.005, n.drop.time, fmtSec, v => { own('drop').time = v; }, D(d => d.drop.time)),
       mk('p', { className: 'hint help', dataset: { on: 'pitchdrop' }, textContent: 'Each note starts this far from its pitch and falls onto it, fast then settling: with a short envelope, a kick (36 semitones over about 0.12 s).' }));
   } else if (n.preset === 'copy') {
     const srcs = (piece.parts || []).filter(x => x.preset !== 'copy' && x.id !== n.id).map(x => [x.id, x.name || x.id]);
@@ -5887,23 +6129,21 @@ function renderPartBlocks(n) {
   } else {
     put('harmony', mk('p', { className: 'hint', textContent: 'Follows the chords under Whole piece, with its own voices, voicing, motion, sound and random choices.' }));
   }
-  put('sound', slider('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }),
-    slider('Pan', -1, 1, 0.05, n.sound.pan, fmtPan, v => { own('sound').pan = v; }),
-    named(slider('Reverb', 0, 300, 5, n.sound.reverb, v => v === 100 ? 'as the piece' : v ? v + '% of the piece\'s' : 'none', v => { own('sound').reverb = v; }), 'partreverb'),
-    mk('p', { className: 'hint help', dataset: { on: 'partreverb' }, textContent: 'How much of this part goes to the reverb, against the piece\'s Reverb setting: none keeps it close and dry (a bass, a kick), more sets it further back.' }),
-    named(slider('Brightness', 0, Math.log2(OPEN_HZ / 200), 0.01, Math.log2(n.sound.brightness / 200), v => { const hzv = partHz(v); return hzv >= OPEN_HZ ? 'open' : hzv < 1000 ? hzv + ' Hz' : (hzv / 1000).toFixed(1) + ' kHz'; }, v => { own('sound').brightness = partHz(v); }), 'partbright'),
-    slider('Each note opens it', 0, 100, 1, n.sound.opens, v => v ? pct(v) : 'off', v => { own('sound').opens = v; }),
-    slider('Closing time', 0.02, 3, 0.01, n.sound.openTime, fmtSec, v => { own('sound').openTime = v; }),
-    mk('p', { className: 'hint help', dataset: { on: 'partbright' }, textContent: 'This part\'s own filter, under the piece\'s: lower is darker and rounder. With "Each note opens it", every note starts brighter (up to four octaves, louder notes further) and closes back over the closing time, as a plucked or struck sound does. It needs Brightness below open.' }));
+  put('sound', named(sect('Level and filter'), 'partreverb'), knob('Level', -30, 6, 0.5, n.sound.level, fmtDb, v => { own('sound').level = v; }, D(d => d.sound.level) ?? 0),
+    knob('Pan', -1, 1, 0.05, n.sound.pan, v => Math.abs(v) < 0.001 ? 'center' : (v < 0 ? 'L ' : 'R ') + Math.round(Math.abs(v) * 100), v => { own('sound').pan = v; }, 0),
+    knob(['Reverb', 'Reverb: how much of the piece\'s'], 0, 300, 5, n.sound.reverb, v => v ? v + '%' : 'none', v => { own('sound').reverb = v; }, D(d => d.sound.reverb) ?? 100),
+    knob('Brightness', 0, Math.log2(OPEN_HZ / 200), 0.01, Math.log2(n.sound.brightness / 200), v => { const hzv = partHz(v); return hzv >= OPEN_HZ ? 'open' : hzv < 1000 ? hzv + ' Hz' : (hzv / 1000).toFixed(1) + ' kHz'; }, v => { own('sound').brightness = partHz(v); }, Math.log2(OPEN_HZ / 200)),
+    knob(['Opens', 'Each note opens it'], 0, 100, 1, n.sound.opens, v => v ? pct(v) : 'off', v => { own('sound').opens = v; }, D(d => d.sound.opens) ?? 0),
+    knob(['Closes', 'Closing time'], 0.02, 3, 0.01, n.sound.openTime, fmtSec, v => { own('sound').openTime = v; }, D(d => d.sound.openTime)),
+    mk('p', { className: 'hint help', dataset: { on: 'partreverb' }, textContent: 'How much of this part goes to the reverb, against the piece\'s Reverb setting: none keeps it close and dry (a bass, a kick), more sets it further back. This part\'s own filter, under the piece\'s: lower is darker and rounder. With "Each note opens it", every note starts brighter (up to four octaves, louder notes further) and closes back over the closing time, as a plucked or struck sound does. It needs Brightness below open.' }));
   if (n.preset !== 'pad' && n.preset !== 'copy' && STRUCK[n.sound.tone]) put('sound', sect('Envelope'), mk('p', { className: 'hint', textContent: 'A struck instrument rings by itself, so this part\'s envelope isn\'t used: Hardness, Ring length and At note end, below, shape it.' }));
   else if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
-    slider('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }),
-    slider('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }),
-    slider('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }),
-    slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }),
-    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }),
-    named(select('Over each note', opts([['none', 'Steady'], ['swell', 'Swells in'], ['fade', 'Fades away'], ['arch', 'Swells in, then eases off']]), n.envelope.shape || 'none', v => { if (v === 'none') { delete own('envelope').shape; delete own('envelope').depth; } else own('envelope').shape = v; renderPartBlocks(selNorm()); }), 'noteshape'),
-    ...(n.envelope.shape ? [slider('Shape depth', 0, 1, 0.01, n.envelope.depth === undefined ? 1 : n.envelope.depth, v => Math.round(v * 100) + '%', v => { own('envelope').depth = v; })] : []),
+    knob('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }, D(d => d.envelope.attack)),
+    knob('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }, D(d => d.envelope.decay)),
+    knob('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }, D(d => d.envelope.sustain)),
+    knob('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }, D(d => d.envelope.release)),
+    ...(n.envelope.shape ? [knob(['Depth', 'Shape depth'], 0, 1, 0.01, n.envelope.depth === undefined ? 1 : n.envelope.depth, v => Math.round(v * 100) + '%', v => { own('envelope').depth = v; }, 1)] : []),
+    mk('div', { className: 'two' }, [select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural (fades away)']]), n.envelope.curve, v => { own('envelope').curve = v; }), named(select('Over each note', opts([['none', 'Steady'], ['swell', 'Swells in'], ['fade', 'Fades away'], ['arch', 'Swells, then eases']]), n.envelope.shape || 'none', v => { if (v === 'none') { delete own('envelope').shape; delete own('envelope').depth; } else own('envelope').shape = v; renderPartBlocks(selNorm()); }), 'noteshape')]),
     mk('p', { className: 'hint help', dataset: { on: 'noteshape' }, textContent: 'A shape in each note\'s own time, on top of the envelope, so short and long notes take the same shape: Swells in rises from about a third over the first quarter of the note; Fades away eases to 40% by its end; Swells in, then eases off does both (to 55%). Depth blends from steady to the full shape.' }));
 }
 /* The part bar's menus */
@@ -5993,13 +6233,33 @@ for (const L of LAYERS) {
     piece.seeds[L] = v; afterChange();
   });
   $('lock-' + L).addEventListener('click', () => { piece.locks[L] = !piece.locks[L]; syncUI(); commit(); });
-  $('roll-' + L).addEventListener('click', () => { reroll(L); afterChange(); });
+  $('roll-' + L).addEventListener('click', () => { const before = committed; reroll(L); afterChange(); noteReroll([L], before); });
 }
 document.querySelectorAll('.layerlock').forEach(b => b.addEventListener('click', () => { const L = b.dataset.layer; piece.locks[L] = !piece.locks[L]; syncUI(); commit(); }));
+/* The Reroll tab's history: each reroll of this piece this visit, newest first, with the piece as it was before the first, to go
+   back to (as a change of its own, so Undo returns from it). Twelve at most; opening another piece clears it. */
+const cap = L => L[0].toUpperCase() + L.slice(1);
+function noteReroll(layers, before) {
+  if (committed === before) return;
+  if (!rerollHist.length && before) { try { rerollHist.push({ layers: null, seeds: Object.assign({}, JSON.parse(before).seeds), json: before }); } catch (e) {} }
+  rerollHist.push({ layers, seeds: Object.assign({}, piece.seeds), json: committed });
+  while (rerollHist.length > 13) rerollHist.shift();
+  renderHist();
+}
+function renderHist() {
+  const ol = $('rhist'); if (!ol) return; ol.textContent = ''; $('rhist-empty').hidden = rerollHist.length > 0;
+  rerollHist.slice().reverse().forEach(h => {
+    const now = h.json === committed, b = mk('button', { type: 'button', className: 'small' }), ls = h.layers || LAYERS;
+    b.append(mk('span', { textContent: h.layers ? 'Rerolled ' + h.layers.map(cap).join(', ') : 'Before rerolling' }), mk('small', { textContent: ls.map(L => L[0].toUpperCase() + ' ' + fmtSeed(h.seeds[L])).join('  ') }));
+    if (now) { b.setAttribute('aria-current', 'true'); b.append(mk('em', { textContent: 'now' })); }
+    b.addEventListener('click', () => { if (h.json === committed) return; piece = normalizePiece(JSON.parse(h.json)); syncUI(); rebuild(true); commit(); renderHist(); setStatus('Back to ' + (h.layers ? 'that reroll' : 'before rerolling')); });
+    ol.append(mk('li', {}, [b]));
+  });
+}
 $('rerollall').addEventListener('click', () => {
   const open = LAYERS.filter(L => !piece.locks[L]);
   if (!open.length) { setStatus('Every layer is locked. Unlock one to reroll it.'); return; }
-  open.forEach(reroll); afterChange(); setStatus('Rerolled ' + open.join(', '));
+  const before = committed; open.forEach(reroll); afterChange(); noteReroll(open, before); setStatus('Rerolled ' + open.join(', '));
 });
 document.querySelectorAll('input[name=view]').forEach(r => r.addEventListener('change', () => { piece.view.mode = r.value; screenCam.snap = true; commit(); }));
 document.querySelectorAll('input[name=labels]').forEach(r => r.addEventListener('change', () => { piece.view.labels = r.value; commit(); }));
@@ -6084,15 +6344,13 @@ $('importfile').addEventListener('change', async () => {
 document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => { closeExportMenu(true); doExport(b.dataset.export); }));
 /* The export menu: Export opens a list of formats; choosing one saves it. Arrow keys move through the list, Escape or a click
    elsewhere closes it. */
-function openExportMenu() { $('xlist').hidden = false; $('xopen').setAttribute('aria-expanded', 'true'); const first = [...$('xlist').querySelectorAll('button:not(:disabled)')][0]; if (first) first.focus(); }
-function closeExportMenu(refocus) { if ($('xlist').hidden) return; $('xlist').hidden = true; $('xopen').setAttribute('aria-expanded', 'false'); if (refocus) $('xopen').focus(); }
+function openExportMenu() { return; /* (the formats are always shown) */  $('xlist').hidden = false; $('xopen').setAttribute('aria-expanded', 'true'); const first = [...$('xlist').querySelectorAll('button:not(:disabled)')][0]; if (first) first.focus(); }
+function closeExportMenu(refocus) { return; /* (the formats are always shown) */ if ($('xlist').hidden) return; $('xlist').hidden = true; $('xopen').setAttribute('aria-expanded', 'false'); if (refocus) $('xopen').focus(); }
 $('xopen').addEventListener('click', () => $('xlist').hidden ? openExportMenu() : closeExportMenu(false));
 $('xlist').addEventListener('keydown', e => {
   const items = [...$('xlist').querySelectorAll('button:not(:disabled)')], i = items.indexOf(document.activeElement);
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = items.length; if (n) items[(i + (e.key === 'ArrowDown' ? 1 : n - 1) + n) % n].focus(); }
   else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); if (items.length) items[e.key === 'Home' ? 0 : items.length - 1].focus(); }
-  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeExportMenu(true); }
-  else if (e.key === 'Tab') closeExportMenu(false);
 });
 document.addEventListener('pointerdown', e => { if (!$('xlist').hidden && !e.target.closest('.xmenu')) closeExportMenu(false); });
 $('vrecord').addEventListener('click', () => recording ? finishRecording(true) : startRecording());
@@ -6108,14 +6366,40 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); savePiece(false); }
   else if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); if (!settingsDlg.open) $('settingsbtn').click(); }
-  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o' && !e.shiftKey) { e.preventDefault(); if (!openDlg.open && !settingsDlg.open && !aboutDlg.open) showOpen(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o' && !e.shiftKey) { e.preventDefault(); if (!openDlg.open && !settingsDlg.open && !aboutDlg.open && !exportDlg.open) showOpen(); }
   else if (e.key === ' ' && !typing && tag !== 'button' && !recording) { e.preventDefault(); setPlaying(!playing); }
 });
 
-/* Drop the divider on any bar group that starts a wrapped line */
-const barGroups = [...document.querySelectorAll('.bar-row > .grp')];
-function markLineStarts() { let top = null; barGroups.forEach(g => { g.classList.remove('linestart'); }); barGroups.forEach(g => { const t = g.offsetTop; g.classList.toggle('linestart', top !== null && t > top + 4); if (top === null || t > top + 4) top = t; }); }
-new ResizeObserver(markLineStarts).observe(document.querySelector('.bar-row'));
+/* ---------- The top bar's menus: File, the phone's menu, and what Reroll keeps ----------
+   Each opens below its button; arrow keys move through it, Escape or a click elsewhere closes it, and choosing an item closes it
+*/
+const MENUS = [['filebtn', 'filemenu'], ['menubtn', 'phonemenu']];
+function closeMenus(except) { for (const [b, m] of MENUS) if (m !== except && !$(m).hidden) { $(m).hidden = true; $(b).setAttribute('aria-expanded', 'false'); } }
+for (const [b, m] of MENUS) {
+  $(b).addEventListener('click', e => {
+    if (!$(m).hidden) { closeMenus(); return; }
+    closeMenus(m); syncTopbar(); $(m).hidden = false; $(b).setAttribute('aria-expanded', 'true');
+    if (e.detail === 0) { const f = $(m).querySelector('button:not([disabled]), input'); if (f) f.focus(); } // from the keyboard
+  });
+  $(m).addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenus(); $(b).focus(); return; }
+    const items = [...$(m).querySelectorAll('button:not([disabled]), input')], k = items.indexOf(document.activeElement), d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (d && items.length) { e.preventDefault(); items[(k + d + items.length) % items.length].focus(); }
+    else if ((e.key === 'Home' || e.key === 'End') && items.length) { e.preventDefault(); items[e.key === 'Home' ? 0 : items.length - 1].focus(); }
+  });
+  $(m).addEventListener('click', e => { if (e.target.closest('button')) closeMenus(); });
+}
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.menuwrap')) closeMenus(); });
+document.querySelectorAll('[data-proxy]').forEach(b => b.addEventListener('click', () => $(b.dataset.proxy).click()));
+$('menuimport').addEventListener('click', () => $('importfile').click());
+const exportDlg = $('exportdlg');
+function openExport() { if (!exportDlg.open) exportDlg.showModal(); }
+$('menuexport').addEventListener('click', openExport);
+$('export-close').addEventListener('click', () => exportDlg.close());
+$('busybtn').addEventListener('click', openExport);
+document.querySelectorAll('.pop.menu kbd[data-key]').forEach(k => { k.textContent = (/Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+') + k.dataset.key; });
+/* The menus' items enabled as their buttons are */
+function syncTopbar() { document.querySelectorAll('#phonemenu [data-proxy]').forEach(b => { b.disabled = $(b.dataset.proxy).disabled; }); }
 /* ---------- Theater, full screen, about ---------- */
 const stageEl = document.querySelector('.stage'), layoutEl = document.querySelector('.layout');
 function setTheater(on) {
@@ -6205,6 +6489,8 @@ function showGuidePage(k, focusTab) {
     const svg = src.querySelector('svg'); if (svg) m.appendChild(svg.cloneNode(true));
     if (src.classList.contains('primary')) m.classList.add('primary');
     if (m.dataset.icon === 'rerollall') { m.classList.add('wide'); m.append('Reroll'); }
+    if (m.dataset.icon === 'filebtn') { m.classList.add('wide'); m.prepend('File'); }
+    if (m.dataset.icon === 'keepbtn') { m.classList.add('wide'); m.textContent = ''; for (const c of src.childNodes) m.append(c.cloneNode(true)); }
   });
   const lockSvg = document.querySelector('.layerlock svg');
   document.querySelectorAll('.barmap .mini-lock').forEach(m => { m.prepend(lockSvg.cloneNode(true)); });
@@ -6286,15 +6572,18 @@ document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   for (const [pop, btn] of POPS) if (e.key === 'Escape' && !pop.hidden) { setPop(pop, btn, false); btn.focus(); return; }
   // Esc lets go of a part highlighted on the stage, wherever the keyboard is (a field keeps its own use of the key too); a dialog, a menu or full screen comes first
-  if (e.key === 'Escape' && stageFocus.pin && !aboutDlg.open && !settingsDlg.open && !openDlg.open && !$('discarddlg').open && !stageEl.classList.contains('pseudo-fs') && !isFull()) { stageFocus.pin = null; markArr(); }
+  if (e.key === 'Escape' && stageFocus.pin && !aboutDlg.open && !settingsDlg.open && !openDlg.open && !exportDlg.open && !$('discarddlg').open && !stageEl.classList.contains('pseudo-fs') && !isFull()) { stageFocus.pin = null; markArr(); }
+  if ((recording || rendering) && (e.key === 'e' || e.key === 'E') && !e.metaKey && !e.ctrlKey && !e.altKey && !exportDlg.open) { e.preventDefault(); openExport(); return; }
   if (rendering && e.key !== '?') return;
-  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || openDlg.open || $('discarddlg').open || recording) return;
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || openDlg.open || exportDlg.open || $('discarddlg').open || recording) return;
   if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }
   if (e.key === '?') { e.preventDefault(); openGuide(); return; }
   if (e.key === 'l' || e.key === 'L') { e.preventDefault(); showOpen(); return; }
   if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
   else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFull(!isFull()); }
+  else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); openExport(); }
+  else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); $('rerollall').click(); }
   else if (e.key === 'Escape' && stageEl.classList.contains('pseudo-fs')) setFull(false);
 });
 if (lsGet('cge.theater') === '1') setTheater(true);
