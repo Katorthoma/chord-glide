@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.3
+# Chord Glide 4.4
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -81,6 +81,8 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 - Parts: `"preset": "pattern"` (with `pattern`, `from`), `"preset": "copy"` (an echo: `of`, `delay` in beats, `shift`, optional `voices`), `nonstop: true`, `drop: { semis, time }`, `glideShape` (`"straight"`, `"arc"`), `portamento` over 2 s.
 - Notes: `~` (slide), `@0.6` (loudness) and `/0.4` (glide time, `l` or `s` for its shape) in lines; `envelope.curve: "exp"`; `vel` and `ease` in saved notes, the main part's or a part's.
 - Shaping and sound: `breathe: { depth, time }`, `duck: { under, depth, time }`, `"mix": "voices"`, `"tuning": "just"`.
+
+**Colours (app 4.4, any format).** A part can have `"color": "#rrggbb"`, and the piece one for its main part; `view.trace.byPart: true` draws each line in its part's colour. They only change how a piece is shown, so they don't change its format; older versions ignore them.
 
 **Format 6 (app 4.3).** A piece that uses any of these is saved as `"formatVersion": 6`, which app 4.2 and older refuse:
 

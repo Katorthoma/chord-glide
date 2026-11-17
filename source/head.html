@@ -179,9 +179,73 @@ dialog.about.confirmdlg { width: min(460px, calc(100vw - 32px)); }
 @media (max-width: 600px) { .canvas-box { aspect-ratio: 4 / 5; } }
 canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .readouts { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 6px 16px 12px; font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.plays .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.plays .chips button { padding: 4px 10px; font-size: 13px; border-radius: 14px; }
-.plays .chips button[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+/* The arrangement: a row for each part, a column for each section as it falls in time (as wide as it is long) */
+.stage.with-arr { position: static; }
+@media (min-width: 921px) { .layout:not(.theater) .stage.with-arr .canvas-box { aspect-ratio: 16 / 8; } }
+.arr { border-top: 1px solid var(--rule); min-width: 0; }
+.arr-bar { display: flex; align-items: center; gap: 6px 16px; padding: 8px 12px 8px 8px; flex-wrap: wrap; }
+.arr-title { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 4px 6px; font-weight: 600; font-size: 14px; color: var(--ink); border-radius: 4px; }
+.arr-title svg { width: 16px; height: 16px; transition: transform 0.15s; }
+.arr.shut .arr-title svg { transform: rotate(-90deg); }
+.arr.shut .arr-body, .arr.shut .arr-legend, .arr.shut .arr-hint, .arr.shut .arr-note { display: none; }
+.arr-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.arr-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.arr-legend .k { width: 16px; height: 11px; border-radius: 3px; box-sizing: border-box; --c: var(--accent); }
+.arr-hint { margin-left: auto; font-size: 12px; color: var(--muted); }
+.arr-note { margin: 0; padding: 0 14px 10px; }
+.arr-body { overflow: auto; max-height: min(60vh, 520px); padding: 0 10px 10px; overscroll-behavior-x: contain; container-type: inline-size; }
+@container (max-width: 700px) { .arr-meter { display: none; } } /* a narrow grid gives the room to the part names */
+.arr-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-width: max(100%, calc(var(--arr-names) + var(--arr-w, 0px))); --arr-names: clamp(180px, 30%, 236px); } /* the part names give up room to the sections when space is short */
+.arr-row, .arr-head { display: flex; align-items: center; height: 30px; border-radius: 5px; }
+.arr-head { position: sticky; top: 0; z-index: 3; background: var(--stage); height: 34px; }
+.arr-row.sel { background: color-mix(in srgb, var(--ink) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent); }
+.arr-name { width: var(--arr-names); flex: none; display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 6px 0 2px; box-sizing: border-box; position: sticky; left: 0; z-index: 2; background: var(--stage); border-radius: 5px; }
+.arr-row.sel .arr-name { background: color-mix(in srgb, var(--ink) 9%, var(--stage)); }
+.arr-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 100%; border: 0; background: none; padding: 0 0 0 6px; text-align: left; color: var(--ink); font: inherit; }
+.pcolor-row { display: flex; align-items: center; gap: 8px; }
+.pcolor-row input[type=color] { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--rule); border-radius: 4px; background: transparent; cursor: pointer; }
+.arr-sw { position: relative; flex: none; width: 22px; height: 26px; display: grid; place-items: center; cursor: pointer; border-radius: 4px; }
+.arr-sw input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.arr-sw i { width: 11px; height: 11px; border-radius: 3px; background: var(--c); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); pointer-events: none; }
+.arr-sw:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }
+.arr-row.pinned .arr-sw i { box-shadow: 0 0 0 2px var(--stage), 0 0 0 3.5px var(--c); }
+.arr-row.pinned .arr-pick .nm { text-decoration: underline; text-decoration-color: var(--c); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.arr-pick .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--c); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); }
+.arr-pick .tx { display: grid; line-height: 1.15; min-width: 0; }
+.arr-pick .nm { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arr-pick .kd { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arr-meter { width: 26px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 14%, transparent); overflow: hidden; flex: none; }
+.arr-meter i { display: block; height: 100%; width: 0; background: var(--c); }
+button.arr-ms { width: 24px; height: 22px; padding: 0; display: inline-grid; place-items: center; line-height: 1; border-radius: 4px; font-size: 11px; font-weight: 700; color: var(--muted); flex: none; }
+button.arr-ms[aria-pressed="true"] { background: var(--ink); color: var(--stage); border-color: var(--ink); }
+button.arr-ms.solo[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.arr-row.quiet .arr-pick, .arr-row.quiet .arr-cells { opacity: 0.45; }
+.arr-cells { flex: 1; min-width: 0; display: grid; grid-template-columns: var(--arr-cols); gap: 2px; height: 100%; align-items: center; } /* one set of columns for the headings and every row, so their edges line up whatever a cell's padding or border */
+.arr-cells > button { min-width: 0; padding: 0; box-sizing: border-box; }
+.arr-sec { height: 28px; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); font-size: 11.5px; font-weight: 600; text-align: left; padding: 0 7px !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+.arr-sec.on { background: var(--accent); color: var(--accent-ink); }
+.arr-sec svg { width: 12px; height: 12px; flex: none; }
+.arr-sec span { min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* a short section shows as much of its name as fits, then … (the full name is its tooltip) */
+.arr-cell { height: 22px; border-radius: 3px; border: 0; background: transparent; }
+.arr-cell.p, .arr-legend .k.p { background: color-mix(in srgb, var(--c) 74%, transparent); }
+.arr-row.sel .arr-cell.p { background: var(--c); }
+.arr-cell.j, .arr-legend .k.j { border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 42%, transparent) 0 3px, transparent 3px 7px); }
+.arr-cell.e, .arr-legend .k.e { border: 1.5px solid color-mix(in srgb, var(--c) 75%, transparent); }
+.arr-cell.s, .arr-legend .k.s { border: 1px solid var(--rule); }
+.arr-cell:disabled { cursor: default; }
+.arr-cell:not(:disabled):hover { outline: 2px solid color-mix(in srgb, var(--ink) 45%, transparent); outline-offset: -1px; }
+.arr-tip { position: fixed; z-index: 60; pointer-events: none; max-width: min(80vw, 420px); padding: 5px 9px; border-radius: 5px; background: var(--ink); color: var(--stage);
+  font-size: 12.5px; font-weight: 600; line-height: 1.3; white-space: normal; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.arr-tip .when { font-family: var(--font-data); font-weight: 400; opacity: 0.75; margin-left: 6px; font-size: 11.5px; }
+.arr-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); opacity: 0.85; pointer-events: none; border-radius: 1px; z-index: 1; }
+.stage:fullscreen .arr, .stage.pseudo-fs .arr { display: none; }
+@media (max-width: 600px) {
+  .arr-grid { --arr-names: 150px; }
+  .arr-meter { display: none; }
+  .arr-hint { margin-left: 0; }
+  .arr-row { height: 36px; } .arr-cell { height: 28px; } button.arr-ms { width: 28px; height: 28px; }
+  .arr-pick .kd { display: none; }
+}
 .readouts span b { color: var(--ink); font-weight: 500; }
 .transport { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
 .transport input[type=range] { flex: 1 1 140px; min-width: 0; width: auto; }
@@ -465,7 +529,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.3 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.4 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -549,6 +613,11 @@ figure.vl circle { fill: var(--ink); }
                 <input type="radio" name="labels" id="l-notes" value="notes"><label for="l-notes">Notes</label>
                 <input type="radio" name="labels" id="l-hz" value="hz"><label for="l-hz">Hz</label>
               </div>
+              <span class="lbl" id="lc-lbl" title="Each line in the look's colours, or in its part's colour (as in the Arrangement), on any look">Line colors</span>
+              <div class="seg" role="radiogroup" aria-labelledby="lc-lbl">
+                <input type="radio" name="linecol" id="lc-look" value="look"><label for="lc-look">From the look</label>
+                <input type="radio" name="linecol" id="lc-part" value="part"><label for="lc-part">By part</label>
+              </div>
               <span class="lbl" id="busy-lbl" title="How a voice moving faster than the zoomed-out picture can show is drawn">Fast movement</span>
               <div class="seg" role="radiogroup" aria-labelledby="busy-lbl">
                 <input type="radio" name="busyq" id="b-range" value="range"><label for="b-range" title="A faint band between its notes">Range</label>
@@ -563,6 +632,16 @@ figure.vl circle { fill: var(--ink); }
           <button id="fullscreen" class="icon" type="button" aria-label="Full screen" title="Full screen (F)"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="i-enter" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="i-exit" d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
         </div>
       </div>
+      <section class="arr" id="arr" aria-label="Arrangement" hidden>
+        <div class="arr-bar">
+          <button type="button" class="arr-title" id="arr-toggle" aria-expanded="true" aria-controls="arr-body"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>Arrangement</button>
+          <span class="arr-legend" id="arr-legend" aria-hidden="true"><span><i class="k p"></i>plays</span><span id="arr-leg-j"><i class="k j"></i>rests on the chords (never stops)</span><span id="arr-leg-e"><i class="k e"></i>in, but no notes there</span><span><i class="k s"></i>silent</span></span>
+          <span class="arr-hint" id="arr-hint"></span>
+        </div>
+        <div class="arr-body" id="arr-body"><div class="arr-grid" id="arr-grid"></div></div>
+        <div class="arr-tip" id="arr-tip" role="tooltip" hidden></div>
+        <p class="hint arr-note" id="arr-note" hidden>Mute and solo are for listening here. Exports and saved pieces include every part.</p>
+      </section>
     </section>
 
     <aside class="rack" aria-label="Controls">
@@ -610,11 +689,6 @@ figure.vl circle { fill: var(--ink); }
           <textarea id="chords" spellcheck="false"></textarea>
           <p class="hint help">One chord per line, or separate with spaces or commas. <code>=G#6</code> gathers every voice onto one note. <code>Amaj9:6</code> holds for 6 seconds, <code>Amaj9:2bar</code> for two bars, <code>Amaj9:3beat</code> for three beats. <code>Emaj9[E2 B3 G#4 …]</code> pins an exact voicing. A line like <code>[Groove x2 +2]</code> starts a section: a name, then optionally how many times it plays and a key change in semitones. Notes can carry cents: <code>=C4-14</code>, <code>[D3+33 …]</code>.</p>
           <div id="err" class="notices" role="status" aria-live="polite" hidden></div>
-        </div>
-        <div class="group plays" id="plays-box" hidden>
-          <span class="label" id="plays-lbl">Plays in</span>
-          <div class="chips" id="plays" role="group" aria-labelledby="plays-lbl"></div>
-          <p class="hint help" id="plays-hint">Which sections this part plays in. Outside them it rests, coming in and out by its envelope.</p>
         </div>
         <div class="seed" data-layer="harmony">
           <span class="label">Harmony seed</span>
@@ -708,6 +782,10 @@ figure.vl circle { fill: var(--ink); }
         <div class="group"><label for="tone">Tone</label>
           <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup><optgroup label="Unpitched"><option value="noise">Noise (drums, wind)</option></optgroup></select>
           <p class="hint help">Noise is hiss in a band around each note instead of a pitch, for drums and wind: with a short envelope, a low note is a thump, a middle one a snare and a high one (C8 and up) a hi-hat. A glide sweeps it. Detune does nothing to it.</p>
+        </div>
+        <div class="group pcolor" id="pcolor-box" hidden><label for="pcolor" id="pcolor-lbl">Color</label>
+          <div class="pcolor-row"><input type="color" id="pcolor"><button type="button" class="small" id="pcolor-auto">Automatic</button></div>
+          <p class="hint help">The part's colour in the Arrangement, and its lines' colour on the stage when the view's Line colors is By part. Saved with the piece; Automatic picks one from the part's place in the list.</p>
         </div>
         <div class="slider"><label for="detune">Detune</label><output id="o-detune"></output><input id="detune" type="range" min="0" max="20" step="0.5"></div>
         <div class="slider"><label for="width">Stereo width</label><output id="o-width"></output><input id="width" type="range" min="0" max="100" step="1"></div>
@@ -971,7 +1049,7 @@ figure.vl circle { fill: var(--ink); }
           <p>On the Harmony tab, <b>Time</b> says how chords without a length of their own are timed: in seconds, or in <b>bars</b> at the <b>Tempo</b> and <b>Beats per bar</b> beside it. Any chord can give its own length: <code>Am:6</code> is six seconds, <code>Am:2bar</code> two bars, <code>Am:3beat</code> three beats. Switching keeps what you hear. Adding your first pattern offers to switch a piece to bars, so chords change on the beat.</p>
 
           <h4><span class="step">2</span>Arrange it in sections</h4>
-          <p>A line in the chords that is only a name in brackets starts a section: <code>[Intro]</code>, <code>[Groove x2]</code> to play it twice, <code>[Drop +2]</code> to play it two semitones higher. Below the chords, <b>Plays in</b> chooses the sections the chosen part plays in; outside them it rests. The <b>Sections</b> button on the player bar lists every section as it falls in time: choose one to jump there, and tick <b>Loop the section that's playing</b> to hear it again and again while you work on it.</p>
+          <p>A line in the chords that is only a name in brackets starts a section: <code>[Intro]</code>, <code>[Groove x2]</code> to play it twice, <code>[Drop +2]</code> to play it two semitones higher. The <b>Arrangement</b> under the player bar shows every part against every section: click a cell to choose whether that part plays in that section; outside its sections it rests (a part that never stops rests on the chords instead). A line written straight through, without section markers, keeps its timing: its notes stay where they are, and its sections only choose where it's heard. A line that repeats, and a pattern, start again at the beginning of each stretch of sections they play in; to give a section its own notes, use markers like <code>[B]</code> in the part's text. Click a section's heading there to jump to it, and again to loop it; click a part's name to edit it and highlight its lines on the stage (again, or Esc, to let go), its swatch to change its colour, and use <b>M</b> and <b>S</b> to mute or solo parts while you listen (not saved, and exports play every part). The <b>Sections</b> button on the player bar lists every section as it falls in time: choose one to jump there, and tick <b>Loop the section that's playing</b> to hear it again and again while you work on it.</p>
 
           <h4><span class="step">3</span>Patterns follow the chords</h4>
           <p><b>+ Add</b> has a <b>Bass pattern</b>, an <b>Arpeggio</b> and a <b>Kick</b>. A pattern is a cycle of steps that take their notes from the chord as it plays: <code>R</code> is its root, <code>B</code> its bass note, <code>3rd</code>, <code>5th</code> and <code>7th</code> what they say, and <code>1</code>, <code>2</code>, <code>3</code>… its notes counted up from the part's lowest note. <code>'</code> takes a step up an octave and <code>,</code> down one; <code>.</code> holds, <code>-</code> rests, and <code>:2</code> makes a step two long. A note name like <code>C1</code> stays that note whatever the chord. <code>R R'</code> in eighths is an octave bass, and <code>1 3 2 3</code> in sixteenths an Alberti figure.</p>
@@ -1115,6 +1193,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.4</span>The arrangement<span class="when">16 Nov 2026</span></h4>
+          <p>A piece with parts or sections now has an <b>Arrangement</b> under the player bar: a row for each part and a column for each section as it falls in time, as wide as it is long. Each cell shows what the part does there (plays, rests on the chords, or is silent), and clicking it changes whether the part plays in that section, which replaces the <b>Plays in</b> buttons on the Harmony tab. A section's heading jumps to it, and again loops it. Each row has the part's level as it plays, and <b>M</b> and <b>S</b> to mute or solo it while you listen; clicking its name chooses it for the tabs. A line shows where the music is. The arrow at the top folds it away. A line written straight through now keeps its timing when you change where it plays, so turning a section off silences just that section (it used to start again from its first note after the gap, moving everything after it). Each part now has a colour, set from its swatch in the grid or <b>Color</b> on the Sound tab and saved with the piece, and the view options' <b>Line colors: By part</b> draws every line in its part's colour on any look. Clicking a part's name highlights its lines on the stage in its colour, with the rest in grey (again, or Esc, to let go), pointing at one previews it, and muted parts dim; videos and exports are unaffected. The file formats don't change.</p>
 
           <h4><span class="step ver">4.3</span>Drums, sections of players, and a tone desk<span class="when">16 Nov 2026</span></h4>
           <p>Six additions to the Sound tab. <b>Noise</b> is a new tone: hiss in a band around each note instead of a pitch, so a part with a short envelope is a drum (low notes thump, middle ones are a snare, C8 and up a hi-hat) and a gliding one is wind. <b>Ensemble</b> thickens any part into a section of players. Each added part now has its own <b>Reverb</b> amount (none for a close, dry bass; more to set a part further back) and its own <b>Brightness</b> filter, which each note can open and let close again, as plucked and struck sounds do. For the whole piece there are <b>Tone controls</b> (Low, Middle and High, with a drawing of the result) and <b>Saturation</b>, which rounds the loud moments and adds warmth, then grit. A piece that uses any of these is saved as file format 6; pieces that don't sound exactly as they did and keep their older format.</p>
@@ -1301,7 +1382,7 @@ figure.vl circle { fill: var(--ink); }
           <p>The main part: chords, the four seeds and every setting. App 3.1 added the notes a piece was voiced with, so it plays exactly the same under a later engine, and app 3.3 the look of the trace. Older versions of app 3 ignore those and voice the piece themselves. Piece files began with app 3, so there's no format 1 or 2.</p>
 
           <h4>Three version numbers</h4>
-          <p>The <b>app</b> version (4.3) is the release. The <b>engine</b> version (3.1) changes only when the same chords and settings would be voiced differently; Engine history has them. The <b>file format</b> (3, 4, 5 or 6) changes only when a piece can hold something new. Most releases change neither of the last two.</p>
+          <p>The <b>app</b> version (4.4) is the release. The <b>engine</b> version (3.1) changes only when the same chords and settings would be voiced differently; Engine history has them. The <b>file format</b> (3, 4, 5 or 6) changes only when a piece can hold something new. Most releases change neither of the last two.</p>
 
           <h4>For programs that write piece files</h4>
           <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. A piece that uses anything added in app 4.2 is <code>"formatVersion": 5</code>: time in bars (<code>"unit": "bar"</code> in <code>timing</code>, or a chord length like <code>:2bar</code>), sections in the chords or <code>plays</code> on a part, more than 12 parts, pattern parts and echoes (<code>preset</code> <code>"pattern"</code> or <code>"copy"</code>), a pitch drop, natural decays (<code>envelope.curve</code>), a glide shape or portamento over 2 seconds, slides, loudness, glide times or section markers in a line (<code>~</code>, <code>@</code>, <code>/</code>, <code>[</code>), loudness or glide shapes in any saved notes (<code>vel</code>, <code>ease</code>), breathing or ducking, <b>Never stops</b> (<code>nonstop</code>), <b>Every voice equal</b> (<code>"mix": "voices"</code>) or <b>Just</b> tuning (<code>"tuning": "just"</code>). Saving always writes the lowest version that holds what the piece uses, so a piece without those is still saved as 3 or 4 and older versions open it. A program writing piece files should do the same: a file that uses format 5's fields but says 4 opens in app 4.1, which then plays it without them. Top-level fields this version doesn't know are kept when a piece is saved again. A piece can also say when it was made and last changed (<code>created</code>, <code>modified</code>), and which version of the app made it and last saved it (<code>madeWith</code>, <code>app</code>); the Open window shows them, and they're optional. A piece that uses anything added in app 4.3 is <code>"formatVersion": 6</code>: the tone <code>"noise"</code>, <code>sound.ensemble</code> (0 to 100) on the piece or a part, <code>sound.eq</code> (<code>low</code>, <code>mid</code>, <code>high</code> in dB) or <code>sound.saturation</code> (0 to 100) on the piece, or on a part <code>sound.reverb</code> (a percentage of the piece's, 100 if not set) or <code>sound.brightness</code> (Hz, below 16000; with <code>opens</code>, 0 to 100, and <code>openTime</code> in seconds).</p>

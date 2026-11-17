@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.3';
+const APP_VERSION = '4.4';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -144,7 +144,7 @@ function syncUI() {
   { const self = pn ? pn.id : 'main', others = [['', 'Nothing']].concat([['main', 'Main']], (piece.parts || []).map(x => [x.id, x.name || x.id])).filter(([v]) => v !== self), dk = $('duckunder');
     if ([...dk.options].map(o => o.value + o.textContent).join() !== others.map(([v, t]) => v + t).join()) { dk.textContent = ''; for (const [v, t] of others) { const o = document.createElement('option'); o.value = v; o.textContent = t; dk.appendChild(o); } } }
   for (const [id, path] of SELECTS) $(id).value = String(getPath(src(id), path));
-  drawEq();
+  drawEq(); if (typeof syncPartColor === 'function' && arr.rows) syncPartColor();
   { const e = getPath(src('echotime'), 'echo'), on = !!(e && e.mix > 0); $('echotime').value = on ? e.time : 'off';
     for (const id of ['echomix', 'echofb', 'echopan']) $(id).closest('.slider, .group').hidden = !on; } // the echo's level and repeats, once it's on
   $('mix').value = piece.mix === 'voices' ? 'voices' : 'parts'; $('tuning').value = piece.tuning === 'just' ? 'just' : 'equal'; // (neither saved at its default)
@@ -245,6 +245,7 @@ function commit() {
 }
 function applyPiece(p, { record = true, keepTime = false, fresh = false } = {}) {
   piece = prepPiece(p);
+  if (fresh) { listen.mute.clear(); listen.solo.clear(); applyListen(); stageFocus.pin = stageFocus.hover = null; } // a different piece starts with every part audible (before the grid is drawn, so it shows that)
   syncUI(); rebuild(keepTime);
   if (fresh) { undoStack = []; redoStack = []; updateUndo(); openedJSON = JSON.stringify(piece); } // a different piece: undo must not reach back into the previous one (and save over it)
   if (record && !fresh) commit(); else { committed = JSON.stringify(piece); updateStatus(); saveDraftSoon(); }
@@ -669,6 +670,11 @@ function impulse(ctx, seed) {
   irCache.set(key, { ctx, buf });
   return buf;
 }
+/* Mute and solo, by part id ('main' for the main part): for listening while you work. Not saved, and exports play every part.
+   The other parts keep their level either way (the headroom is still shared out among all of them). */
+const listen = { mute: new Set(), solo: new Set() };
+const audible = id => listen.solo.size ? listen.solo.has(id) : !listen.mute.has(id);
+function applyListen() { if (live && live.hear && actx) for (const [id, g] of live.partBus) g.gain.setTargetAtTime(audible(id) ? 1 : 0, actx.currentTime, 0.012); }
 /* One graph for live playback, recording and offline export */
 const voiceLevel = (N, tone) => 1.5 / N * (TONE_GAIN[tone] || 1);
 function periodicWave(ctx, tone) { const tw = toneWave(tone); return ctx.createPeriodicWave(Float32Array.from(tw.real), Float32Array.from(tw.imag)); }
@@ -772,6 +778,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const master = ctx.createGain();
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
   const helds = []; // each part's voices that sound throughout, which the closing fade ends
+  const partBus = new Map(), hear = !offline && outs.length === 1; // mute and solo are for listening: not for exports or a recording
   const echoOuts = []; // each echo's output, faded out over the tail's last moment so nothing is cut off
   /* Two buses, each through the piece's brightness filter: one straight on, one into the reverb. Every part sends to both, by its
      own reverb amount (a percentage of the piece's), so a piece whose parts all keep the piece's reverb sounds exactly as before. */
@@ -817,6 +824,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     /* The part's own path: its voices (those that sound throughout through `held`), then its filter and ensemble, then on to the
        two buses by its reverb amount. */
     const bus = ctx.createGain(), held = ctx.createGain(); held.connect(bus); helds.push(held);
+    { const id = pt.main ? 'main' : pt.id; partBus.set(id, bus); if (hear && !audible(id)) bus.gain.value = 0; } // muted here, or another part soloed
     { let node = bus;
       if (!pt.main && snd.brightness < OPEN_HZ) { // its own brightness; each note can open it, louder notes further
         const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = snd.brightness; f.Q.value = 0.7; node.connect(f); node = f;
@@ -924,7 +932,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   }
   oscs.forEach((osc, v) => schedule(v, Infinity));
   openTo(Infinity);
-  return { master, oscs, gains, lfos, now, tone: S.tone, mainN: parts[0].sub.N, levelN, headroom, fadeOnMaster };
+  return { master, oscs, gains, lfos, now, tone: S.tone, mainN: parts[0].sub.N, levelN, headroom, fadeOnMaster, partBus, hear };
 }
 function ensureCtx() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
 function stopAudio(fade = 0.2) {
@@ -1396,8 +1404,18 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const M = b.musicEnd !== undefined ? b.musicEnd : T; // the music's end, where the held parts fade
   const env = te <= M ? 1 : Math.max(0, 1 - (te - M) / FADE); // how loud the sound still is
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
-  const colorOf = v => grad || pal.line(v, N);
-  const coreOf = v => pal.core;
+  const vp = voiceParts(S), byPart = !!S.piece.view.trace.byPart;
+  /* On screen, not in a video: a part pinned in the Arrangement (or the one the pointer is on there) is drawn in its own colour,
+     the same as its swatch, on any look, and every other line turns a dim grey, so it stands out however colourful the rest are.
+     Parts that are muted, or not soloed, dim too. The highlighted part is drawn last, over the others. */
+  const hl = video ? null : stageFocus.hover || stageFocus.pin, hearing = !video && (listen.mute.size + listen.solo.size > 0);
+  const grey = pal.dark ? '#5c6369' : '#a4a9ae', other = v => hl && vp.ids[v] !== hl;
+  // the grey lines without glow (on a dark look glows add up, so many grey lines would stack up almost white), the highlighted part a little heavier
+  const palOf = v => !hl ? pal : other(v) ? Object.assign({}, pal, { glow: 0 }) : Object.assign({}, pal, { weight: pal.weight * 1.3 });
+  const colorOf = v => hl ? (other(v) ? grey : vp.cols[v]) : byPart ? vp.cols[v] : grad || pal.line(v, N);
+  const coreOf = v => other(v) ? null : pal.core;
+  const dimOf = v => (other(v) ? (pal.dark ? 0.6 : 0.5) : 1) * (hearing && !audible(vp.ids[v]) ? 0.3 : 1);
+  const order = [...Array(N).keys()]; if (hl) order.sort((a, c) => (vp.ids[a] === hl) - (vp.ids[c] === hl));
   g.lineJoin = 'round'; g.lineCap = 'round';
   /* The lines come from each voice's own moves (voiceLines()), not from samples taken at this frame's spacing, so a note is
      drawn where it starts and stops however short it is, and an edge has the same slope at every zoom. Zoomed out, each line
@@ -1409,12 +1427,12 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
     const ta = tA + (tB - tA) * (xa - x0) / (xEnd - x0), tb = tA + (tB - tA) * (xb - x0) / (xEnd - x0);
     // what's ahead of a scrolling view isn't framed yet, so it's kept within the trace's band rather than run over the title
     if (future && z > 0) { g.save(); g.beginPath(); g.rect(0, y0 - 6 * d, W, y1 - y0 + 12 * d); g.clip(); }
-    for (let v = 0; v < N; v++) {
+    for (const v of order) {
       const path = new Path2D();
-      const L = linesAt(lines, v, level, busyStyle);
+      const L = linesAt(lines, v, level, busyStyle), fade = (future ? 0.3 : 1) * dimOf(v);
       traceRuns(path, L.runs, ta, tb, X, Y);
-      glowStroke(g, path, colorOf(v), coreOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
-      if (L.bands.length) drawBands(g, L.bands, ta, tb, X, Y, colorOf(v), pal, d * (video ? 1.12 : 1), future ? 0.3 : 1);
+      glowStroke(g, path, colorOf(v), coreOf(v), palOf(v), d * (video ? 1.12 : 1), fade);
+      if (L.bands.length) drawBands(g, L.bands, ta, tb, X, Y, colorOf(v), palOf(v), d * (video ? 1.12 : 1), fade);
     }
     if (future && z > 0) g.restore();
   }
@@ -1429,20 +1447,20 @@ function drawScene(g, W, H, d, t, cam, video, S = null) {
   const r0 = (video ? 5.5 : 4.6) * d;
   // a dot's own colour as rgba, for its glow (looks with a pitch gradient take the colour at the dot's pitch)
   const dotColor = (gp, a = 1) => {
-    let hex = pal.stops ? (() => { const f = Math.max(0, Math.min(1, (gp.p - 40) / 48)) * (pal.stops.length - 1), i = Math.min(pal.stops.length - 2, Math.floor(f)); return mixHex(pal.stops[i], pal.stops[i + 1], f - i); })() : pal.line(gp.v, N);
+    let hex = hl ? (other(gp.v) ? grey : vp.cols[gp.v]) : byPart ? vp.cols[gp.v] : pal.stops ? (() => { const f = Math.max(0, Math.min(1, (gp.p - 40) / 48)) * (pal.stops.length - 1), i = Math.min(pal.stops.length - 2, Math.floor(f)); return mixHex(pal.stops[i], pal.stops[i + 1], f - i); })() : pal.line(gp.v, N);
     hex = cssHex(hex) || hslHex(hex) || '#ffffff';
     const n = parseInt(hex.slice(1), 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   };
   for (const gp of gs) {
     const y = Y(gp.p), col = colorOf(gp.v);
-    if (pal.dark && pal.glow > 0) { // a soft glow that fades out from the dot, like the lines' glow (not a flat disc)
+    if (pal.dark && palOf(gp.v).glow > 0) { // a soft glow that fades out from the dot, like the lines' glow (not a flat disc)
       const rg = g.createRadialGradient(px, y, r0 * 0.5, px, y, r0 * 3.6);
       rg.addColorStop(0, dotColor(gp)); rg.addColorStop(0.35, dotColor(gp, 0.45)); rg.addColorStop(1, 'rgba(0,0,0,0)');
-      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow) * env; g.fillStyle = rg;
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, 0.75 * pal.glow) * env * dimOf(gp.v); g.fillStyle = rg;
       g.beginPath(); g.arc(px, y, r0 * 3.6, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     }
-    g.globalAlpha = env; g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
-    if (pal.core) { g.fillStyle = pal.core; g.beginPath(); g.arc(px, y, r0 * 0.45, 0, Math.PI * 2); g.fill(); }
+    g.globalAlpha = env * dimOf(gp.v); g.fillStyle = col; g.beginPath(); g.arc(px, y, r0, 0, Math.PI * 2); g.fill();
+    if (coreOf(gp.v)) { g.fillStyle = coreOf(gp.v); g.beginPath(); g.arc(px, y, r0 * 0.45, 0, Math.PI * 2); g.fill(); }
     g.globalAlpha = 1;
   }
   g.font = `${(video ? 13 : narrow ? 10.5 : 11.5) * d}px ${C.data || 'monospace'}`;
@@ -1516,6 +1534,7 @@ function frame() {
     if (recording) { finishRecording(); }
     offset = built.total + TAIL; stopAudio(0.05); playing = false; setPlayIcon(); t = offset; // the clock ends on the full length
   }
+  tickArr(Math.min(t, built.total + TAIL));
   let cur, idx;
   if (recording) {
     // The video is 60 frames a second. On a 120 Hz screen the browser asks for twice that, so skip the
@@ -2060,7 +2079,6 @@ function partLabel(n, raw) {
   return n.name + ' (' + { pad: 'pad', line: 'line', notes: 'saved notes', pattern: 'pattern', copy: 'echo' }[n.preset] + ')';
 }
 /* The part bar: the menu of parts, and what can be done to the chosen one */
-/* Plays in: the sections the chosen part (or the main part) plays in. All sections is the default (no list saved). */
 /* Sections on the player bar: jump to any stretch of a section as it falls in time, or loop the one that's playing. For
    listening only: neither is saved with the piece. */
 let loopOn = false, loopRun = null;
@@ -2077,23 +2095,213 @@ function fillSections() {
 }
 $('secloop').addEventListener('change', () => { loopOn = $('secloop').checked; loopRun = loopOn ? sectionRunAt(currentT()) : null; $('secbtn').classList.toggle('looping', loopOn); });
 const sectionPasses = name => { const s = built && built.sections ? built.sections.filter(r => r.name === name) : []; return s.length ? Math.max(...s.map(r => r.pass)) + 1 : 1; };
-function syncPlays() {
-  const names = built && built.sections ? [...new Set(built.sections.map(r => r.name))] : [];
-  $('plays-box').hidden = !names.length; if (!names.length) return;
-  const tgt = selRaw() || piece, pl = Array.isArray(tgt.plays) ? tgt.plays : null, box = $('plays');
-  $('plays-lbl').textContent = (selRaw() ? (selRaw().name || selRaw().id) : 'Main part') + ' plays in';
-  box.replaceChildren();
-  const chip = (text, on, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = text; b.setAttribute('aria-pressed', String(on)); b.addEventListener('click', fn); box.appendChild(b); };
-  chip('All sections', !pl, () => { delete tgt.plays; playsChanged(tgt); });
-  for (const n of names) chip(n, !pl || pl.includes(n), () => {
-    const cur = Array.isArray(tgt.plays) ? tgt.plays.slice() : names.slice(), k = cur.indexOf(n);
-    if (k >= 0) cur.splice(k, 1); else cur.push(n);
-    if (names.every(x => cur.includes(x))) delete tgt.plays; else tgt.plays = names.filter(x => cur.includes(x)).concat(cur.filter(x => !names.includes(x))); // in the piece's order (keeping names not in it now)
-    playsChanged(tgt); });
-  const missing = pl ? pl.filter(x => !names.includes(x)) : [];
-  $('plays-hint').textContent = (pl && !pl.some(x => names.includes(x)) ? 'This part plays in none of these sections, so it is silent. ' : '') + 'Which sections this part plays in. Outside them it rests, coming in and out by its envelope.' + (missing.length ? ' Also kept for sections not in the chords now: ' + missing.join(', ') + '.' : '');
+/* The arrangement, under the player bar: a row for each part and a column for each section as it falls in time, as wide as it is
+   long. A cell shows what the part does there, and clicking it changes whether the part plays in that section (every time that
+   section comes round: `plays` is a list of section names). A section's heading jumps there; again, and it loops. Each row has
+   the part's level as it plays, and mute and solo. Clicking a part's name chooses it for the tabs. */
+const arr = { sig: '', cols: [], rows: [], xs: [], shut: lsGet('cge.arr') === 'shut', at: -1, levels: [] };
+const autoColor = i => hslHex('hsl(' + Math.round((196 + i * 47) % 360) + ', 72%, 60%)'); // a part's colour when it has none of its own: by its place in the list
+const okColor = c => /^#[0-9a-f]{6}$/i.test(String(c || '')) ? String(c).toLowerCase() : null;
+// what the stage dims (never in a video or an export): a part chosen in the Arrangement (pinned) or one the pointer is on (hover)
+const stageFocus = { pin: null, hover: null };
+/* Each voice's part, and that part's colour, for the stage: from the piece as it is now (S.piece), so a colour change shows at once */
+function voiceParts(S) {
+  const b = S.built, raws = S.piece.parts || [], ids = new Array(b.N).fill('main'), cols = new Array(b.N).fill(okColor(S.piece.color) || autoColor(0));
+  for (const pt of b.parts) { if (pt.main) continue; const k = raws.findIndex(x => x.id === pt.id || partIdOf(x) === pt.id), c = okColor(k >= 0 && raws[k].color) || autoColor(k + 1);
+    for (let v = 0; v < pt.sub.N; v++) { ids[pt.first + v] = pt.id; cols[pt.first + v] = c; } }
+  return { ids, cols };
 }
-function playsChanged(tgt) { rebuild(true); syncPlays(); if (tgt !== piece) refreshPartBar(); commit(); }
+function togglePlays(tgt, name) {
+  const names = [...new Set((built.sections || []).map(r => r.name))];
+  const cur = Array.isArray(tgt.plays) ? tgt.plays.slice() : names.slice(), k = cur.indexOf(name);
+  if (k >= 0) cur.splice(k, 1); else cur.push(name);
+  if (names.every(x => cur.includes(x))) delete tgt.plays; else tgt.plays = names.filter(x => cur.includes(x)).concat(cur.filter(x => !names.includes(x))); // in the piece's order (keeping names not in it now)
+  playsChanged(tgt);
+}
+function arrModel() {
+  const runs = built.sections || [], T = built.total, cols = [];
+  if (!runs.length) cols.push({ name: null, label: 'Whole piece', t0: 0, t1: T });
+  else { if (runs[0].t0 > 0.01) cols.push({ name: null, lead: true, label: '', t0: 0, t1: runs[0].t0 });
+    for (const r of runs) { const n = sectionPasses(r.name); cols.push({ name: r.name, label: r.name, pass: n > 1 ? (r.pass + 1) + '/' + n : '', t0: r.t0, t1: r.t1 }); } }
+  // whether a part has notes in a stretch: by its notes (a part that never stops still has them, as `strikes`), or always for one that just sounds throughout
+  const sounds = (sub, t0, t1) => { const n = sub.strikes || sub.gates; return !n || n.some(gs => !gs || gs.some(g => g.on < t1 - 1e-6 && g.off > t0 + 1e-6)); };
+  // every part the piece has, in order: one that plays nowhere isn't in the build, but keeps its row so it can be brought back
+  const all = [built.parts[0]].concat((built.piece.parts || []).map(q => built.parts.find(x => !x.main && x.id === q.id) || Object.assign({}, q, { sub: null })));
+  const rows = all.map((pt, i) => {
+    const id = pt.main ? 'main' : pt.id, raw = pt.main ? piece : (piece.parts || []).find(x => x.id === id || partIdOf(x) === id) || {}, plays = Array.isArray(raw.plays) ? raw.plays : null;
+    if (!pt.sub) { const n = partVoices(pt, built.piece.parts || []), kind = pt.preset === 'copy' ? 'echo of ' + (((built.piece.parts || []).find(x => x.id === pt.of) || {}).name || '?') : pt.preset;
+      return { id, name: pt.name, kind: kind + ' · ' + n + (pt.preset === 'pad' ? ' voices' : '') + ' · silent', color: okColor(raw.color) || autoColor(i), first: -1, N: 0, level: 0,
+        cells: cols.map(c => c.name !== null && plays && plays.includes(c.name) ? 'e' : 's') }; }
+    const src = pt.preset === 'copy' ? built.parts.find(x => x.id === pt.of) : null;
+    const kind = pt.main || pt.preset === 'pad' ? 'pad' : pt.preset === 'copy' ? 'echo of ' + (src ? src.name : '?') : pt.preset;
+    return { id, name: pt.main ? 'Main' : pt.name, kind: kind + ' · ' + pt.sub.N + (pt.main || pt.preset === 'pad' ? ' voices' : ''), color: okColor(raw.color) || autoColor(i), first: pt.first, N: pt.sub.N, level: Math.max(0.08, Math.min(1, ((pt.main ? 0 : pt.sound.level) + 30) / 36)),
+      cells: cols.map(c => { const allowed = c.name === null ? !plays || !runs.length : !plays || plays.includes(c.name);
+        const notes = allowed && sounds(pt.sub, c.t0, c.t1);
+        return pt.sub.strikes ? (notes ? 'p' : 'j') : allowed ? (notes ? 'p' : 'e') : 's'; }) }; // a part that never stops rests on the chords wherever it has no notes
+  });
+  return { cols, rows };
+}
+const partIdOf = x => String(x.id || x.name || x.preset || 'line').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'part';
+const CELL_SAYS = { p: 'plays', e: 'is in, but has no notes there', j: 'rests on the chords', s: 'is silent' };
+function renderArr() {
+  const box = $('arr'), has = !!built && ((built.piece.parts || []).length > 0 || !!(built.sections && built.sections.length));
+  { // mute and solo only for parts this piece has: what's left from a part that's gone (or another piece) is dropped, even while the grid is hidden
+    const ids = new Set(['main'].concat(piece && piece.parts ? piece.parts.map(x => partIdOf(x)) : [])); let gone = false;
+    for (const set of [listen.mute, listen.solo]) for (const id of [...set]) if (!ids.has(id)) { set.delete(id); gone = true; }
+    if (gone) applyListen();
+    if (stageFocus.pin && !ids.has(stageFocus.pin)) stageFocus.pin = null; if (stageFocus.hover && !ids.has(stageFocus.hover)) stageFocus.hover = null;
+    $('pcolor-box').hidden = !has; }
+  box.hidden = !has; $('arr').closest('.stage').classList.toggle('with-arr', has && !arr.shut);
+  box.classList.toggle('shut', arr.shut); $('arr-toggle').setAttribute('aria-expanded', String(!arr.shut));
+  if (!has) { arr.sig = ''; stageFocus.pin = stageFocus.hover = null; if (listen.mute.size || listen.solo.size) { listen.mute.clear(); listen.solo.clear(); applyListen(); } return; } // no grid, no way to undo a mute: so none
+  const m = arrModel();
+  const sig = JSON.stringify([m.cols.map(c => [c.label, c.pass, +c.t0.toFixed(3), +c.t1.toFixed(3)]), m.rows.map(r => [r.id, r.name, r.kind, r.color, r.cells.join('')])]); // (a colour too: an undo can change it)
+  arr.cols = m.cols; arr.rows = m.rows;
+  if (sig !== arr.sig) { arr.sig = sig; buildArr(m); }
+  const named = m.cols.some(c => c.name !== null);
+  $('arr-hint').textContent = named ? 'Click a cell to change where a part plays · a section to jump there, again to loop it' : 'Add section headings like [Verse] to the chords to arrange parts by section';
+  $('arr-leg-j').hidden = !m.rows.some(r => r.cells.includes('j')); $('arr-leg-e').hidden = !m.rows.some(r => r.cells.includes('e'));
+  markArr(); syncPartColor();
+}
+function buildArr(m) {
+  const grid = $('arr-grid'), keep = document.activeElement && grid.contains(document.activeElement) ? document.activeElement.dataset.k : null;
+  grid.textContent = ''; arr.levels = []; hideArrTip(); // new meters: paint each level again
+  const phone = matchMedia('(max-width: 600px)').matches, PX = phone ? 6 : 0; // on a phone the grid scrolls sideways, at 6 px a second
+  const width = c => Math.max(c.lead ? 16 : phone ? 34 : 22, /* (16: a heading is never narrower than its padding) */ Math.round((c.t1 - c.t0) * PX));
+  grid.style.setProperty('--arr-w', (m.cols.reduce((a, c) => a + width(c) + 2, 0) + 12) + 'px');
+  // each column: at least its smallest width, then a share of the rest by how long it lasts (the same for the headings and every row)
+  grid.style.setProperty('--arr-cols', m.cols.map(c => 'minmax(' + width(c) + 'px, ' + Math.max(0.01, c.t1 - c.t0).toFixed(3) + 'fr)').join(' '));
+  const sized = el => el;
+  const head = mk('div', { className: 'arr-head' }, [mk('div', { className: 'arr-name' })]), hc = mk('div', { className: 'arr-cells' });
+  m.cols.forEach((c, ci) => { const b = sized(mk('button', { type: 'button', className: 'arr-sec', dataset: { k: 'h' + ci } }), c);
+    b.append(mk('span', { textContent: c.label }));
+    b.dataset.tip = c.lead ? 'The start, before the first section' : c.label + (c.pass ? ' (' + c.pass + ')' : ''); b.dataset.when = fmtClock(c.t0);
+    b.setAttribute('aria-label', c.lead ? 'Jump to the start' : 'Jump to ' + c.label + (c.pass ? ', time ' + c.pass.replace('/', ' of ') : '') + ', at ' + fmtClock(c.t0));
+    b.addEventListener('click', () => { const here = arrColAt(currentT()) === ci;
+      if (here && c.name !== null) { $('secloop').click(); loopRun = sectionRunAt(c.t0 + 1e-3); } else { if (loopOn) $('secloop').click(); jumpTo(c.t0); }
+      markArr(); });
+    hc.append(b); });
+  head.append(hc); grid.append(head);
+  m.rows.forEach((r, ri) => {
+    const row = mk('div', { className: 'arr-row', dataset: { id: r.id } }); row.style.setProperty('--c', r.color);
+    const pick = mk('button', { type: 'button', className: 'arr-pick', dataset: { k: 'n' + ri } }, [mk('span', { className: 'tx' }, [mk('span', { className: 'nm', textContent: r.name }), mk('span', { className: 'kd', textContent: r.kind })])]);
+    pick.setAttribute('aria-label', 'Edit ' + r.name + ' (' + r.kind + '), and highlight its lines'); pick.dataset.tip = r.name; pick.dataset.when = r.kind;
+    pick.addEventListener('click', () => { stageFocus.pin = stageFocus.pin === r.id && selPart === r.id ? null : r.id; selPart = r.id; syncUI(); markArr(); });
+    const cin = mk('input', { type: 'color', value: r.color }); cin.setAttribute('aria-label', 'Colour of ' + r.name);
+    cin.addEventListener('input', () => { setPartColor(r.id, cin.value, false); row.style.setProperty('--c', cin.value); });
+    cin.addEventListener('change', () => setPartColor(r.id, cin.value, true));
+    const sw = mk('label', { className: 'arr-sw', title: 'Colour of ' + r.name }, [cin, mk('i')]);
+    const ms = (cls, letter, word, set) => { const b = mk('button', { type: 'button', className: 'small arr-ms ' + cls, textContent: letter, title: word + ' ' + r.name + ' (for listening; not saved)', dataset: { k: cls + ri } });
+      b.setAttribute('aria-label', word + ' ' + r.name); b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => { if (set.has(r.id)) set.delete(r.id); else set.add(r.id); applyListen(); markArr(); }); return b; };
+    const name = mk('div', { className: 'arr-name' }, [sw, pick, mk('span', { className: 'arr-meter' }, [mk('i')]), ms('mute', 'M', 'Mute', listen.mute), ms('solo', 'S', 'Solo', listen.solo)]);
+    const cells = mk('div', { className: 'arr-cells' });
+    r.cells.forEach((st, ci) => { const c = m.cols[ci], b = sized(mk('button', { type: 'button', className: 'arr-cell ' + st, tabIndex: -1, dataset: { k: 'c' + ri + '-' + ci } }), c);
+      const where = c.name === null ? (c.lead ? 'before the first section' : 'the whole piece') : c.label;
+      b.setAttribute('aria-label', r.name + ' ' + CELL_SAYS[st] + (c.name === null ? ' ' : ' in ') + where); b.title = r.name + ' ' + CELL_SAYS[st] + (c.name === null ? ' ' : ' in ') + where;
+      if (c.name === null) b.disabled = true; else { b.setAttribute('aria-pressed', String(st === 'p' || st === 'e'));
+        b.addEventListener('click', () => { const tgt = r.id === 'main' ? piece : (piece.parts || []).find(x => x.id === r.id || partIdOf(x) === r.id); if (tgt) togglePlays(tgt, c.name); }); }
+      cells.append(b); });
+    row.append(name, cells); grid.append(row);
+  });
+  grid.append(mk('div', { className: 'arr-playhead', id: 'arr-playhead' }));
+  { const t = (arr.tab && grid.querySelector('[data-k="' + arr.tab + '"]:not(:disabled)')) || grid.querySelector('.arr-cell:not(:disabled)'); if (t) t.tabIndex = 0; }
+  if (keep) { const el = grid.querySelector('[data-k="' + keep + '"]'); if (el) el.focus(); }
+  measureArr();
+}
+// where each column sits, for the playhead
+function measureArr() { const hs = $('arr-grid').querySelectorAll('.arr-sec'); arr.xs = [...hs].map(b => [b.offsetLeft, b.offsetWidth]); arr.at = -1; }
+const arrColAt = t => { const c = arr.cols; for (let i = c.length - 1; i >= 0; i--) if (t >= c[i].t0 - 1e-6) return i; return 0; };
+// what changes without the grid being rebuilt: the chosen part, mute and solo, the section that's playing
+function markArr() {
+  const grid = $('arr-grid'), t = built ? currentT() : 0, on = arrColAt(t), any = listen.mute.size + listen.solo.size > 0;
+  grid.querySelectorAll('.arr-row').forEach(row => { const id = row.dataset.id; row.classList.toggle('sel', id === selPart); row.classList.toggle('quiet', !audible(id)); row.classList.toggle('pinned', id === stageFocus.pin);
+    const pk = row.querySelector('.arr-pick'); if (pk) pk.setAttribute('aria-pressed', String(id === stageFocus.pin));
+    row.querySelector('.mute').setAttribute('aria-pressed', String(listen.mute.has(id))); row.querySelector('.solo').setAttribute('aria-pressed', String(listen.solo.has(id))); });
+  grid.querySelectorAll('.arr-sec').forEach((b, i) => { const act = i === on, loop = act && loopOn && arr.cols[i].name !== null; b.classList.toggle('on', act);
+    if ((b.dataset.loop === '1') !== loop) { b.dataset.loop = loop ? '1' : ''; const old = b.querySelector('svg'); if (old) old.remove(); if (loop) b.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg>'); } });
+  $('arr-note').hidden = !any; arr.on = on; arr.loop = loopOn;
+}
+// every frame: the playhead, the section that's playing, and each part's level
+function tickArr(t) {
+  if ($('arr').hidden || arr.shut || !arr.xs.length) return;
+  const i = arrColAt(t), c = arr.cols[i], x = arr.xs[i]; if (!c || !x) return;
+  if (i !== arr.on || loopOn !== arr.loop) markArr();
+  const px = Math.round((x[0] + x[1] * Math.max(0, Math.min(1, (t - c.t0) / Math.max(1e-6, c.t1 - c.t0)))) * 2) / 2;
+  if (px !== arr.at) { arr.at = px; $('arr-playhead').style.left = px + 'px';
+    const body = $('arr-body'), names = arr.xs[0] ? arr.xs[0][0] : 0; // where the grid scrolls sideways (a phone), keep the playhead in view while it plays
+    if (playing && body.scrollWidth > body.clientWidth + 4 && (px < body.scrollLeft + names + 8 || px > body.scrollLeft + body.clientWidth - 24)) body.scrollLeft = Math.max(0, px - names - 40); }
+  const rows = $('arr-grid').querySelectorAll('.arr-row');
+  arr.rows.forEach((r, k) => { let g = 0; for (let v = 0; v < r.N && r.first >= 0; v++) g = Math.max(g, gainAt(built, r.first + v, t));
+    const w = playing && audible(r.id) ? Math.round(Math.min(1, g) * r.level * 20) * 5 : 0;
+    if (arr.levels[k] !== w && rows[k]) { arr.levels[k] = w; rows[k].querySelector('.arr-meter i').style.width = w + '%'; } });
+}
+/* A quick tooltip for a section heading or part name the grid cuts short with …: its full name (and when the section starts, or
+   what kind of part it is), shown a moment after the pointer arrives or the keyboard reaches it, instead of the browser's own,
+   which waits about a second. Names shown in full need none. */
+let tipTimer = 0, tipFor = null;
+/* Whether a name is cut short with …: its text's own width (measured from its font, the same in every browser) against the room it
+   has. (Browsers differ in what scrollWidth reports for text cut with an ellipsis, and round it, so it isn't relied on alone.) */
+const measureCtx = document.createElement('canvas').getContext('2d');
+function isCut(el) {
+  const cs = getComputedStyle(el), room = el.getBoundingClientRect().width - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  measureCtx.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily].join(' ');
+  const ls = parseFloat(cs.letterSpacing) || 0, need = measureCtx.measureText(el.textContent).width + ls * el.textContent.length;
+  return need > room + 0.1 || el.scrollWidth > el.clientWidth + 1;
+}
+function hideArrTip() { clearTimeout(tipTimer); tipFor = null; const t = $('arr-tip'); if (!t.hidden) t.hidden = true; }
+function showArrTip(el) {
+  const text = el.querySelector('.arr-sec > span, .arr-pick .nm') || el.querySelector('span'); if (!text) return;
+  const cut = isCut(text) || (el.classList.contains('arr-sec') && !text.textContent); // cut short, or the start (which shows no name)
+  if (!cut || !el.dataset.tip) return hideArrTip();
+  if (tipFor === el) return; clearTimeout(tipTimer); tipFor = el;
+  tipTimer = setTimeout(() => {
+    if (tipFor !== el || !el.isConnected) return;
+    const t = $('arr-tip'); t.replaceChildren(document.createTextNode(el.dataset.tip)); if (el.dataset.when) t.append(mk('span', { className: 'when', textContent: el.dataset.when }));
+    t.hidden = false;
+    const r = el.getBoundingClientRect(), w = t.offsetWidth, h = t.offsetHeight;
+    const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), above = r.top - h - 6;
+    t.style.left = x + 'px'; t.style.top = (above >= 8 ? above : r.bottom + 6) + 'px';
+  }, 120);
+}
+// (on any move, not only on entering: a click hides it, and in browsers that don't focus a clicked button nothing else would bring it back)
+for (const [ev, fn] of [['pointermove', e => { if (e.buttons) return; const el = e.target.closest('.arr-sec, .arr-pick'); if (el) showArrTip(el); else hideArrTip(); }], ['focusin', e => { const el = e.target.closest('.arr-sec, .arr-pick'); if (el) showArrTip(el); else hideArrTip(); }],
+  ['pointerleave', hideArrTip], ['focusout', hideArrTip], ['scroll', hideArrTip], ['pointerdown', hideArrTip]]) $('arr-grid').addEventListener(ev, fn, ev === 'scroll');
+$('arr-body').addEventListener('scroll', hideArrTip, { passive: true });
+$('arr-grid').addEventListener('pointermove', e => { const nm = e.target.closest('.arr-name'), id = nm ? nm.closest('.arr-row').dataset.id : null; if (id !== stageFocus.hover) stageFocus.hover = id; });
+$('arr-grid').addEventListener('pointerleave', () => { stageFocus.hover = null; });
+addEventListener('scroll', hideArrTip, { passive: true });
+$('arr-toggle').addEventListener('click', () => { arr.shut = !arr.shut; lsSet('cge.arr', arr.shut ? 'shut' : 'open'); renderArr(); if (!arr.shut) measureArr(); });
+// arrow keys move among a row's cells and between rows; Tab reaches each row's name, M and S
+$('arr-grid').addEventListener('keydown', e => {
+  const k = e.target.dataset && e.target.dataset.k, mm = k && /^([nc])(\d+)(?:-(\d+))?$/.exec(k); if (!mm || !/^Arrow/.test(e.key)) return;
+  let ri = +mm[2], ci = mm[1] === 'n' ? -1 : +mm[3];
+  if (e.key === 'ArrowRight') ci++; else if (e.key === 'ArrowLeft') ci--; else if (e.key === 'ArrowDown') ri++; else ri--;
+  const at = (r, c) => $('arr-grid').querySelector('[data-k="' + (c < 0 ? 'n' + r : 'c' + r + '-' + c) + '"]'), ok = el => el && !el.disabled;
+  let el = at(ri, ci);
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const d = e.key === 'ArrowRight' ? 1 : -1; while (el && !ok(el)) { ci += d; el = at(ri, ci); } } // past the start, which can't be changed
+  else if (el && !ok(el)) { let k = 1; for (; k < arr.cols.length; k++) { if (ok(at(ri, ci + k))) { el = at(ri, ci + k); break; } if (ok(at(ri, ci - k))) { el = at(ri, ci - k); break; } } }
+  if (ok(el)) { e.preventDefault(); el.focus(); }
+});
+// the cells are one Tab stop: the one last used (at first, the first that can be changed), and the arrows move from there
+$('arr-grid').addEventListener('focusin', e => { const b = e.target; if (!b.classList.contains('arr-cell')) return; $('arr-grid').querySelectorAll('.arr-cell').forEach(c => { c.tabIndex = c === b ? 0 : -1; }); arr.tab = b.dataset.k; });
+if (window.ResizeObserver) new ResizeObserver(() => { if (!$('arr').hidden && !arr.shut && arr.sig) { const ph = matchMedia('(max-width: 600px)').matches; if (ph !== arr.phone) { arr.phone = ph; arr.sig = ''; renderArr(); } else measureArr(); } }).observe($('arr-body'));
+function syncPlays() { renderArr(); }
+function setPartColor(id, c, record) {
+  const tgt = id === 'main' ? piece : (piece.parts || []).find(x => x.id === id || partIdOf(x) === id); if (!tgt) return;
+  if (c) tgt.color = c.toLowerCase(); else delete tgt.color;
+  if (record) { arr.sig = ''; renderArr(); syncPartColor(); commit(); } // (the grid takes the new colour; the stage reads it every frame)
+}
+function syncPartColor() {
+  const id = selPart, raw = id === 'main' ? piece : selRaw(); if (!raw) return;
+  const r = arr.rows.find(x => x.id === id), c = okColor(raw.color) || (r ? r.color : autoColor(0));
+  if (document.activeElement !== $('pcolor')) $('pcolor').value = c; $('pcolor-auto').disabled = !okColor(raw.color);
+  $('pcolor-lbl').textContent = (id === 'main' ? 'Main part' : raw.name || raw.id) + ' color';
+}
+$('pcolor').addEventListener('input', () => { setPartColor(selPart, $('pcolor').value, false); const row = $('arr-grid').querySelector('.arr-row[data-id="' + CSS.escape(selPart) + '"]'); if (row) row.style.setProperty('--c', $('pcolor').value); });
+$('pcolor').addEventListener('change', () => setPartColor(selPart, $('pcolor').value, true));
+$('pcolor-auto').addEventListener('click', () => setPartColor(selPart, null, true));
+function playsChanged(tgt) { rebuild(true); if (tgt !== piece) refreshPartBar(); commit(); }
 function refreshPartBar() {
   const sel = $('partsel'), raws = piece.parts || [];
   let norm = []; try { norm = raws.length ? (normalizePiece(Object.assign({}, piece, { realization: undefined })).parts || []) : []; } catch (e) { norm = []; }
@@ -2176,7 +2384,7 @@ function renderPartBlocks(n) {
     ta.addEventListener('input', () => { raw.line = ta.value; showErr(); changed(); }); ta.addEventListener('change', commit); showErr();
     const start = mk('input', { type: 'number', min: 0, step: 0.5, value: n.start });
     start.addEventListener('input', () => { raw.start = Math.max(0, +start.value || 0); changed(); }); start.addEventListener('change', commit);
-    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint help', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. The chords it plays over are under Whole piece.' })]),
+    put('harmony', field('Line', ta, [err, mk('p', { className: 'hint help', innerHTML: 'One note per step unless it says otherwise: <code>G4:2</code> lasts two steps, <code>-</code> is a rest, and <code>|</code> is just for reading. <code>~G4</code> slides into a note without a new attack, and <code>G4@0.6</code> (or <code>@60%</code>) strikes it softer. <code>G4:2/0.4</code> glides into a note over 0.4 seconds without a new attack (<code>/0.4l</code> in a straight line, <code>/0</code> a jump), and a note can carry cents to a thousandth: <code>G4-21.506</code>. In a piece with sections, <code>[B]</code> starts the notes for section B, and <code>[A A2]</code> notes for both; notes before any marker play everywhere else, and a section\'s key change moves the notes too. A line without markers keeps its timing: the sections it plays in (in the Arrangement) only choose where it\'s heard. The chords it plays over are under Whole piece.' })]),
       mk('div', { className: 'two' }, [select('Step', opts(STEP_NAMES), n.step, v => { raw.step = v; }), field('Start (beats)', start)]),
       mk('div', { className: 'checks' }, [check('Repeat to the end', n.repeat, v => { raw.repeat = v; }), check('Legato (join notes)', n.legato, v => { raw.legato = v; }), named(check('Never stops', n.nonstop, v => { if (v) raw.nonstop = true; else delete raw.nonstop; }), 'nonstop')]), mk('p', { className: 'hint help', dataset: { on: 'nonstop' }, textContent: 'Never stops: its voices sound from start to end as one tone each, like a single instrument changing notes. Rests hold the note before, and outside its sections (or before its first note and after its last) its voices join the chords in their own range.' }));
     }
@@ -2603,6 +2811,8 @@ aboutDlg.addEventListener('click', e => { if (e.target === aboutDlg) aboutDlg.cl
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   for (const [pop, btn] of POPS) if (e.key === 'Escape' && !pop.hidden) { setPop(pop, btn, false); btn.focus(); return; }
+  // Esc lets go of a part highlighted on the stage, wherever the keyboard is (a field keeps its own use of the key too); a dialog, a menu or full screen comes first
+  if (e.key === 'Escape' && stageFocus.pin && !aboutDlg.open && !settingsDlg.open && !openDlg.open && !$('discarddlg').open && !stageEl.classList.contains('pseudo-fs') && !isFull()) { stageFocus.pin = null; markArr(); }
   if (rendering && e.key !== '?') return;
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey || aboutDlg.open || settingsDlg.open || openDlg.open || $('discarddlg').open || recording) return;
   if (e.key === 'v' || e.key === 'V') { e.preventDefault(); cycleView(); return; }
@@ -2668,7 +2878,7 @@ function drawLookPreviews() {
 function syncLook() {
   const tr = piece.view.trace;
   document.querySelectorAll('#looks .swatch').forEach(el => { const on = el.dataset.k === tr.look; el.classList.toggle('on', on); el.querySelector('input').checked = on; });
-  $('lookq').value = tr.look;
+  $('lookq').value = tr.look; $(tr.byPart ? 'lc-part' : 'lc-look').checked = true;
   $('glowamt').value = tr.glow; $('o-glowamt').textContent = Math.round(tr.glow) + '%';
   const bz = tr.busy || 'range'; $('busy').value = bz; $('busys').value = bz; $('b-' + bz).checked = true; $('lineweight').value = tr.weight; $('o-lineweight').textContent = (+tr.weight).toFixed(2) + '×';
   $('c-line').value = tr.custom.line; $('c-line2').value = tr.custom.line2; $('c-bg').value = tr.custom.bg;
@@ -2696,6 +2906,7 @@ $('lookq').addEventListener('change', () => setLook({ look: $('lookq').value }, 
 $('glowamt').addEventListener('input', () => setLook({ glow: +$('glowamt').value }, false));
 for (const id of ['busy', 'busys']) $(id).addEventListener('change', () => setLook({ busy: $(id).value }, true)); // the same setting in three places: the video settings, Settings and the view menu
 document.querySelectorAll('input[name=busyq]').forEach(r => r.addEventListener('change', () => setLook({ busy: r.value }, true)));
+document.querySelectorAll('input[name=linecol]').forEach(r => r.addEventListener('change', () => { if (r.value === 'part') setLook({ byPart: true }, true); else { delete piece.view.trace.byPart; setLook({}, true); } }));
 $('lineweight').addEventListener('input', () => setLook({ weight: +$('lineweight').value }, false));
 ['glowamt', 'lineweight', 'c-line', 'c-line2', 'c-bg'].forEach(id => $(id).addEventListener('change', commit));
 [['c-line', 'line'], ['c-line2', 'line2'], ['c-bg', 'bg']].forEach(([id, key]) => $(id).addEventListener('input', () => setLook({ custom: { [key]: $(id).value.toLowerCase() } }, false)));

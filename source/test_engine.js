@@ -648,6 +648,27 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const line = mk({ plays: [], parts: [{ id: 'l', preset: 'line', line: 'C5 -:7', step: '1/4', transpose: [0], envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.1 }, echo: { time: '1/4', mix: 0.5, feedback: 0.5 } }] });
   check('An echo on a line rings on from its last note\'s release, not the end of the piece: an early note\'s echo has died away by the end, so nothing is added', line.total === 8, line.total);
 }
+{ // 4.4: a line written straight through keeps its time when its sections change; a repeating line and a pattern start again in each
+  const piece = (plays, extra = {}) => E.normalizePiece({ chords: '[A]\nC:4beat\n[B]\nF:4beat\n[C]\nG:4beat\n[D]\nC:4beat', timing: { unit: 'bar', tempo: 60 },
+    parts: [Object.assign({ id: 'l', preset: 'line', step: '1/4', line: 'C4 D4 E4 F4 | G4 A4 B4 C5 | D5 E5 F5 G5 | A5 B5 C6 D6', plays }, extra)] });
+  const notesOf = p => { const b = E.buildScore(E.buildPiece(E.parseProgression(p.chords).items, p), E.parseProgression(p.chords).items), pt = b.parts.find(x => x.id === 'l');
+    return pt ? pt.sub.gates[0].map(g => +g.on.toFixed(3) + ':' + E.noteName(Math.round(E.pitchAt(pt.sub, 0, g.on + 0.3)))) : []; };
+  const all = notesOf(piece(undefined)), noB = notesOf(piece(['A', 'C', 'D'])), noAB = notesOf(piece(['C', 'D']));
+  check('A line written straight through keeps its notes where they are when a section is turned off', noB.join() === all.filter(n => +n.split(':')[0] < 4 || +n.split(':')[0] >= 8).join(), noB.join(' '));
+  check('… also the first section: the rest stay put rather than starting the line again', noAB.join() === all.filter(n => +n.split(':')[0] >= 8).join(), noAB.join(' '));
+  const held = notesOf(piece(['B'], { line: 'C4:6 D4:2 | E4 F4 G4 A4 | B4 C5 D5 E5 | F5 G5 A5 B5' }));
+  check('A note held across a section\'s start is heard from that start', held[0] === '4:C4', held.join(' '));
+  const rep = notesOf(piece(['A', 'C'], { line: 'C4 D4', repeat: true }));
+  check('A repeating line still starts again in each stretch of its sections', rep.join() === '0:C4,1:D4,2:C4,3:D4,8:C4,9:D4,10:C4,11:D4', rep.join(' '));
+  const mk = notesOf(piece(['B'], { line: '[B] G4 A4' }));
+  check('A line with section markers still plays each section\'s own notes there', mk.join() === '4:G4,5:A4', mk.join(' '));
+}
+{ // 4.4: colours for parts, and lines by part: kept and checked, and no newer file format for them
+  const n = E.normalizePiece({ chords: 'C', color: '#AABBCC', view: { trace: { byPart: true } }, parts: [{ id: 'a', preset: 'line', line: 'C4', color: '#12ab34' }, { id: 'b', preset: 'line', line: 'C4', color: 'red' }] });
+  check('A part\'s colour and the main part\'s are kept (in lower case); one that isn\'t #rrggbb is dropped', n.color === '#aabbcc' && n.parts[0].color === '#12ab34' && n.parts[1].color === undefined, JSON.stringify([n.color, n.parts.map(p => p.color)]));
+  check('Lines coloured by part is kept with the look, and left out when off', n.view.trace.byPart === true && E.normalizePiece({ chords: 'C' }).view.trace.byPart === undefined);
+  check('Colours don\'t need a newer file format', n.formatVersion === 4 && E.normalizePiece({ chords: 'C', color: '#aabbcc', view: { trace: { byPart: true } } }).formatVersion === 3, n.formatVersion);
+}
 { // 4.3's sound: file format 6 only when a piece uses it
   const fv = p => E.normalizePiece(Object.assign({ chords: 'C, F' }, p)).formatVersion;
   const part = sound => ({ parts: [{ id: 'l', preset: 'line', line: 'C4', sound }] });

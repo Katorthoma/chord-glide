@@ -265,6 +265,7 @@ function normalizePiece(p) {
     const dc = d.view.trace.custom;
     out.view.trace = { look: pickFrom(tr.look, LOOKS, 'theme'), glow: num(tr.glow, 0, 100, 60), weight: num(tr.weight, 0.5, 3, 1), busy: pickFrom(tr.busy, ['range', 'middle', 'every'], 'range'),
       custom: { line: hex(c.line, dc.line), line2: hex(c.line2, hex(c.line, dc.line2)), bg: hex(c.bg, dc.bg) } };
+    if (tr.byPart) out.view.trace.byPart = true; // each line in its part's colour, on any look
   }
   { // auto zoom times chosen for this piece (seconds), in place of the automatic ones; kept in order
     const zm = p.view && p.view.zoom, ks = ['inStart', 'inEnd', 'outStart', 'outEnd'];
@@ -295,6 +296,7 @@ function normalizePiece(p) {
   if (p.mix === 'voices') out.mix = 'voices'; else delete out.mix;
   if (p.tuning === 'just') out.tuning = 'just'; else delete out.tuning; // pure chords that may drift (equal temperament if not set) // balance every voice equally rather than every part
   { const PL = p.plays, v = Array.isArray(PL) ? [...new Set(PL.map(x => String(x).slice(0, 40)).filter(Boolean))].slice(0, 64) : undefined; if (v) out.plays = v; else delete out.plays; } // the sections the main part plays in (all if none)
+  if (/^#[0-9a-f]{6}$/i.test(String(p.color))) out.color = String(p.color).toLowerCase(); else delete out.color; // the main part's colour (in the arrangement, and on the stage by part)
   out.formatVersion = formatFor(out); // other pieces still open in older versions
   return out;
 }
@@ -570,6 +572,7 @@ function normalizePart(q, P, i, used) {
       brightness: num(s.brightness, 200, OPEN_HZ, OPEN_HZ), opens: num(s.opens, 0, 100, 0), openTime: num(s.openTime, 0.02, 3, 0.3) }, // its own filter (open at the top), and how far and how long each note opens it
     envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release), curve: e.curve === 'exp' ? 'exp' : 'linear' } };
   if (plays) part.plays = plays;
+  if (/^#[0-9a-f]{6}$/i.test(String(q.color))) part.color = String(q.color).toLowerCase(); // its colour (automatic if not set): only how it's shown
   part.echo = normalizeEcho(q.echo);
   part.duck = (o => ({ under: String(o.under || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24), depth: num(o.depth, 0, 0.95, 0), time: num(o.time, 0.05, 2, 0.25) }))(obj(q.duck)); // dips when another part strikes a note
   if (preset === 'pad') part.breathe = (o => ({ depth: num(o.depth, 0, 0.9, 0), time: num(o.time, 0.05, 4, 0.6) }))(obj(q.breathe)); // dips at each chord change
@@ -740,8 +743,10 @@ function buildPattern(part, P, timeline, lay, budget = LINE_LIMITS.notes, end = 
 /* Where a line or pattern is laid, and with which text: [{ t0, t1, text }].
    Text that differs by section: each stretch of the piece, section by section, with that section's text (a stretch outside any
    section, or a section without its own, takes the text before the markers), restarting at each.
-   Otherwise: for a part that plays in chosen sections, each run of them; else the whole piece, to `end`. */
-function layoutFor(text, plays, runs, total, end) {
+   Otherwise: for a part that plays in chosen sections, each run of them, starting again at each (a riff or a pattern); else the
+   whole piece, to `end`. With keepTime (a line written straight through, which doesn't repeat), the whole piece, keeping only what
+   falls in its sections (`only`): its notes stay where they are written, and its sections choose where it's heard. */
+function layoutFor(text, plays, runs, total, end, keepTime = false) {
   const sp = splitBySection(text);
   if (sp.sectioned && runs.length) {
     const all = []; let t = 0;
@@ -750,7 +755,18 @@ function layoutFor(text, plays, runs, total, end) {
     return all.filter(r => !plays || plays.includes(r.name)).map(r => ({ t0: r.t0, t1: r.t1, text: textFor(sp, r.name) })).filter(r => r.text.trim());
   }
   const spans = plays && runs.length ? playSpans(runs, plays) : null;
+  if (spans && keepTime) return spans.length ? [{ t0: 0, t1: end, text: sp.base, only: spans }] : [];
   return spans ? spans.map(([a, b]) => ({ t0: a, t1: b, text: sp.base })) : [{ t0: 0, t1: end, text: sp.base }];
+}
+/* A line's notes kept only where they fall in the given stretches: a note across an edge is cut there (and the part inside a
+   stretch starts there as a new note, without its slide or glide, which came from a note it no longer follows) */
+function clipToSpans(seq, spans) {
+  const out = [];
+  for (const x of seq) for (const [a, b] of spans) {
+    const t0 = Math.max(x.t0, a), t1 = Math.min(x.t1, b); if (t1 <= t0 + 1e-9) continue;
+    const y = Object.assign({}, x, { t0, t1 }); if (t0 > x.t0 + 1e-9) { delete y.slide; delete y.glide; delete y.shape; } out.push(y);
+  }
+  return out;
 }
 // the key change in force at time t (a section's +2), 0 outside sections
 const keyAtFrom = runs => t => { for (const r of runs) if (t >= r.t0 - 1e-9 && t < r.t1 - 1e-9) return r.key || 0; return 0; };
@@ -777,7 +793,8 @@ function buildLine(part, P, lay, budget = LINE_LIMITS.notes, keyAt = () => 0, ti
     }
     if (cut) break;
   }
-  return lineFromSeq(part.nonstop ? nonstopSeq(seq, part, P, timeline, end) : seq, part, P, cut);
+  const kept = lay.length === 1 && lay[0].only ? clipToSpans(seq, lay[0].only) : seq; // a line that keeps its time, heard only in its sections
+  return lineFromSeq(part.nonstop ? nonstopSeq(kept, part, P, timeline, end) : kept, part, P, cut);
 }
 /* A part that never stops: its voices sound from the first moment to the end, as one tone each. A rest holds the note before it;
    wherever the part has nothing to play (outside its sections, before its first note, after its last) its voices join the chords:
@@ -948,7 +965,7 @@ function buildScore(main, items) {
   const timeline = items && items.length ? (main.events.length === items.length ? items.map((it, k) => ({ t: main.events[k].t, it, tu: TU && TU[k] }))
     : (() => { let t = 0; return items.map((it, k) => { const e = { t, it, tu: TU && TU[k] }; t += itemSeconds(it, P) || defaultChordSec(P); return e; }); })()) : null;
   const laid = part => part.preset === 'line' || part.preset === 'pattern'; // laid out within their sections, rather than gated to them
-  const lay = (part, end) => laid(part) ? layoutFor(part.preset === 'line' ? part.line : part.pattern, part.plays, runs, main.total, end) : null;
+  const lay = (part, end) => laid(part) ? layoutFor(part.preset === 'line' ? part.line : part.pattern, part.plays, runs, main.total, end, part.preset === 'line' && !part.repeat) : null;
   const subs = others.map(part => deferred(part) || part.preset === 'copy' ? null : take(buildPart(part, P, items, main.total, budget,
     lay(part, part.preset === 'line' && !part.repeat ? Infinity : main.total), timeline, keyAt)));
   let total = main.total; for (const s of subs) if (s) total = Math.max(total, s.total);
