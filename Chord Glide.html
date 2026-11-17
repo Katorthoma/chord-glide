@@ -98,6 +98,12 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-h
 .pop.menu > button svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
 .pop.menu kbd { margin-left: auto; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
 .pop.menu hr { width: 100%; border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+/* iPhone and iPad zoom the page in when you tap a field whose text is under 16 px, and leave it zoomed: there, every field's text is
+   at least 16 px. (-webkit-touch-callout is only on iOS and iPadOS, so desktop Safari and other browsers keep their sizes.) */
+@supports (-webkit-touch-callout: none) {
+  input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]):not([type=file]), select, textarea { font-size: max(16px, 1em) !important; }
+}
+.pop.menu .mver { margin-left: auto; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
 .pop.menu small { display: block; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
 .topbar .grp.end { margin-left: auto; padding-right: 0; }
 .topbar .grp.busy { border-left: 0; }
@@ -348,6 +354,9 @@ button.rerollall svg { width: 18px; height: 18px; }
 .xsec { display: grid; gap: 12px; align-content: start; max-width: 720px; }
 .xsec h3 { margin-bottom: 0; }
 .xsec .lede { margin: 0; }
+.coverbox { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: flex-start; margin: 18px 0 6px; }
+.coverbox img { width: 180px; height: 180px; flex: none; border-radius: 6px; border: 1px solid var(--rule); background: var(--stage); }
+.coverbox > div { flex: 1 1 220px; min-width: 0; } .coverbox h4 { margin: 0 0 4px; } .coversaves { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .coversaves .hint { margin: 0 4px 0 0; } .vthumbrow { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; margin: 8px 0; } .vthumbrow .hint { margin: 0; flex: 1 1 240px; } .coverbox .hint { margin: 0 0 10px; }
 .detgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 16px; }
 .det { display: grid; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .det.wide { grid-column: 1 / -1; }
@@ -520,9 +529,14 @@ dialog.about::backdrop { background: rgba(10, 12, 11, 0.5); }
   .tabs button { padding: 12px 16px 10px; flex: 0 0 auto; }
 }
 /* full screen: the stage fills the screen (native, or a fixed overlay where the browser refuses) */
-.stage:fullscreen, .stage.pseudo-fs { position: fixed; inset: 0; z-index: 50; border: 0; border-radius: 0; display: flex; flex-direction: column; width: 100%; height: 100%;
+/* (written with the .layout above it as well, so theater's rules for the stage, which outrank a bare .stage, never undo it: on an
+   iPhone, which covers the page instead of using the browser's full screen, theater put the stage back in the page, out of sight) */
+.stage:fullscreen, .stage.pseudo-fs, .layout.theater .stage:fullscreen, .layout.theater .stage.pseudo-fs { position: fixed; inset: 0; z-index: 50; border: 0; border-radius: 0; display: flex; flex-direction: column; width: 100%; height: 100%;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); background: var(--stage); }
-.stage:fullscreen .canvas-box, .stage.pseudo-fs .canvas-box { flex: 1 1 auto; aspect-ratio: auto; height: auto; min-height: 0; }
+.stage:fullscreen .canvas-box, .stage.pseudo-fs .canvas-box, .layout.theater .stage:fullscreen .canvas-box, .layout.theater .stage.pseudo-fs .canvas-box { flex: 1 1 auto; aspect-ratio: auto; height: auto; min-height: 0; }
+/* Theater only changes the layout on a wide screen, and full screen fills the screen whatever it says: its button shows only where it does something */
+@media (max-width: 920px) { #theater { display: none; } }
+.stage:fullscreen #theater, .stage.pseudo-fs #theater { display: none; }
 /* Interface themes chosen in Settings (per viewer). With none chosen, the page follows the device's light or dark setting. */
 :root[data-ui="paper"] { --paper: #F3F5F2; --stage: #FCFDFB; --ink: #121513; --muted: #5B645E; --rule: #D7DDD8; --accent: #2A4FD4; --accent-ink: #FFFFFF; --warn: #A9441C; --ok: #2E7A4F; color-scheme: light; }
 :root[data-ui="graphite"] { --paper: #0D0F0E; --stage: #141715; --ink: #E7ECE8; --muted: #98A29B; --rule: #2A302C; --accent: #8299FF; --accent-ink: #0D0F0E; --warn: #F08A5D; --ok: #6FCB95; color-scheme: dark; }
@@ -666,7 +680,7 @@ figure.vl circle { fill: var(--ink); }
           <hr>
           <button type="button" role="menuitem" data-proxy="settingsbtn">Settings</button>
           <button type="button" role="menuitem" data-proxy="guidebtn">Guide</button>
-          <button type="button" role="menuitem" data-about="about">About Chord Glide</button>
+          <button type="button" role="menuitem" data-about="about">About Chord Glide<span class="mver" id="menuver"></span></button>
         </div>
       </div>
     </div>
@@ -1079,6 +1093,7 @@ figure.vl circle { fill: var(--ink); }
           <canvas id="vcanvas" width="1920" height="1080" hidden></canvas>
           <progress id="vprog" max="1" value="0" hidden></progress>
           <p class="hint" id="vest" aria-live="polite"></p>
+          <p class="vthumbrow"><button type="button" class="small" id="vthumb">Save a thumbnail</button> <span class="hint">The piece's cover in this video's shape (1280 × 720 for landscape, 1080 × 1920 for portrait, 1000 × 1000 square), with its artist as the video shows it: to upload to YouTube with the video.</span></p>
           <p class="hint help" id="vhint" data-on="vrecord">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
         </div>
 </section>
@@ -1093,6 +1108,9 @@ figure.vl circle { fill: var(--ink); }
             <label class="det">Genre<input type="text" id="dgenre" maxlength="60" autocomplete="off" spellcheck="false" list="dgenres"><datalist id="dgenres"><option value="Ambient"><option value="Classical"><option value="Electronic"><option value="Experimental"><option value="Instrumental"><option value="New Age"><option value="Soundtrack"></datalist></label>
             <label class="det wide">Comment<textarea id="dcomment" rows="2" maxlength="1000" spellcheck="true"></textarea></label>
           </div>
+          <div class="coverbox"><img id="coverprev" alt="The cover" width="180" height="180" hidden>
+            <div><h4>Cover</h4><p class="hint">Made from the piece: its title and artist over its lines, in its trace look (the stage's Look menu). It's the cover art in MP3 and MP4 files, and shows on a phone's lock screen while the piece plays. The same design, wide or tall, makes a thumbnail for a YouTube video or Short.</p>
+            <div class="coversaves"><span class="hint">Save it as a picture:</span> <button type="button" class="small" data-cover="square" title="1000 × 1000, for music sites and players">Square</button> <button type="button" class="small" data-cover="youtube" title="1280 × 720, a YouTube video's thumbnail">16:9 for YouTube</button> <button type="button" class="small" data-cover="shorts" title="1080 × 1920, a YouTube Short's thumbnail (uploaded in YouTube Studio on the web)">9:16 for Shorts</button></div></div></div>
           <p class="hint">The artist, album, year, genre and comment are saved with this piece (a piece that hasn't set an artist uses your default). Every field goes into WAV, MP3 and rendered video (MP4, MOV or WebM); MIDI and MusicXML take the title and the artist (as the composer in MusicXML). Record live videos carry none of them.</p>
         </section>
       </div>
@@ -1221,7 +1239,7 @@ figure.vl circle { fill: var(--ink); }
           <p>Your saved pieces are kept in this browser, and <b>Open</b> lists them with when each was made and last changed, the version that saved it, its length, parts and size. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">9</span>Export</h4>
-          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; the <b>Details</b> page adds an artist (yours by default, or the piece's own, or none), an album, year, genre and comment, saved with the piece and written into WAV, MP3 and video files, with the title and artist in MIDI and MusicXML too. Videos can also show your name under the title on screen: tick <b>Artist name under the title</b> on the Video page, with the name beside it, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
+          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; the <b>Details</b> page adds an artist (yours by default, or the piece's own, or none), an album, year, genre and comment, saved with the piece and written into WAV, MP3 and video files, with the title and artist in MIDI and MusicXML too. MP3 and MP4 files also carry the piece's <b>cover</b>: its title and artist over its lines, in its trace look. The Details page shows it and saves it as a picture, square or as a thumbnail for a YouTube video (16:9) or Short (9:16); the Video page's <b>Save a thumbnail</b> saves the one in the video's shape. Videos can also show your name under the title on screen: tick <b>Artist name under the title</b> on the Video page, with the name beside it, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
 
           <h4><span class="step">10</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -1367,7 +1385,7 @@ figure.vl circle { fill: var(--ink); }
           <dl class="keylist"><dt><kbd>Space</kbd></dt><dd>Play or pause</dd><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></dl>
 
           <h4><span class="step">◐</span>View</h4>
-          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page</dd><dt><kbd>E</kbd></dt><dd>Export: audio, MIDI, notation and video</dd><dt><kbd>R</kbd></dt><dd>Reroll every unlocked layer</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
+          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page (on a wider screen)</dd><dt><kbd>E</kbd></dt><dd>Export: audio, MIDI, notation and video</dd><dt><kbd>R</kbd></dt><dd>Reroll every unlocked layer</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
 
           <h4><span class="step">↺</span>Editing</h4>
           <dl class="keylist"><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd><dt><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Redo</dd><dt><kbd>⌘</kbd> <kbd>S</kbd></dt><dd>Save the piece</dd></dl>
@@ -1379,6 +1397,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.7.2</span>Covers and the lock screen<span class="when">17 Nov 2026</span></h4>
+          <p>Every piece has a <b>cover</b>, made from it: its title and artist at the top, in its trace look's colours, over its lines across the bottom half. It's in Export → Details, which also saves it as a picture, square or as a thumbnail for a YouTube video or Short (as does the Video page, in the video's shape), embedded in MP3 and MP4 exports, and on the lock screen, which now shows what's playing: the piece's name, its artist and album, its cover, and where it's got to, with a scrubber you can drag and buttons to skip 10 seconds. On an iPhone or iPad, tapping a field (the piece's name, the chords, a menu) no longer zooms the page in. Full screen on an iPhone no longer goes blank with theater mode on, and the theater button shows only where theater changes something: on a wider screen, outside full screen. And on a phone, the menu's About item shows the version.</p>
 
           <h4><span class="step ver">4.7.1</span>Sound on iPhone<span class="when">17 Nov 2026</span></h4>
           <p>On an iPhone or iPad in silent mode, Play made no sound: iOS treats a web page's sound as background noise that silent mode mutes. Chord Glide now plays as music apps do, whatever the switch says (and, like them, pauses other audio when it starts). And while a piece plays, the screen stays on, so the phone doesn't lock part-way through and stop it. Locking it yourself, or switching apps, still stops the sound.</p>
@@ -3034,16 +3055,22 @@ function encodeWav24(left, right, sampleRate, meta = null) {
 }
 
 /* ID3v2.3 tag for the front of an MP3: TIT2 (title), TPE1 (artist), TALB (album), TYER (year), TCON (genre) and COMM (comment,
-   in English with no description), in UTF-16 with a byte-order mark. Empty if there's nothing to say. */
+   in English with no description), in UTF-16 with a byte-order mark; and meta.cover, a JPEG, as the front cover (APIC, picture
+   type 3). Empty if there's nothing to say. */
 function id3v2(meta) {
   const ids = { title: 'TIT2', artist: 'TPE1', album: 'TALB', year: 'TYER', genre: 'TCON', comment: 'COMM' }, frames = [];
   for (const [k, v] of metaFields(meta)) {
     const body = k === 'comment' ? [1, 0x65, 0x6E, 0x67, 0xFF, 0xFE, 0, 0, 0xFF, 0xFE] : [1, 0xFF, 0xFE]; /* (a comment: encoding, language, an empty description, then its text) */ for (const ch of v) { const c = ch.codePointAt(0); if (c > 0xFFFF) { const u = c - 0x10000; body.push(...[0xD800 + (u >> 10), 0xDC00 + (u & 1023)].flatMap(x => [x & 255, x >> 8])); } else body.push(c & 255, c >> 8); }
     frames.push(...fourcc(ids[k]), ...be32(body.length), 0, 0, ...body);
   }
-  if (!frames.length) return new Uint8Array(0);
-  const n = frames.length, size = [(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]; // sync-safe
-  return Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size, ...frames]);
+  const parts = [Uint8Array.from(frames)], cover = meta && meta.cover instanceof Uint8Array && meta.cover.length ? meta.cover : null;
+  if (cover) { // (kept as its own bytes: spreading a picture into an array of numbers can pass the browser's limit on arguments)
+    const head = [0, ...[...'image/jpeg'].map(c => c.charCodeAt(0)), 0, 3, 0]; // Latin-1, the type, front cover, no description
+    parts.push(Uint8Array.from([...fourcc('APIC'), ...be32(head.length + cover.length), 0, 0, ...head]), cover);
+  }
+  const body = catBytes(parts); if (!body.length) return new Uint8Array(0);
+  const n = body.length, size = [(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]; // sync-safe
+  return catBytes([Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size]), body]);
 }
 
 /* Put an "Info" frame (the constant-bitrate form of the Xing header) at the front of an MP3 stream, so players know its exact
@@ -3417,7 +3444,7 @@ function avcCParams(c) {
    delay: the encoder's start-up samples (AAC priming) for players to skip; length: the real sound in samples. Both go in an edit list.
    PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them.
    meta: { title, artist, album, year, genre, comment } — iTunes-style tags (moov/udta/meta/ilst) in an MP4, classic QuickTime text
-   atoms (moov/udta/©nam, ©ART, ©alb, ©day, ©gen, ©cmt) in a .mov. */
+   atoms (moov/udta/©nam, ©ART, ©alb, ©day, ©gen, ©cmt) in a .mov. meta.cover, a JPEG, goes in an MP4 as its cover art (covr). */
 function mp4Mux({ video, audio, quicktime = false, meta = null }) {
   // video: split each frame into NAL units, keep the parameter sets for the avcC box, store the rest length-prefixed
   let { sps, pps } = avcCParams(video.description);
@@ -3479,10 +3506,11 @@ function mp4Mux({ video, audio, quicktime = false, meta = null }) {
 
   // what the file says about itself
   const tags = metaFields(meta), atom = { title: '\u00A9nam', artist: '\u00A9ART', album: '\u00A9alb', year: '\u00A9day', genre: '\u00A9gen', comment: '\u00A9cmt' };
-  const udta = !tags.length ? new Uint8Array(0) : quicktime
+  const cover = !quicktime && meta && meta.cover instanceof Uint8Array && meta.cover.length ? meta.cover : null;
+  const udta = !tags.length && !cover ? new Uint8Array(0) : quicktime
     ? mbox('udta', ...tags.map(([k, v]) => { const b = utf8(v); return mbox(atom[k], be16(b.length), be16(0x55C4), b); })) // UTF-8, language 'und'
     : mbox('udta', fullBox('meta', 0, 0, fullBox('hdlr', 0, 0, be32(0), fourcc('mdir'), fourcc('appl'), be32(0), be32(0), [0]),
-        mbox('ilst', ...tags.map(([k, v]) => mbox(atom[k], mbox('data', be32(1), be32(0), utf8(v)))))));
+        mbox('ilst', ...tags.map(([k, v]) => mbox(atom[k], mbox('data', be32(1), be32(0), utf8(v)))), ...(cover ? [mbox('covr', mbox('data', be32(13), be32(0), cover))] : [])))); // (13: JPEG)
   const build = offsets => {
     const chunkOffsets = (tr, n) => { const a = offsets ? offsets[tr] : new Array(n).fill(0); return big ? fullBox('co64', 0, 0, be32(n), ...a.map(be64)) : fullBox('stco', 0, 0, be32(n), be32Table(a)); };
     const dinf = mbox('dinf', fullBox('dref', 0, 0, be32(1), fullBox('url ', 0, 1)));
@@ -3598,7 +3626,7 @@ const EXAMPLE_PIECES = [{"format":"chord-glide-piece","formatVersion":3,"name":"
 {"format":"chord-glide-piece","formatVersion":7,"name":"Bells at Dusk","chords":"[Toll]\nDm:2bar Bb:2bar\nGm:2bar A:2bar\n[Dance]\nDm Bb F C\nDm Bb Gm A\n[Dance2]\nDm Bb F C\nGm Bb A:2bar\n[Bend]\nBb:2bar F/A:2bar\nGm:2bar A:2bar\n[Final]\nDm:2bar Bb:2bar\nGm A Dm:2bar","voices":4,"plays":["Toll","Bend","Final"],"color":"#f2c46b","timing":{"chordSec":2.86,"glide":0.9,"easing":"smooth","tempo":84,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":75,"coverage":80,"stacking":30,"spacing":45,"variation":10,"spread":55,"top":79,"bassMode":"root","bassOctave":2},"motion":{"order":"together","stagger":0},"sound":{"tone":"bell","detune":3,"width":70,"reverb":46,"brightness":7000,"hardness":42,"ring":1.1,"stop":false},"seeds":{"harmony":1,"voicing":4505,"motion":31415,"sound":2718},"locks":{"harmony":true,"voicing":false,"motion":false,"sound":false},"view":{"mode":"auto","labels":"notes","trace":{"look":"neon","glow":55,"weight":1,"byPart":true}},"parts":[{"id":"gong","name":"Gong","preset":"line","line":"[Toll] D2:16 G1:16\n[Final] D2:16 -:8 D2:8","step":"1/4","plays":["Toll","Final"],"color":"#e0864f","sound":{"tone":"gong","level":4,"pan":-0.15,"width":10,"detune":3,"hardness":35,"ring":1.4},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"marimba","name":"Marimba","preset":"pattern","pattern":"1 3 2 4 3 5 4 3","from":50,"step":"1/8","plays":["Dance","Dance2","Final"],"color":"#c98bff","sound":{"tone":"marimba","level":-8,"pan":-0.35,"width":30,"detune":3,"hardness":58,"ring":1},"envelope":{"attack":0.003,"decay":0.5,"sustain":0,"release":0.5,"curve":"exp"}},{"id":"drum","name":"Drum","preset":"pattern","pattern":"D2 - - D2 - D2 A2 -","step":"1/8","plays":["Dance","Dance2"],"color":"#ff6b6b","sound":{"tone":"drum","level":-1,"pan":0.05,"width":5,"detune":3,"hardness":45,"ring":1.1},"envelope":{"attack":0.003,"decay":0.5,"sustain":0,"release":0.5,"curve":"exp"}},{"id":"triangle","name":"Metal triangle","preset":"line","line":"[Dance2] E6:8 E6:8 E6:8 E6:4 E6:2 E6:2\n[Final] E6:8 -:16 E6:8","step":"1/4","plays":["Dance2","Final"],"color":"#9be7ff","sound":{"tone":"metaltri","level":-5,"pan":0.4,"width":10,"detune":3,"hardness":70,"ring":0.8},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"lead","name":"FM melody","preset":"line","line":"[Dance] A4:2 D5:2 F5:3 E5:1 | D5:2 F5:2 Bb5:3 A5:1 | A5:3 G5:1 F5:2 C5:2 | E5:6 G5:2 | F5:2 E5:2 D5:3 A4:1 | Bb4:2 D5:2 F5:4 | G5:3 F5:1 D5:2 Bb4:2 | C#5:4 E5:2 A4:2\n[Dance2] F5:2 A5:2 D6:3 C6:1 | Bb5:2 A5:2 F5:3 D5:1 | C6:3 A5:1 F5:2 A5:2 | G5:6 E5:2 | Bb5:3 A5:1 G5:2 D5:2 | F5:3 G5:1 A5:2 Bb5:2 | A5:6 G5:1 F5:1 | E5:4 C#5:4","step":"1/8","plays":["Dance","Dance2"],"color":"#5ee0b0","sound":{"tone":"fm","level":-2,"pan":0.1,"width":15,"detune":3,"fmRatio":2,"fmIndex":5,"fmSustain":1.1,"fmTime":0.5,"reverb":110},"envelope":{"attack":0.01,"decay":0.3,"sustain":0.75,"release":0.25,"curve":"exp","shape":"arch","depth":0.7},"vibrato":{"cents":9,"rate":5.4,"delay":0.35}},{"id":"bend","name":"Bending bell","preset":"line","line":"[Bend] D5:4 ~F5:4/1.6 | C5:4 ~A4:4/2 | Bb4:4 ~D5:4/1.6 | C#5:4 ~E5:4/2.4","step":"1/4","plays":["Bend"],"color":"#ffe08a","sound":{"tone":"bell","level":-1,"pan":0.2,"width":10,"detune":3,"hardness":55,"ring":1.6},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"strings","name":"Swelling strings","preset":"line","line":"[Bend] F3:8 A3:8 D3:8 C#3:8\n[Final] D3:8 F3:8 D3:4 C#3:4 D3:8","step":"1/4","plays":["Bend","Final"],"color":"#7fa8ff","transpose":[0,12],"sound":{"tone":"bowed","level":-9,"pan":-0.25,"width":40,"detune":3,"ensemble":45},"envelope":{"attack":0.08,"decay":0.4,"sustain":0.85,"release":0.6,"curve":"exp","shape":"swell","depth":1},"vibrato":{"cents":6,"rate":5.2,"delay":0.5}},{"id":"bed","name":"String bed","preset":"pad","voices":4,"plays":["Dance","Dance2"],"color":"#8fb5d9","sound":{"tone":"bowed","level":-13,"pan":0,"width":60,"detune":3,"ensemble":50},"voicing":{"top":72,"bassMode":"none"}}]}];
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.7.1';
+const APP_VERSION = '4.7.2';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -3881,6 +3909,7 @@ function rebuild(keepTime = true, restartAudio = true) {
   screenCam.snap = true;
   if (playing && !recording && restartAudio) startAudio(offset);
   updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
+  nowPlaying(); coverSoon(); // a new length, and in a moment a new cover
 }
 /* Playback and exports need a built piece; a piece file can always be saved (without notes if there are none) */
 function updateAvailability() {
@@ -3891,6 +3920,7 @@ function updateAvailability() {
   document.querySelectorAll('[data-export]').forEach(b => b.disabled = !save || (!has && b.dataset.export !== 'json'));
   $('xopen').disabled = !save || exporting;
   for (const id of ['vrender', 'vrecord']) $(id).disabled = !save || !has;
+  $('vthumb').disabled = !has;
 }
 // saved notes play exactly as written when they come from another engine, or are marked "custom" (written by hand or by another program)
 const isFrozen = () => !!(piece && piece.realization && piece.realization.engine !== ENGINE_VERSION && validRealization(piece.realization));
@@ -3996,6 +4026,7 @@ function setStatus(msg, warn = false) {
   if (msg) statusTimer = setTimeout(() => { statusNote = ''; statusWarn = false; updateStatus(); }, warn ? 9000 : 4500);
 }
 function updateStatus() {
+  try { nowPlaying(); coverSoon(); } catch (e) {} // a new name or artist reaches the lock screen as it's typed (try: this can run before nowPlaying's settings exist)
   const dirty = savedJSON === null ? (currentLibId ? false : true) : JSON.stringify(piece) !== savedJSON;
   const base = currentLibId ? (dirty ? 'Unsaved changes' : 'Saved') : 'Not saved yet';
   $('status').textContent = statusNote ? statusNote + ' · ' + base : base; $('status').title = $('status').textContent;
@@ -4256,20 +4287,96 @@ function renderDetail(list) {
 }
 /* A small picture of the piece in its own look: every voice's pitch over the whole piece, drawn where it sounds */
 function drawThumb(cnv, f) {
-  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, d = W / 320, sb = f.sb, pal = tracePalette(f.q.view.trace);
-  paintBackground(g, W, H, pal);
-  const T = Math.max(0.1, sb.total), lo = sb.min - 1, hi = sb.max + 1, Y = p => H - 10 * d - (p - lo) / Math.max(6, hi - lo) * (H - 20 * d);
+  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, pal = tracePalette(f.q.view.trace);
+  paintBackground(g, W, H, pal); drawTraceIn(g, f.sb, pal, 0, 0, W, H, W / 320);
+}
+/* The whole piece's lines, in the box x0, y0, w × h, as Open draws them (d: the scale, 1 for a 320-wide picture) */
+function drawTraceIn(g, sb, pal, x0, y0, w, h, d) {
+  const T = Math.max(0.1, sb.total), lo = sb.min - 1, hi = sb.max + 1, Y = p => y0 + h - 10 * d - (p - lo) / Math.max(6, hi - lo) * (h - 20 * d);
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   g.lineJoin = 'round'; g.lineCap = 'round';
   for (let v = 0; v < sb.N; v++) {
     const path = new Path2D(); let on = false;
-    for (let x = 0; x <= W; x += 1.5 * d) {
-      const t = x / W * T;
+    for (let x = 0; x <= w; x += 1.5 * d) {
+      const t = x / w * T;
       if (gainAt(sb, v, t) < 0.02) { on = false; continue; }
-      const y = Y(pitchAt(sb, v, t)); if (on) path.lineTo(x, y); else { path.moveTo(x, y); on = true; }
+      const y = Y(pitchAt(sb, v, t)); if (on) path.lineTo(x0 + x, y); else { path.moveTo(x0 + x, y); on = true; }
     }
     glowStroke(g, path, grad || pal.line(v, sb.N), pal.core, pal, d * 0.75, 1);
   }
+}
+/* The piece's cover: its title, large (one line, or up to three balanced ones), and its artist under it, smaller, in the colours its
+   trace look gives a video's title and artist, so they read against its background; the whole piece's lines below. Square (the
+   lock screen, Export → Details, the cover art of MP3 and MP4 files) and 16:9 (a YouTube thumbnail): the title at the top and the
+   lines across the bottom half. 9:16 (a Shorts thumbnail): the title a third of the way down and the lines below it, so both stay
+   in view where YouTube shows a Short's thumbnail cropped to its middle. */
+function drawCover(cnv, sb, q, artist, cols = liveColors()) {
+  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, tall = H > W * 1.2, pal = tracePalette(q.view.trace, cols), family = (cols && cols.display) || 'sans-serif';
+  const d = Math.min(W, H * 1.25) / 400 * (Math.abs(W - H) > W * 0.05 ? 1.3 : 1), m = Math.min(W, H) * 0.075; // (a thumbnail's title larger: it's seen small)
+  paintBackground(g, W, H, pal);
+  const tf = fitCoverTitle(g, String(q.name || '').trim() || 'Untitled piece', W - 2 * m, d, family);
+  let as = 0, a = '';
+  if (artist) { as = Math.max(Math.min(W, H) * 0.032, tf.size * 0.5); g.font = `500 ${as}px ${family}`; a = artist; while (a.length > 1 && g.measureText(a).width > W - 2 * m) a = a.slice(0, -2).trimEnd() + '…'; }
+  const top = tall ? H * 0.33 : m, first = top + tf.size * 0.78, last = first + (tf.lines.length - 1) * tf.size * 1.12, artistY = last + as * 1.7, bottom = (a ? artistY : last) + tf.size * 0.25;
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = pal.title; g.font = `700 ${tf.size}px ${family}`;
+  tf.lines.forEach((ln, i) => g.fillText(ln, m, first + i * tf.size * 1.12));
+  if (a) { g.fillStyle = pal.text; g.font = `500 ${as}px ${family}`; g.fillText(a, m, artistY); }
+  const y0 = Math.max(tall ? H * 0.5 : H * 0.46, bottom + m * 0.6), y1 = tall ? H * 0.88 : H - m * 0.5;
+  drawTraceIn(g, sb, pal, 0, y0, W, y1 - y0, Math.min(W, H) / 320);
+}
+/* Save a piece's cover as a JPEG in one of its shapes: 'square' (1000 × 1000), 'youtube' (1280 × 720) or 'shorts' (1080 × 1920) */
+const COVER_SIZES = { square: [1000, 1000, 'cover'], youtube: [1280, 720, 'YouTube thumbnail'], shorts: [1080, 1920, 'Shorts thumbnail'] };
+async function saveCover(shape, artist) {
+  if (!built) return; const [w, h, what] = COVER_SIZES[shape] || COVER_SIZES.square;
+  const b = await coverBytes(built, piece, artist, undefined, w, h); if (b) await saveFile(safeName(piece.name) + ' (' + what + ').jpg', b);
+}
+/* A cover's title: as few lines as keep it large (34 units on one line, else up to three lines split where they balance, at
+   least 26 units if that's enough, down to 20), never starting a line with a dash or colon; only a title too long for three
+   lines at 20 is shortened, with an ellipsis. */
+function fitCoverTitle(g, text, maxW, d, family) {
+  const R = 100, width = str => { g.font = `700 ${R}px ${family}`; return g.measureText(str).width; }; // widths at a reference size, scaled
+  const words = text.split(' ').filter(Boolean).reduce((a, w) => { if (a.length && /^[—–\-:|·/]+$/.test(w)) a[a.length - 1] += ' ' + w; else a.push(w); return a; }, []);
+  const splits = n => { // the split into n lines whose widest line is narrowest
+    if (n === 1) return [words.join(' ')];
+    let best = null;
+    const go = (from, left, acc) => { if (left === 1) { const l = acc.concat(words.slice(from).join(' ')), w = Math.max(...l.map(width)); if (!best || w < best.w) best = { w, l }; return; }
+      for (let k = from + 1; k <= words.length - left + 1; k++) go(k, left - 1, acc.concat(words.slice(from, k).join(' '))); };
+    go(0, n, []); return best && best.l;
+  };
+  const tries = [];
+  for (let n = 1; n <= Math.min(3, words.length); n++) { const l = splits(n); if (!l) continue; const size = Math.min(34 * d, R * maxW / Math.max(...l.map(width))); tries.push({ size, lines: l }); if (size >= 26 * d) return tries[tries.length - 1]; }
+  const best = tries.reduce((a, t) => t.size > a.size ? t : a);
+  if (best.size >= 20 * d) return best;
+  // too long even then: filled line by line at 20, reading straight on, and the third line ends with an ellipsis
+  const size = 20 * d, w = str => { g.font = `700 ${size}px ${family}`; return g.measureText(str).width; }, lines = [];
+  let cur = '';
+  for (const wd of words) { const next = cur ? cur + ' ' + wd : wd; if (cur && w(next) > maxW) { lines.push(cur); cur = wd; } else cur = next; }
+  if (cur) lines.push(cur);
+  const keep = lines.slice(0, 3); if (lines.length > 3) keep[2] = lines.slice(2).join(' ');
+  return { size, lines: keep.map(l => { if (w(l) <= maxW) return l; let t = l; while (t.length > 1 && w(t + '…') > maxW) t = t.slice(0, -1); return t.trimEnd() + '…'; }) };
+}
+/* The current piece's cover as a 512 px picture (the lock screen, the Details page), made again only when something on it changes */
+let coverMemo = { key: '', b: null, url: '' };
+const coverKey = () => [JSON.stringify(piece.view.trace), piece.name, artistName(), colors.stage, colors.ink, colors.muted, colors.display].join('\u0001');
+function coverURL() {
+  if (!built || !piece) return '';
+  const key = coverKey(); if (coverMemo.b === built && coverMemo.key === key) return coverMemo.url;
+  let url = ''; try { const c = mk('canvas', { width: 512, height: 512 }); drawCover(c, built, piece, artistName()); url = c.toDataURL('image/jpeg', 0.9); } catch (e) {}
+  coverMemo = { key, b: built, url }; return url;
+}
+/* A 1000 px JPEG of a piece's cover, for a file (null if it can't be made) */
+async function coverBytes(sb, q, artist, cols, w = 1000, h = 1000) {
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const c = mk('canvas', { width: w, height: h }); drawCover(c, sb, q, artist, cols);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } catch (e) { return null; }
+}
+/* The Details page's preview, kept up to date while it's showing */
+let coverTimer = null;
+function coverSoon() {
+  if (typeof exportDlg === 'undefined' || !exportDlg.open || $('xp-details').hidden) return;
+  clearTimeout(coverTimer); coverTimer = setTimeout(() => { const u = coverURL(); $('coverprev').hidden = !u; if (u && $('coverprev').src !== u) $('coverprev').src = u; }, 250);
 }
 function openEntry(e) {
   if (e.kind === 'saved' && factsOf(e, true).error) return;
@@ -4738,7 +4845,7 @@ function startAudio(from, extraOut, lead) {
   ensureCtx(); stopAudio(0.06);
   if (from >= built.total + TAIL - 0.05) from = 0; // at the very end, start over; inside the closing fade, play the rest of it
   live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false, lead);
-  startAt = live.now - from;
+  startAt = live.now - from; nowPlaying(); // (the lock screen's scrubber, after a seek)
 }
 function currentT() { return playing && actx && live ? Math.max(0, actx.currentTime - startAt) : offset; }
 /* While a piece plays, the screen stays on (where the browser offers it: Safari on iPhone and iPad since 16.4, Chrome, Edge), so
@@ -4757,7 +4864,33 @@ function keepAwake(on) {
   } else if (wakeLock) { wakeAsk++; if (wakeLock !== 'asking') wakeLock.release().catch(() => {}); wakeLock = null; }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && playing) keepAwake(true); });
-function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; keepAwake(playing); }
+/* What's playing, for the lock screen and the system's media controls (Media Session): the piece's name, its artist and album (from
+   Export → Details), a picture of the whole piece as its cover, and how long it is and where it's got to, so the scrubber there
+   shows and moves it. Play, pause, skip 10 seconds and seek work from there too. Nothing is said until the first Play. */
+const MS = 'mediaSession' in navigator && typeof MediaMetadata === 'function' ? navigator.mediaSession : null;
+let msOn = false, msSaid = '', msArt = { of: null, url: '' }, msArtTimer = null;
+function nowPlaying() {
+  if (!MS || !piece || (!msOn && !playing)) return;
+  if (!msOn) { msOn = true;
+    const on = (a, f) => { try { MS.setActionHandler(a, f); } catch (e) {} }, to = t => { if (built) { jumpTo(Math.max(0, Math.min(built.total + TAIL - 0.25, t))); nowPlaying(); } }; // (short of the very end, where Play starts over)
+    on('play', () => setPlaying(true)); on('pause', () => setPlaying(false)); on('stop', () => setPlaying(false));
+    on('seekto', d => to(d.seekTime)); on('seekbackward', d => to(currentT() - (d.seekOffset || 10))); on('seekforward', d => to(currentT() + (d.seekOffset || 10)));
+  }
+  try {
+    const album = pieceTags(piece).album || '', title = piece.name || 'Untitled piece', artist = artistName() || 'Chord Glide', say = [title, artist, album, msArt.url].join('\u0001');
+    if (say !== msSaid) { msSaid = say; const art = [];
+      if (msArt.url) art.push({ src: msArt.url, sizes: '512x512', type: 'image/jpeg' });
+      if (location.protocol !== 'file:') art.push({ src: new URL('apple-touch-icon.png', location.href).href, sizes: '180x180', type: 'image/png' }); // the app's icon until (or if) the picture can't be used
+      MS.metadata = new MediaMetadata({ title, artist, album, artwork: art }); }
+    MS.playbackState = playing ? 'playing' : 'paused';
+    if (built && MS.setPositionState) { const d = built.total + TAIL; MS.setPositionState({ duration: d, playbackRate: 1, position: Math.max(0, Math.min(d, currentT())) }); }
+  } catch (e) {}
+  if (built && (msArt.of !== built || msArt.key !== coverKey())) { // the cover (see drawCover), made a moment after the piece last changed
+    clearTimeout(msArtTimer); const b = built;
+    msArtTimer = setTimeout(() => { if (b !== built) return; msArt = { of: b, key: coverKey(), url: coverURL() }; nowPlaying(); }, 400);
+  }
+}
+function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; keepAwake(playing); nowPlaying(); }
 function setPlaying(on) {
   if (on === playing || !built) return;
   if (on) { if (offset >= built.total + TAIL - 0.05) offset = 0; startAudio(offset); playing = true; }
@@ -5465,6 +5598,8 @@ async function doExport(kind) {
     if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr, opts) });
     let mp3Note = '';
     if (kind === 'mp3' || kind === 'all') {
+      const cover = await coverBytes(built, piece, artistName()); if (cover) opts.cover = cover; // (its cover art; see drawCover)
+      if (kind === 'all' && cover) files.push({ name: name + ' (cover).jpg', data: cover });
       try { files.push({ name: name + '.mp3', data: catBytes([id3v2(opts), await encodeMp3(audio)]) }); }
       catch (e) { if (kind === 'mp3') throw e; mp3Note = ' The MP3 was left out: ' + e.message; }
     }
@@ -5743,6 +5878,7 @@ async function renderVideo() {
     const video = { codec: vconf.codec.startsWith('vp8') ? 'vp8' : 'vp9', width: w, height: h, fps, description: o.format === 'mp4' ? vDesc : null, samples: vSamples };
     const box = videoContainer(o.format, aconf.kind);
     const meta = Object.assign({ title: String(snap.piece.name || '').trim() || fileName, artist: artistOf(snap.piece) }, pieceTags(snap.piece));
+    if (o.format === 'mp4' && box.ext !== 'mov') { const cover = await coverBytes(snap.built, snap.piece, artistOf(snap.piece), snap.colors); if (cover) meta.cover = cover; } // an MP4's cover art
     const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov', meta }) : webmMux({ video, audio, meta });
     const blob = new Blob(parts, { type: box.type });
     const secs = ((performance.now() - started) / 1000).toFixed(0);
@@ -5893,7 +6029,7 @@ function partLabel(n, raw) {
    listening only: neither is saved with the piece. */
 let loopOn = false, loopRun = null;
 const sectionRunAt = t => (built && built.sections || []).find(r => t >= r.t0 - 1e-6 && t < r.t1 - 1e-6) || null;
-function jumpTo(t) { offset = t; screenCam.snap = true; if (playing) startAudio(offset); }
+function jumpTo(t) { offset = t; screenCam.snap = true; if (playing) startAudio(offset); else nowPlaying(); }
 function fillSections() {
   const list = $('seclist'), runs = built && built.sections || [], here = sectionRunAt(currentT());
   list.textContent = '';
@@ -6363,9 +6499,11 @@ function syncArtistNote() {
 function syncDetails() {
   if (document.activeElement !== $('dtitle')) $('dtitle').value = piece.name || '';
   for (const id of ['artist', 'vartistname']) if (document.activeElement !== $(id)) $(id).value = artistName();
-  syncArtistNote(); showArtistOption(); // the video's tick box follows the piece's artist (a piece opened with one, or none)
+  syncArtistNote(); showArtistOption(); nowPlaying(); coverSoon(); // the video's tick box follows the piece's artist (a piece opened with one, or none)
   const t = pieceTags(piece); for (const [id, k] of TAG_FIELDS) if (document.activeElement !== $(id)) $(id).value = t[k] || '';
 }
+document.querySelectorAll('[data-cover]').forEach(btn => btn.addEventListener('click', () => saveCover(btn.dataset.cover, artistName())));
+$('vthumb').addEventListener('click', () => saveCover({ '16:9': 'youtube', '9:16': 'shorts', '1:1': 'square' }[$('vaspect').value] || 'youtube', videoArtist())); // as the video shows it
 $('dtitle').addEventListener('input', () => { $('name').value = $('dtitle').value; piece.name = $('dtitle').value; updateStatus(); saveDraftSoon(); });
 $('dtitle').addEventListener('change', () => { piece.name = safeName($('dtitle').value); $('name').value = $('dtitle').value = piece.name; commit(); });
 for (const [id, k] of TAG_FIELDS) {
@@ -6433,8 +6571,8 @@ function setVolume(v) {
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
 $('play').addEventListener('click', () => setPlaying(!playing));
-$('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
-$('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
+$('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); else nowPlaying(); });
+$('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); else nowPlaying(); });
 $('save').addEventListener('click', () => savePiece(false));
 $('saveas').addEventListener('click', () => savePiece(true));
 $('openbtn').addEventListener('click', () => showOpen());
@@ -6549,6 +6687,7 @@ function showExportPage(k, focusTab) {
   if (!exportTabs.some(t => t.dataset.xpage === k)) k = 'files';
   exportTabs.forEach(t => { const on = t.dataset.xpage === k; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $('xp-' + t.dataset.xpage).hidden = !on; if (on && focusTab) t.focus(); });
   $('export-pages').scrollTop = 0; lsSet('cge.export', k);
+  if (k === 'details') coverSoon();
 }
 exportTabs.forEach((t, i) => {
   t.addEventListener('click', () => showExportPage(t.dataset.xpage));
@@ -6763,7 +6902,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }
   if (e.key === '?') { e.preventDefault(); openGuide(); return; }
   if (e.key === 'l' || e.key === 'L') { e.preventDefault(); showOpen(); return; }
-  if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
+  if (e.key === 't' || e.key === 'T') { e.preventDefault(); if (getComputedStyle($('theater')).display !== 'none') setTheater(!layoutEl.classList.contains('theater')); } // (only where its button shows)
   else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFull(!isFull()); }
   else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); openExport(); }
   else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); $('rerollall').click(); }
@@ -6923,7 +7062,7 @@ readColors(); fit(); selectTab(tabs[0]);
   for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, hide, true);
   addEventListener('scroll', hide, true);
 }
-$('brandver').textContent = 'v' + APP_VERSION.split('.').slice(0, 2).join('.'); /* the bar shows the release (4.7); About has the full version (4.7.1) */ $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
+$('brandver').textContent = $('menuver').textContent = 'v' + APP_VERSION.split('.').slice(0, 2).join('.'); /* the bar (and the phone menu's About) show the release (4.7); About has the full version (4.7.1) */ $('menuver').parentNode.setAttribute('aria-label', 'About Chord Glide, version ' + APP_VERSION); $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
 fitArr();
 wireHelp(document); // the help texts in the page, then any the part editor adds as it's rebuilt
 new MutationObserver(() => wireHelp(document.querySelector('.rack') || document)).observe(document.querySelector('.rack') || document.body, { childList: true, subtree: true });

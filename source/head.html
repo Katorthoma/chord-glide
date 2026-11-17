@@ -88,6 +88,12 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-h
 .pop.menu > button svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
 .pop.menu kbd { margin-left: auto; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
 .pop.menu hr { width: 100%; border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+/* iPhone and iPad zoom the page in when you tap a field whose text is under 16 px, and leave it zoomed: there, every field's text is
+   at least 16 px. (-webkit-touch-callout is only on iOS and iPadOS, so desktop Safari and other browsers keep their sizes.) */
+@supports (-webkit-touch-callout: none) {
+  input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]):not([type=file]), select, textarea { font-size: max(16px, 1em) !important; }
+}
+.pop.menu .mver { margin-left: auto; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
 .pop.menu small { display: block; font-family: var(--font-data); font-size: 11px; font-weight: 400; color: var(--muted); }
 .topbar .grp.end { margin-left: auto; padding-right: 0; }
 .topbar .grp.busy { border-left: 0; }
@@ -338,6 +344,9 @@ button.rerollall svg { width: 18px; height: 18px; }
 .xsec { display: grid; gap: 12px; align-content: start; max-width: 720px; }
 .xsec h3 { margin-bottom: 0; }
 .xsec .lede { margin: 0; }
+.coverbox { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: flex-start; margin: 18px 0 6px; }
+.coverbox img { width: 180px; height: 180px; flex: none; border-radius: 6px; border: 1px solid var(--rule); background: var(--stage); }
+.coverbox > div { flex: 1 1 220px; min-width: 0; } .coverbox h4 { margin: 0 0 4px; } .coversaves { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .coversaves .hint { margin: 0 4px 0 0; } .vthumbrow { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; margin: 8px 0; } .vthumbrow .hint { margin: 0; flex: 1 1 240px; } .coverbox .hint { margin: 0 0 10px; }
 .detgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 16px; }
 .det { display: grid; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .det.wide { grid-column: 1 / -1; }
@@ -510,9 +519,14 @@ dialog.about::backdrop { background: rgba(10, 12, 11, 0.5); }
   .tabs button { padding: 12px 16px 10px; flex: 0 0 auto; }
 }
 /* full screen: the stage fills the screen (native, or a fixed overlay where the browser refuses) */
-.stage:fullscreen, .stage.pseudo-fs { position: fixed; inset: 0; z-index: 50; border: 0; border-radius: 0; display: flex; flex-direction: column; width: 100%; height: 100%;
+/* (written with the .layout above it as well, so theater's rules for the stage, which outrank a bare .stage, never undo it: on an
+   iPhone, which covers the page instead of using the browser's full screen, theater put the stage back in the page, out of sight) */
+.stage:fullscreen, .stage.pseudo-fs, .layout.theater .stage:fullscreen, .layout.theater .stage.pseudo-fs { position: fixed; inset: 0; z-index: 50; border: 0; border-radius: 0; display: flex; flex-direction: column; width: 100%; height: 100%;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); background: var(--stage); }
-.stage:fullscreen .canvas-box, .stage.pseudo-fs .canvas-box { flex: 1 1 auto; aspect-ratio: auto; height: auto; min-height: 0; }
+.stage:fullscreen .canvas-box, .stage.pseudo-fs .canvas-box, .layout.theater .stage:fullscreen .canvas-box, .layout.theater .stage.pseudo-fs .canvas-box { flex: 1 1 auto; aspect-ratio: auto; height: auto; min-height: 0; }
+/* Theater only changes the layout on a wide screen, and full screen fills the screen whatever it says: its button shows only where it does something */
+@media (max-width: 920px) { #theater { display: none; } }
+.stage:fullscreen #theater, .stage.pseudo-fs #theater { display: none; }
 /* Interface themes chosen in Settings (per viewer). With none chosen, the page follows the device's light or dark setting. */
 :root[data-ui="paper"] { --paper: #F3F5F2; --stage: #FCFDFB; --ink: #121513; --muted: #5B645E; --rule: #D7DDD8; --accent: #2A4FD4; --accent-ink: #FFFFFF; --warn: #A9441C; --ok: #2E7A4F; color-scheme: light; }
 :root[data-ui="graphite"] { --paper: #0D0F0E; --stage: #141715; --ink: #E7ECE8; --muted: #98A29B; --rule: #2A302C; --accent: #8299FF; --accent-ink: #0D0F0E; --warn: #F08A5D; --ok: #6FCB95; color-scheme: dark; }
@@ -656,7 +670,7 @@ figure.vl circle { fill: var(--ink); }
           <hr>
           <button type="button" role="menuitem" data-proxy="settingsbtn">Settings</button>
           <button type="button" role="menuitem" data-proxy="guidebtn">Guide</button>
-          <button type="button" role="menuitem" data-about="about">About Chord Glide</button>
+          <button type="button" role="menuitem" data-about="about">About Chord Glide<span class="mver" id="menuver"></span></button>
         </div>
       </div>
     </div>
@@ -1069,6 +1083,7 @@ figure.vl circle { fill: var(--ink); }
           <canvas id="vcanvas" width="1920" height="1080" hidden></canvas>
           <progress id="vprog" max="1" value="0" hidden></progress>
           <p class="hint" id="vest" aria-live="polite"></p>
+          <p class="vthumbrow"><button type="button" class="small" id="vthumb">Save a thumbnail</button> <span class="hint">The piece's cover in this video's shape (1280 × 720 for landscape, 1080 × 1920 for portrait, 1000 × 1000 square), with its artist as the video shows it: to upload to YouTube with the video.</span></p>
           <p class="hint help" id="vhint" data-on="vrecord">Render video draws every frame exactly, then saves the file, so it never stutters. Record live plays the piece once in real time instead.</p>
         </div>
 </section>
@@ -1083,6 +1098,9 @@ figure.vl circle { fill: var(--ink); }
             <label class="det">Genre<input type="text" id="dgenre" maxlength="60" autocomplete="off" spellcheck="false" list="dgenres"><datalist id="dgenres"><option value="Ambient"><option value="Classical"><option value="Electronic"><option value="Experimental"><option value="Instrumental"><option value="New Age"><option value="Soundtrack"></datalist></label>
             <label class="det wide">Comment<textarea id="dcomment" rows="2" maxlength="1000" spellcheck="true"></textarea></label>
           </div>
+          <div class="coverbox"><img id="coverprev" alt="The cover" width="180" height="180" hidden>
+            <div><h4>Cover</h4><p class="hint">Made from the piece: its title and artist over its lines, in its trace look (the stage's Look menu). It's the cover art in MP3 and MP4 files, and shows on a phone's lock screen while the piece plays. The same design, wide or tall, makes a thumbnail for a YouTube video or Short.</p>
+            <div class="coversaves"><span class="hint">Save it as a picture:</span> <button type="button" class="small" data-cover="square" title="1000 × 1000, for music sites and players">Square</button> <button type="button" class="small" data-cover="youtube" title="1280 × 720, a YouTube video's thumbnail">16:9 for YouTube</button> <button type="button" class="small" data-cover="shorts" title="1080 × 1920, a YouTube Short's thumbnail (uploaded in YouTube Studio on the web)">9:16 for Shorts</button></div></div></div>
           <p class="hint">The artist, album, year, genre and comment are saved with this piece (a piece that hasn't set an artist uses your default). Every field goes into WAV, MP3 and rendered video (MP4, MOV or WebM); MIDI and MusicXML take the title and the artist (as the composer in MusicXML). Record live videos carry none of them.</p>
         </section>
       </div>
@@ -1211,7 +1229,7 @@ figure.vl circle { fill: var(--ink); }
           <p>Your saved pieces are kept in this browser, and <b>Open</b> lists them with when each was made and last changed, the version that saved it, its length, parts and size. A piece file stores the chords, the seeds, every setting and the <b>resolved notes</b>. If a future version voices chords differently, an older piece still plays its saved notes, until you change its chords, voicing or motion, or choose <b>Re-voice with this engine</b>.</p>
 
           <h4><span class="step">9</span>Export</h4>
-          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; the <b>Details</b> page adds an artist (yours by default, or the piece's own, or none), an album, year, genre and comment, saved with the piece and written into WAV, MP3 and video files, with the title and artist in MIDI and MusicXML too. Videos can also show your name under the title on screen: tick <b>Artist name under the title</b> on the Video page, with the name beside it, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
+          <p><b>File → Export</b> (or <kbd>E</kbd>) opens the Export window. Its buttons save a piece file, <b>WAV</b> and <b>MP3</b> audio, <b>MIDI</b> with every glide kept as pitch bend, <b>MIDI chords and notes</b> (the chords, and each part's notes on its own track), a <b>MusicXML</b> score (the chords, and a staff for each line and pattern), or everything at once. <b>Render video</b> draws every frame of the piece in its trace look and saves an MP4 or WebM at 1080p or 1440p, 60 or 30 fps, so it's perfectly smooth however busy your computer is. In a browser that can't encode AAC audio, the H.264 choice is labelled MOV and saves a QuickTime .mov with uncompressed sound instead, so it still plays with sound in QuickTime. <b>Record live</b> plays the piece once and records it in real time instead, for browsers that can't render. Every exported file carries the piece name as its title; the <b>Details</b> page adds an artist (yours by default, or the piece's own, or none), an album, year, genre and comment, saved with the piece and written into WAV, MP3 and video files, with the title and artist in MIDI and MusicXML too. MP3 and MP4 files also carry the piece's <b>cover</b>: its title and artist over its lines, in its trace look. The Details page shows it and saves it as a picture, square or as a thumbnail for a YouTube video (16:9) or Short (9:16); the Video page's <b>Save a thumbnail</b> saves the one in the video's shape. Videos can also show your name under the title on screen: tick <b>Artist name under the title</b> on the Video page, with the name beside it, or untick it for a render that shouldn't carry your name. <b>Auto zoom</b> sets when Auto view zooms in and out: Automatic, or Custom times you type (or take from the playhead with <b>Now</b>), saved with the piece. <b>Fast movement</b> sets how a voice moving faster than the zoomed-out picture can show is drawn: as a faint band between its notes, a line through the middle, or every move.</p>
 
           <h4><span class="step">10</span>Works offline</h4>
           <p>Chord Glide is a single page. Open it from a file on your computer or from a website, and every export downloads straight to your computer. Keep <code>lame.min.js</code> beside it for MP3 export; nothing else is needed, not even an internet connection.</p>
@@ -1357,7 +1375,7 @@ figure.vl circle { fill: var(--ink); }
           <dl class="keylist"><dt><kbd>Space</kbd></dt><dd>Play or pause</dd><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></dl>
 
           <h4><span class="step">◐</span>View</h4>
-          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page</dd><dt><kbd>E</kbd></dt><dd>Export: audio, MIDI, notation and video</dd><dt><kbd>R</kbd></dt><dd>Reroll every unlocked layer</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
+          <dl class="keylist"><dt><kbd>V</kbd></dt><dd>Cycle the view: auto zoom, scrolling, whole piece</dd><dt><kbd>T</kbd></dt><dd>Theater mode: the stage spans the page (on a wider screen)</dd><dt><kbd>E</kbd></dt><dd>Export: audio, MIDI, notation and video</dd><dt><kbd>R</kbd></dt><dd>Reroll every unlocked layer</dd><dt><kbd>F</kbd></dt><dd>Full screen</dd><dt><kbd>Esc</kbd></dt><dd>Close a popup or leave full screen</dd></dl>
 
           <h4><span class="step">↺</span>Editing</h4>
           <dl class="keylist"><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd><dt><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Redo</dd><dt><kbd>⌘</kbd> <kbd>S</kbd></dt><dd>Save the piece</dd></dl>
@@ -1369,6 +1387,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.7.2</span>Covers and the lock screen<span class="when">17 Nov 2026</span></h4>
+          <p>Every piece has a <b>cover</b>, made from it: its title and artist at the top, in its trace look's colours, over its lines across the bottom half. It's in Export → Details, which also saves it as a picture, square or as a thumbnail for a YouTube video or Short (as does the Video page, in the video's shape), embedded in MP3 and MP4 exports, and on the lock screen, which now shows what's playing: the piece's name, its artist and album, its cover, and where it's got to, with a scrubber you can drag and buttons to skip 10 seconds. On an iPhone or iPad, tapping a field (the piece's name, the chords, a menu) no longer zooms the page in. Full screen on an iPhone no longer goes blank with theater mode on, and the theater button shows only where theater changes something: on a wider screen, outside full screen. And on a phone, the menu's About item shows the version.</p>
 
           <h4><span class="step ver">4.7.1</span>Sound on iPhone<span class="when">17 Nov 2026</span></h4>
           <p>On an iPhone or iPad in silent mode, Play made no sound: iOS treats a web page's sound as background noise that silent mode mutes. Chord Glide now plays as music apps do, whatever the switch says (and, like them, pauses other audio when it starts). And while a piece plays, the screen stays on, so the phone doesn't lock part-way through and stop it. Locking it yourself, or switching apps, still stops the sound.</p>

@@ -1,3 +1,22 @@
+# Chord Glide 4.7.2 · 17 Nov 2026
+
+Engine 3.1 and the file formats are unchanged; pieces sound as in 4.7.
+
+- **The lock screen and media controls show what's playing** (Media Session). Before, an iPhone's lock screen showed only the site's address, with play and pause. Now:
+  - the piece's name as the title, its artist (Export → Details, or your default; "Chord Glide" if there's none) and its album;
+  - its cover (below), with the app's icon as a fallback on the website;
+  - its length and position, so the lock screen's scrubber shows where it is and can be dragged to seek; and play, pause, and skip back or forward 10 seconds.
+  - Nothing is set until the first Play. Changes to the name, artist or album show as you type them.
+- **A cover for every piece**, made from it: square, in its trace look's background, with the title at the top (as large as fits: one line, or up to three balanced ones, shortened only if even that isn't enough), the artist under it, smaller, in the colours the look gives a video's title and artist so both read against it, and the whole piece's lines across the bottom half.
+  - Shown in **Export → Details**, and on the lock screen while the piece plays. It follows the piece's name, artist and look as they change.
+  - **Thumbnails for YouTube.** Details saves it as a JPEG in three shapes: **Square** (1000 × 1000), **16:9 for YouTube** (1280 × 720) and **9:16 for Shorts** (1080 × 1920, uploaded in YouTube Studio on the web). The Video page's **Save a thumbnail** saves the one that matches the video's shape, with its artist as the video shows it. In the wide and tall shapes the title is about a third larger, since a thumbnail is seen small; in 9:16 the title sits a third of the way down with the lines under it, so both stay in view where YouTube shows a Short's thumbnail cropped to its middle.
+  - Embedded as cover art in **MP3** (ID3 APIC, front cover) and **MP4** (iTunes covr) exports, at 1000 × 1000; **Everything** adds it as its own file. WAV, MOV and WebM files carry no cover (none of them has a place for one that players read).
+  - The picture is written as its own block of bytes in the ID3 tag (spreading 100 KB into an array of numbers can pass the browser's limit on arguments).
+- **No zooming in when you tap a field on iPhone or iPad.** iOS zooms the page in when a text field or menu with text under 16 px gets focus (the piece's name, the chords, every menu), and leaves it zoomed. There, every field's text is now at least 16 px; other devices keep their sizes.
+- **Full screen with theater on, on an iPhone, no longer goes blank.** An iPhone can't make one part of a page full screen, so full screen covers the page with the stage instead, and theater mode's layout for the stage outranked it: the stage went back into the page, behind the cover. Full screen now always wins over theater, on any device.
+- **The theater button shows only where theater does something**: on a screen 921 px or wider (a computer, an iPad in landscape), and not in full screen. Below that width the layout is one column either way. T does nothing where the button is hidden.
+- **The version on a phone**: the menu's About item shows it (v4.7) on the right, as the name does on a wider screen.
+
 # Chord Glide 4.7.1 · 17 Nov 2026
 
 Engine 3.1 and the file formats are unchanged; pieces sound as in 4.7.

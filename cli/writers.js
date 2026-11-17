@@ -67,16 +67,22 @@ function encodeWav24(left, right, sampleRate, meta = null) {
 }
 
 /* ID3v2.3 tag for the front of an MP3: TIT2 (title), TPE1 (artist), TALB (album), TYER (year), TCON (genre) and COMM (comment,
-   in English with no description), in UTF-16 with a byte-order mark. Empty if there's nothing to say. */
+   in English with no description), in UTF-16 with a byte-order mark; and meta.cover, a JPEG, as the front cover (APIC, picture
+   type 3). Empty if there's nothing to say. */
 function id3v2(meta) {
   const ids = { title: 'TIT2', artist: 'TPE1', album: 'TALB', year: 'TYER', genre: 'TCON', comment: 'COMM' }, frames = [];
   for (const [k, v] of metaFields(meta)) {
     const body = k === 'comment' ? [1, 0x65, 0x6E, 0x67, 0xFF, 0xFE, 0, 0, 0xFF, 0xFE] : [1, 0xFF, 0xFE]; /* (a comment: encoding, language, an empty description, then its text) */ for (const ch of v) { const c = ch.codePointAt(0); if (c > 0xFFFF) { const u = c - 0x10000; body.push(...[0xD800 + (u >> 10), 0xDC00 + (u & 1023)].flatMap(x => [x & 255, x >> 8])); } else body.push(c & 255, c >> 8); }
     frames.push(...fourcc(ids[k]), ...be32(body.length), 0, 0, ...body);
   }
-  if (!frames.length) return new Uint8Array(0);
-  const n = frames.length, size = [(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]; // sync-safe
-  return Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size, ...frames]);
+  const parts = [Uint8Array.from(frames)], cover = meta && meta.cover instanceof Uint8Array && meta.cover.length ? meta.cover : null;
+  if (cover) { // (kept as its own bytes: spreading a picture into an array of numbers can pass the browser's limit on arguments)
+    const head = [0, ...[...'image/jpeg'].map(c => c.charCodeAt(0)), 0, 3, 0]; // Latin-1, the type, front cover, no description
+    parts.push(Uint8Array.from([...fourcc('APIC'), ...be32(head.length + cover.length), 0, 0, ...head]), cover);
+  }
+  const body = catBytes(parts); if (!body.length) return new Uint8Array(0);
+  const n = body.length, size = [(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]; // sync-safe
+  return catBytes([Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, ...size]), body]);
 }
 
 /* Put an "Info" frame (the constant-bitrate form of the Xing header) at the front of an MP3 stream, so players know its exact
@@ -450,7 +456,7 @@ function avcCParams(c) {
    delay: the encoder's start-up samples (AAC priming) for players to skip; length: the real sound in samples. Both go in an edit list.
    PCM samples are blocks { data: 16-bit little-endian interleaved bytes, frames }, laid out the way QuickTime and ffmpeg write them.
    meta: { title, artist, album, year, genre, comment } — iTunes-style tags (moov/udta/meta/ilst) in an MP4, classic QuickTime text
-   atoms (moov/udta/©nam, ©ART, ©alb, ©day, ©gen, ©cmt) in a .mov. */
+   atoms (moov/udta/©nam, ©ART, ©alb, ©day, ©gen, ©cmt) in a .mov. meta.cover, a JPEG, goes in an MP4 as its cover art (covr). */
 function mp4Mux({ video, audio, quicktime = false, meta = null }) {
   // video: split each frame into NAL units, keep the parameter sets for the avcC box, store the rest length-prefixed
   let { sps, pps } = avcCParams(video.description);
@@ -512,10 +518,11 @@ function mp4Mux({ video, audio, quicktime = false, meta = null }) {
 
   // what the file says about itself
   const tags = metaFields(meta), atom = { title: '\u00A9nam', artist: '\u00A9ART', album: '\u00A9alb', year: '\u00A9day', genre: '\u00A9gen', comment: '\u00A9cmt' };
-  const udta = !tags.length ? new Uint8Array(0) : quicktime
+  const cover = !quicktime && meta && meta.cover instanceof Uint8Array && meta.cover.length ? meta.cover : null;
+  const udta = !tags.length && !cover ? new Uint8Array(0) : quicktime
     ? mbox('udta', ...tags.map(([k, v]) => { const b = utf8(v); return mbox(atom[k], be16(b.length), be16(0x55C4), b); })) // UTF-8, language 'und'
     : mbox('udta', fullBox('meta', 0, 0, fullBox('hdlr', 0, 0, be32(0), fourcc('mdir'), fourcc('appl'), be32(0), be32(0), [0]),
-        mbox('ilst', ...tags.map(([k, v]) => mbox(atom[k], mbox('data', be32(1), be32(0), utf8(v)))))));
+        mbox('ilst', ...tags.map(([k, v]) => mbox(atom[k], mbox('data', be32(1), be32(0), utf8(v)))), ...(cover ? [mbox('covr', mbox('data', be32(13), be32(0), cover))] : [])))); // (13: JPEG)
   const build = offsets => {
     const chunkOffsets = (tr, n) => { const a = offsets ? offsets[tr] : new Array(n).fill(0); return big ? fullBox('co64', 0, 0, be32(n), ...a.map(be64)) : fullBox('stco', 0, 0, be32(n), be32Table(a)); };
     const dinf = mbox('dinf', fullBox('dref', 0, 0, be32(1), fullBox('url ', 0, 1)));

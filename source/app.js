@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.7.1';
+const APP_VERSION = '4.7.2';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -283,6 +283,7 @@ function rebuild(keepTime = true, restartAudio = true) {
   screenCam.snap = true;
   if (playing && !recording && restartAudio) startAudio(offset);
   updateAvailability(); if (typeof showVideoEstimate === 'function') showVideoEstimate();
+  nowPlaying(); coverSoon(); // a new length, and in a moment a new cover
 }
 /* Playback and exports need a built piece; a piece file can always be saved (without notes if there are none) */
 function updateAvailability() {
@@ -293,6 +294,7 @@ function updateAvailability() {
   document.querySelectorAll('[data-export]').forEach(b => b.disabled = !save || (!has && b.dataset.export !== 'json'));
   $('xopen').disabled = !save || exporting;
   for (const id of ['vrender', 'vrecord']) $(id).disabled = !save || !has;
+  $('vthumb').disabled = !has;
 }
 // saved notes play exactly as written when they come from another engine, or are marked "custom" (written by hand or by another program)
 const isFrozen = () => !!(piece && piece.realization && piece.realization.engine !== ENGINE_VERSION && validRealization(piece.realization));
@@ -398,6 +400,7 @@ function setStatus(msg, warn = false) {
   if (msg) statusTimer = setTimeout(() => { statusNote = ''; statusWarn = false; updateStatus(); }, warn ? 9000 : 4500);
 }
 function updateStatus() {
+  try { nowPlaying(); coverSoon(); } catch (e) {} // a new name or artist reaches the lock screen as it's typed (try: this can run before nowPlaying's settings exist)
   const dirty = savedJSON === null ? (currentLibId ? false : true) : JSON.stringify(piece) !== savedJSON;
   const base = currentLibId ? (dirty ? 'Unsaved changes' : 'Saved') : 'Not saved yet';
   $('status').textContent = statusNote ? statusNote + ' · ' + base : base; $('status').title = $('status').textContent;
@@ -658,20 +661,96 @@ function renderDetail(list) {
 }
 /* A small picture of the piece in its own look: every voice's pitch over the whole piece, drawn where it sounds */
 function drawThumb(cnv, f) {
-  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, d = W / 320, sb = f.sb, pal = tracePalette(f.q.view.trace);
-  paintBackground(g, W, H, pal);
-  const T = Math.max(0.1, sb.total), lo = sb.min - 1, hi = sb.max + 1, Y = p => H - 10 * d - (p - lo) / Math.max(6, hi - lo) * (H - 20 * d);
+  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, pal = tracePalette(f.q.view.trace);
+  paintBackground(g, W, H, pal); drawTraceIn(g, f.sb, pal, 0, 0, W, H, W / 320);
+}
+/* The whole piece's lines, in the box x0, y0, w × h, as Open draws them (d: the scale, 1 for a 320-wide picture) */
+function drawTraceIn(g, sb, pal, x0, y0, w, h, d) {
+  const T = Math.max(0.1, sb.total), lo = sb.min - 1, hi = sb.max + 1, Y = p => y0 + h - 10 * d - (p - lo) / Math.max(6, hi - lo) * (h - 20 * d);
   const grad = pal.stops ? pitchGradient(g, pal, Y) : null;
   g.lineJoin = 'round'; g.lineCap = 'round';
   for (let v = 0; v < sb.N; v++) {
     const path = new Path2D(); let on = false;
-    for (let x = 0; x <= W; x += 1.5 * d) {
-      const t = x / W * T;
+    for (let x = 0; x <= w; x += 1.5 * d) {
+      const t = x / w * T;
       if (gainAt(sb, v, t) < 0.02) { on = false; continue; }
-      const y = Y(pitchAt(sb, v, t)); if (on) path.lineTo(x, y); else { path.moveTo(x, y); on = true; }
+      const y = Y(pitchAt(sb, v, t)); if (on) path.lineTo(x0 + x, y); else { path.moveTo(x0 + x, y); on = true; }
     }
     glowStroke(g, path, grad || pal.line(v, sb.N), pal.core, pal, d * 0.75, 1);
   }
+}
+/* The piece's cover: its title, large (one line, or up to three balanced ones), and its artist under it, smaller, in the colours its
+   trace look gives a video's title and artist, so they read against its background; the whole piece's lines below. Square (the
+   lock screen, Export → Details, the cover art of MP3 and MP4 files) and 16:9 (a YouTube thumbnail): the title at the top and the
+   lines across the bottom half. 9:16 (a Shorts thumbnail): the title a third of the way down and the lines below it, so both stay
+   in view where YouTube shows a Short's thumbnail cropped to its middle. */
+function drawCover(cnv, sb, q, artist, cols = liveColors()) {
+  const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, tall = H > W * 1.2, pal = tracePalette(q.view.trace, cols), family = (cols && cols.display) || 'sans-serif';
+  const d = Math.min(W, H * 1.25) / 400 * (Math.abs(W - H) > W * 0.05 ? 1.3 : 1), m = Math.min(W, H) * 0.075; // (a thumbnail's title larger: it's seen small)
+  paintBackground(g, W, H, pal);
+  const tf = fitCoverTitle(g, String(q.name || '').trim() || 'Untitled piece', W - 2 * m, d, family);
+  let as = 0, a = '';
+  if (artist) { as = Math.max(Math.min(W, H) * 0.032, tf.size * 0.5); g.font = `500 ${as}px ${family}`; a = artist; while (a.length > 1 && g.measureText(a).width > W - 2 * m) a = a.slice(0, -2).trimEnd() + '…'; }
+  const top = tall ? H * 0.33 : m, first = top + tf.size * 0.78, last = first + (tf.lines.length - 1) * tf.size * 1.12, artistY = last + as * 1.7, bottom = (a ? artistY : last) + tf.size * 0.25;
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = pal.title; g.font = `700 ${tf.size}px ${family}`;
+  tf.lines.forEach((ln, i) => g.fillText(ln, m, first + i * tf.size * 1.12));
+  if (a) { g.fillStyle = pal.text; g.font = `500 ${as}px ${family}`; g.fillText(a, m, artistY); }
+  const y0 = Math.max(tall ? H * 0.5 : H * 0.46, bottom + m * 0.6), y1 = tall ? H * 0.88 : H - m * 0.5;
+  drawTraceIn(g, sb, pal, 0, y0, W, y1 - y0, Math.min(W, H) / 320);
+}
+/* Save a piece's cover as a JPEG in one of its shapes: 'square' (1000 × 1000), 'youtube' (1280 × 720) or 'shorts' (1080 × 1920) */
+const COVER_SIZES = { square: [1000, 1000, 'cover'], youtube: [1280, 720, 'YouTube thumbnail'], shorts: [1080, 1920, 'Shorts thumbnail'] };
+async function saveCover(shape, artist) {
+  if (!built) return; const [w, h, what] = COVER_SIZES[shape] || COVER_SIZES.square;
+  const b = await coverBytes(built, piece, artist, undefined, w, h); if (b) await saveFile(safeName(piece.name) + ' (' + what + ').jpg', b);
+}
+/* A cover's title: as few lines as keep it large (34 units on one line, else up to three lines split where they balance, at
+   least 26 units if that's enough, down to 20), never starting a line with a dash or colon; only a title too long for three
+   lines at 20 is shortened, with an ellipsis. */
+function fitCoverTitle(g, text, maxW, d, family) {
+  const R = 100, width = str => { g.font = `700 ${R}px ${family}`; return g.measureText(str).width; }; // widths at a reference size, scaled
+  const words = text.split(' ').filter(Boolean).reduce((a, w) => { if (a.length && /^[—–\-:|·/]+$/.test(w)) a[a.length - 1] += ' ' + w; else a.push(w); return a; }, []);
+  const splits = n => { // the split into n lines whose widest line is narrowest
+    if (n === 1) return [words.join(' ')];
+    let best = null;
+    const go = (from, left, acc) => { if (left === 1) { const l = acc.concat(words.slice(from).join(' ')), w = Math.max(...l.map(width)); if (!best || w < best.w) best = { w, l }; return; }
+      for (let k = from + 1; k <= words.length - left + 1; k++) go(k, left - 1, acc.concat(words.slice(from, k).join(' '))); };
+    go(0, n, []); return best && best.l;
+  };
+  const tries = [];
+  for (let n = 1; n <= Math.min(3, words.length); n++) { const l = splits(n); if (!l) continue; const size = Math.min(34 * d, R * maxW / Math.max(...l.map(width))); tries.push({ size, lines: l }); if (size >= 26 * d) return tries[tries.length - 1]; }
+  const best = tries.reduce((a, t) => t.size > a.size ? t : a);
+  if (best.size >= 20 * d) return best;
+  // too long even then: filled line by line at 20, reading straight on, and the third line ends with an ellipsis
+  const size = 20 * d, w = str => { g.font = `700 ${size}px ${family}`; return g.measureText(str).width; }, lines = [];
+  let cur = '';
+  for (const wd of words) { const next = cur ? cur + ' ' + wd : wd; if (cur && w(next) > maxW) { lines.push(cur); cur = wd; } else cur = next; }
+  if (cur) lines.push(cur);
+  const keep = lines.slice(0, 3); if (lines.length > 3) keep[2] = lines.slice(2).join(' ');
+  return { size, lines: keep.map(l => { if (w(l) <= maxW) return l; let t = l; while (t.length > 1 && w(t + '…') > maxW) t = t.slice(0, -1); return t.trimEnd() + '…'; }) };
+}
+/* The current piece's cover as a 512 px picture (the lock screen, the Details page), made again only when something on it changes */
+let coverMemo = { key: '', b: null, url: '' };
+const coverKey = () => [JSON.stringify(piece.view.trace), piece.name, artistName(), colors.stage, colors.ink, colors.muted, colors.display].join('\u0001');
+function coverURL() {
+  if (!built || !piece) return '';
+  const key = coverKey(); if (coverMemo.b === built && coverMemo.key === key) return coverMemo.url;
+  let url = ''; try { const c = mk('canvas', { width: 512, height: 512 }); drawCover(c, built, piece, artistName()); url = c.toDataURL('image/jpeg', 0.9); } catch (e) {}
+  coverMemo = { key, b: built, url }; return url;
+}
+/* A 1000 px JPEG of a piece's cover, for a file (null if it can't be made) */
+async function coverBytes(sb, q, artist, cols, w = 1000, h = 1000) {
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const c = mk('canvas', { width: w, height: h }); drawCover(c, sb, q, artist, cols);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } catch (e) { return null; }
+}
+/* The Details page's preview, kept up to date while it's showing */
+let coverTimer = null;
+function coverSoon() {
+  if (typeof exportDlg === 'undefined' || !exportDlg.open || $('xp-details').hidden) return;
+  clearTimeout(coverTimer); coverTimer = setTimeout(() => { const u = coverURL(); $('coverprev').hidden = !u; if (u && $('coverprev').src !== u) $('coverprev').src = u; }, 250);
 }
 function openEntry(e) {
   if (e.kind === 'saved' && factsOf(e, true).error) return;
@@ -1140,7 +1219,7 @@ function startAudio(from, extraOut, lead) {
   ensureCtx(); stopAudio(0.06);
   if (from >= built.total + TAIL - 0.05) from = 0; // at the very end, start over; inside the closing fade, play the rest of it
   live = buildGraph(actx, built, from, extraOut ? [actx.destination, extraOut] : [actx.destination], volume, false, lead);
-  startAt = live.now - from;
+  startAt = live.now - from; nowPlaying(); // (the lock screen's scrubber, after a seek)
 }
 function currentT() { return playing && actx && live ? Math.max(0, actx.currentTime - startAt) : offset; }
 /* While a piece plays, the screen stays on (where the browser offers it: Safari on iPhone and iPad since 16.4, Chrome, Edge), so
@@ -1159,7 +1238,33 @@ function keepAwake(on) {
   } else if (wakeLock) { wakeAsk++; if (wakeLock !== 'asking') wakeLock.release().catch(() => {}); wakeLock = null; }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && playing) keepAwake(true); });
-function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; keepAwake(playing); }
+/* What's playing, for the lock screen and the system's media controls (Media Session): the piece's name, its artist and album (from
+   Export → Details), a picture of the whole piece as its cover, and how long it is and where it's got to, so the scrubber there
+   shows and moves it. Play, pause, skip 10 seconds and seek work from there too. Nothing is said until the first Play. */
+const MS = 'mediaSession' in navigator && typeof MediaMetadata === 'function' ? navigator.mediaSession : null;
+let msOn = false, msSaid = '', msArt = { of: null, url: '' }, msArtTimer = null;
+function nowPlaying() {
+  if (!MS || !piece || (!msOn && !playing)) return;
+  if (!msOn) { msOn = true;
+    const on = (a, f) => { try { MS.setActionHandler(a, f); } catch (e) {} }, to = t => { if (built) { jumpTo(Math.max(0, Math.min(built.total + TAIL - 0.25, t))); nowPlaying(); } }; // (short of the very end, where Play starts over)
+    on('play', () => setPlaying(true)); on('pause', () => setPlaying(false)); on('stop', () => setPlaying(false));
+    on('seekto', d => to(d.seekTime)); on('seekbackward', d => to(currentT() - (d.seekOffset || 10))); on('seekforward', d => to(currentT() + (d.seekOffset || 10)));
+  }
+  try {
+    const album = pieceTags(piece).album || '', title = piece.name || 'Untitled piece', artist = artistName() || 'Chord Glide', say = [title, artist, album, msArt.url].join('\u0001');
+    if (say !== msSaid) { msSaid = say; const art = [];
+      if (msArt.url) art.push({ src: msArt.url, sizes: '512x512', type: 'image/jpeg' });
+      if (location.protocol !== 'file:') art.push({ src: new URL('apple-touch-icon.png', location.href).href, sizes: '180x180', type: 'image/png' }); // the app's icon until (or if) the picture can't be used
+      MS.metadata = new MediaMetadata({ title, artist, album, artwork: art }); }
+    MS.playbackState = playing ? 'playing' : 'paused';
+    if (built && MS.setPositionState) { const d = built.total + TAIL; MS.setPositionState({ duration: d, playbackRate: 1, position: Math.max(0, Math.min(d, currentT())) }); }
+  } catch (e) {}
+  if (built && (msArt.of !== built || msArt.key !== coverKey())) { // the cover (see drawCover), made a moment after the piece last changed
+    clearTimeout(msArtTimer); const b = built;
+    msArtTimer = setTimeout(() => { if (b !== built) return; msArt = { of: b, key: coverKey(), url: coverURL() }; nowPlaying(); }, 400);
+  }
+}
+function setPlayIcon() { const b = $('play'); b.classList.toggle('playing', playing); b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); b.title = (playing ? 'Pause' : 'Play') + ' (Space)'; keepAwake(playing); nowPlaying(); }
 function setPlaying(on) {
   if (on === playing || !built) return;
   if (on) { if (offset >= built.total + TAIL - 0.05) offset = 0; startAudio(offset); playing = true; }
@@ -1867,6 +1972,8 @@ async function doExport(kind) {
     if (kind === 'wav' || kind === 'all') files.push({ name: name + '.wav', data: encodeWav24(audio.L, audio.R, audio.sr, opts) });
     let mp3Note = '';
     if (kind === 'mp3' || kind === 'all') {
+      const cover = await coverBytes(built, piece, artistName()); if (cover) opts.cover = cover; // (its cover art; see drawCover)
+      if (kind === 'all' && cover) files.push({ name: name + ' (cover).jpg', data: cover });
       try { files.push({ name: name + '.mp3', data: catBytes([id3v2(opts), await encodeMp3(audio)]) }); }
       catch (e) { if (kind === 'mp3') throw e; mp3Note = ' The MP3 was left out: ' + e.message; }
     }
@@ -2145,6 +2252,7 @@ async function renderVideo() {
     const video = { codec: vconf.codec.startsWith('vp8') ? 'vp8' : 'vp9', width: w, height: h, fps, description: o.format === 'mp4' ? vDesc : null, samples: vSamples };
     const box = videoContainer(o.format, aconf.kind);
     const meta = Object.assign({ title: String(snap.piece.name || '').trim() || fileName, artist: artistOf(snap.piece) }, pieceTags(snap.piece));
+    if (o.format === 'mp4' && box.ext !== 'mov') { const cover = await coverBytes(snap.built, snap.piece, artistOf(snap.piece), snap.colors); if (cover) meta.cover = cover; } // an MP4's cover art
     const parts = o.format === 'mp4' ? mp4Mux({ video, audio, quicktime: box.ext === 'mov', meta }) : webmMux({ video, audio, meta });
     const blob = new Blob(parts, { type: box.type });
     const secs = ((performance.now() - started) / 1000).toFixed(0);
@@ -2295,7 +2403,7 @@ function partLabel(n, raw) {
    listening only: neither is saved with the piece. */
 let loopOn = false, loopRun = null;
 const sectionRunAt = t => (built && built.sections || []).find(r => t >= r.t0 - 1e-6 && t < r.t1 - 1e-6) || null;
-function jumpTo(t) { offset = t; screenCam.snap = true; if (playing) startAudio(offset); }
+function jumpTo(t) { offset = t; screenCam.snap = true; if (playing) startAudio(offset); else nowPlaying(); }
 function fillSections() {
   const list = $('seclist'), runs = built && built.sections || [], here = sectionRunAt(currentT());
   list.textContent = '';
@@ -2765,9 +2873,11 @@ function syncArtistNote() {
 function syncDetails() {
   if (document.activeElement !== $('dtitle')) $('dtitle').value = piece.name || '';
   for (const id of ['artist', 'vartistname']) if (document.activeElement !== $(id)) $(id).value = artistName();
-  syncArtistNote(); showArtistOption(); // the video's tick box follows the piece's artist (a piece opened with one, or none)
+  syncArtistNote(); showArtistOption(); nowPlaying(); coverSoon(); // the video's tick box follows the piece's artist (a piece opened with one, or none)
   const t = pieceTags(piece); for (const [id, k] of TAG_FIELDS) if (document.activeElement !== $(id)) $(id).value = t[k] || '';
 }
+document.querySelectorAll('[data-cover]').forEach(btn => btn.addEventListener('click', () => saveCover(btn.dataset.cover, artistName())));
+$('vthumb').addEventListener('click', () => saveCover({ '16:9': 'youtube', '9:16': 'shorts', '1:1': 'square' }[$('vaspect').value] || 'youtube', videoArtist())); // as the video shows it
 $('dtitle').addEventListener('input', () => { $('name').value = $('dtitle').value; piece.name = $('dtitle').value; updateStatus(); saveDraftSoon(); });
 $('dtitle').addEventListener('change', () => { piece.name = safeName($('dtitle').value); $('name').value = $('dtitle').value = piece.name; commit(); });
 for (const [id, k] of TAG_FIELDS) {
@@ -2835,8 +2945,8 @@ function setVolume(v) {
 function toggleMute() { if (volume > 0.001) { unmuteTo = volume; setVolume(0); } else setVolume(unmuteTo || 0.6); }
 $('vol').addEventListener('input', () => { unmuteTo = null; setVolume(+$('vol').value); });
 $('play').addEventListener('click', () => setPlaying(!playing));
-$('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); });
-$('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); });
+$('restart').addEventListener('click', () => { offset = 0; screenCam.snap = true; if (playing) startAudio(0); else nowPlaying(); });
+$('scrub').addEventListener('input', () => { if (!built) return; offset = (built.total + TAIL) * $('scrub').value / 1000; screenCam.snap = true; if (playing) startAudio(offset); else nowPlaying(); });
 $('save').addEventListener('click', () => savePiece(false));
 $('saveas').addEventListener('click', () => savePiece(true));
 $('openbtn').addEventListener('click', () => showOpen());
@@ -2951,6 +3061,7 @@ function showExportPage(k, focusTab) {
   if (!exportTabs.some(t => t.dataset.xpage === k)) k = 'files';
   exportTabs.forEach(t => { const on = t.dataset.xpage === k; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; $('xp-' + t.dataset.xpage).hidden = !on; if (on && focusTab) t.focus(); });
   $('export-pages').scrollTop = 0; lsSet('cge.export', k);
+  if (k === 'details') coverSoon();
 }
 exportTabs.forEach((t, i) => {
   t.addEventListener('click', () => showExportPage(t.dataset.xpage));
@@ -3165,7 +3276,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); toggleMute(); return; }
   if (e.key === '?') { e.preventDefault(); openGuide(); return; }
   if (e.key === 'l' || e.key === 'L') { e.preventDefault(); showOpen(); return; }
-  if (e.key === 't' || e.key === 'T') { e.preventDefault(); setTheater(!layoutEl.classList.contains('theater')); }
+  if (e.key === 't' || e.key === 'T') { e.preventDefault(); if (getComputedStyle($('theater')).display !== 'none') setTheater(!layoutEl.classList.contains('theater')); } // (only where its button shows)
   else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFull(!isFull()); }
   else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); openExport(); }
   else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); $('rerollall').click(); }
@@ -3325,7 +3436,7 @@ readColors(); fit(); selectTab(tabs[0]);
   for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, hide, true);
   addEventListener('scroll', hide, true);
 }
-$('brandver').textContent = 'v' + APP_VERSION.split('.').slice(0, 2).join('.'); /* the bar shows the release (4.7); About has the full version (4.7.1) */ $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
+$('brandver').textContent = $('menuver').textContent = 'v' + APP_VERSION.split('.').slice(0, 2).join('.'); /* the bar (and the phone menu's About) show the release (4.7); About has the full version (4.7.1) */ $('menuver').parentNode.setAttribute('aria-label', 'About Chord Glide, version ' + APP_VERSION); $('ver').textContent = 'Version ' + APP_VERSION + ' · engine ' + ENGINE_VERSION;
 fitArr();
 wireHelp(document); // the help texts in the page, then any the part editor adds as it's rebuilt
 new MutationObserver(() => wireHelp(document.querySelector('.rack') || document)).observe(document.querySelector('.rack') || document.body, { childList: true, subtree: true });
