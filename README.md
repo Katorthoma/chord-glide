@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.2
+# Chord Glide 4.3
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -81,6 +81,13 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 - Parts: `"preset": "pattern"` (with `pattern`, `from`), `"preset": "copy"` (an echo: `of`, `delay` in beats, `shift`, optional `voices`), `nonstop: true`, `drop: { semis, time }`, `glideShape` (`"straight"`, `"arc"`), `portamento` over 2 s.
 - Notes: `~` (slide), `@0.6` (loudness) and `/0.4` (glide time, `l` or `s` for its shape) in lines; `envelope.curve: "exp"`; `vel` and `ease` in saved notes, the main part's or a part's.
 - Shaping and sound: `breathe: { depth, time }`, `duck: { under, depth, time }`, `"mix": "voices"`, `"tuning": "just"`.
+
+**Format 6 (app 4.3).** A piece that uses any of these is saved as `"formatVersion": 6`, which app 4.2 and older refuse:
+
+- The tone `"noise"` (`sound.tone`, on the piece or a part): hiss in a band centred on each note, for drums and wind.
+- `sound.ensemble` (0 to 100) on the piece (its main part) or a part.
+- On the piece: `sound.eq: { low, mid, high }` in dB (−12 to 12), and `sound.saturation` (0 to 100).
+- On a part: `sound.reverb` (0 to 300, a percentage of the piece's reverb; 100 if not set), and `sound.brightness` (200 to 16000 Hz; 16000, or not set, is open) with `sound.opens` (0 to 100) and `sound.openTime` (seconds).
 
 The app works out the version from what a piece uses (`formatFor()` in the engine) every time it saves. Programs that write piece files should do the same: a file that uses these fields but says `4` opens in app 4.1, which plays it without them.
 

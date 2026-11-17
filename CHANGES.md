@@ -1,3 +1,16 @@
+# Chord Glide 4.3 · 16 Nov 2026
+
+Engine 3.1 is unchanged. A new file format, 6, is used only by pieces that use the additions below; every other piece keeps its format and sounds as it did (the examples render the same as in 4.2.3 to within rounding, 64 dB or more below their peaks).
+
+- **Noise, a tone for drums and wind.** Tone has a new choice, **Noise**: each voice is hiss in a band centred on its note instead of a pitch. With a short envelope a low note is a thump, a middle one a snare's body and a high one (C8 and up) a hi-hat; a glide sweeps the band, and vibrato wobbles it. The hiss is pink, so it is as loud wherever the band sits. Any part can use it, the main part too.
+- **Ensemble**, on the Sound tab for every part: the part again through three short delays that drift slowly, placed left, centre and right, so one line sounds like a section of players. The level stays about the same.
+- **A part's own reverb.** Each added part has **Reverb**, a percentage of the piece's Reverb setting (100% if untouched, none to 300%): none keeps a bass or a kick close and dry, more sets a part further back.
+- **A part's own brightness.** Each added part has **Brightness**, its own filter under the piece's (open if untouched), and **Each note opens it** with a **Closing time**: every note starts up to four octaves brighter (louder notes further) and closes back, as plucked and struck sounds do.
+- **Tone controls for the whole piece:** **Low** (under about 160 Hz), **Middle** (around 1 kHz) and **High** (over about 5 kHz), each up to 12 dB either way, with a drawing of the combined response and a **Flat** button.
+- **Saturation for the whole piece:** the mix through a soft curve, as tape or a valve stage does when pushed. A little thickens the sound and evens its level; a lot distorts. It works on the level the piece really has, so it behaves the same for a piece of one part or thirty.
+- **File format 6** (app 4.3 and later) for a piece that uses any of these: the tone `"noise"`, `sound.ensemble`, `sound.eq`, `sound.saturation`, or a part's `sound.reverb` or `sound.brightness` (with `opens` and `openTime`). Older versions refuse such a piece rather than play it without them.
+- Inside: each part now has its own path to the reverb, and a one-part piece that uses the tone controls or saturation gets the soft clip that pieces with several parts already had, so a boost can't run past full scale.
+
 # Chord Glide 4.2.3 · 4 Nov 2026
 
 Engine 3.1 and the file formats are unchanged.

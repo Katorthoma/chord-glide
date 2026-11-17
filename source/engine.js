@@ -96,12 +96,15 @@ const defaultChordSec = P => P.timing.unit === 'bar' ? P.timing.chordBars * barS
 function itemSeconds(it, P) { return it.dur == null ? null : it.unit === 'bar' ? it.dur * barSec(P) : it.unit === 'beat' ? it.dur * beatSec(P) : it.dur; }
 // whether a piece needs file format 5: it keeps time in bars, or a chord's length is in bars or beats
 const usesMusicalTime = p => !!(p && ((p.timing && p.timing.unit === 'bar') || /:\d+(?:\.\d+)?(?:bars?|beats?)(?=[\s,|\]]|$)/m.test(String(p.chords || ''))));
-/* The file format a piece needs: 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
+/* The file format a piece needs: 6 with 4.3's sound, 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
    play and refuse what they'd get wrong */
 const shaped = x => !!x && ((x.breathe && +x.breathe.depth > 0) || (x.duck && +x.duck.depth > 0 && x.duck.under));
 const accented = r => !!(r && Array.isArray(r.events) && r.events.some(e => e && (e.vel || e.ease))); // saved notes with loudness or glide shapes
 const echoing = x => !!(x && x.echo && +x.echo.mix > 0);
-function formatFor(p) { return echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
+/* 4.3's sound: a noise tone, an ensemble, tone controls (EQ) and saturation for the piece, and a part's own reverb and brightness */
+const soundOf = x => (x && x.sound && typeof x.sound === 'object') ? x.sound : {};
+const newSound = (s, part) => s.tone === 'noise' || +s.ensemble > 0 || (!part && (+s.saturation > 0 || (s.eq && (+s.eq.low || +s.eq.mid || +s.eq.high)))) || (part && ((s.reverb !== undefined && +s.reverb !== 100) || (s.brightness !== undefined && +s.brightness < OPEN_HZ)));
+function formatFor(p) { return newSound(soundOf(p), false) || (p.parts || []).some(x => newSound(soundOf(x), true)) ? 6 : echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
 
 /* ---- Sections ----
    A line that is only a header in brackets starts a section: its name, then optionally a repeat (x2) and a key change in
@@ -184,6 +187,7 @@ const TONES = {
   // octave stacks (theirs keep the bell curve fixed in absolute frequency; this one moves with the note)
   chime: harmonics(21, n => { const fib = [1, 2, 3, 5, 8, 13, 21], k = fib.indexOf(n); return k < 0 ? 0 : Math.pow((1 + Math.sqrt(5)) / 2, -k); }), // only
   // Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each 1/φ the strength of the one before: a harmonic chime, not a real bell
+  noise: [0, 1], // not a wave: hiss centred on each note's pitch (the app plays it from noise; anything else falls back to a sine)
   air: harmonics(20, n => n === 1 ? 1 : n === 2 ? 0.1 : n === 3 ? 0.03 : n >= 5 ? 0.01 : 0) // a nearly pure fundamental with a faint, flat
   // shelf of high harmonics (5–20), the nearest a fixed mix gets to a breathy flute
 };
@@ -197,12 +201,13 @@ function besselJ(k, x) {
 }
 /* Gains for the formula tones, measured so a reference piece at default settings reaches Soft's loudness (the original five stay
    at 1, unchanged). Brightness, register and voicing change each tone's level differently, so this keeps changes reasonable, not exact. */
-const TONE_GAIN = { triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft
+const OPEN_HZ = 16000; // a part's brightness at its top: no filter
+const TONE_GAIN = { noise: 2, triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft (noise: set by its RMS, 2 dB under Soft, as its peaks stand far above its average)
 /* The tone as the two coefficient arrays the Web Audio API wants, of equal length */
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
-const PIECE_FORMAT_VERSION = 5; // 4 adds parts and a volume shape, 5 musical time (bars and beats); a piece is written as the oldest format that holds it (formatFor())
+const PIECE_FORMAT_VERSION = 6; // 4 adds parts and a volume shape, 5 musical time (bars and beats), 6 noise, ensemble, tone controls, saturation and a part's own reverb and brightness; a piece is written as the oldest format that holds it (formatFor())
 function defaultPiece() {
   return {
     format: PIECE_FORMAT, formatVersion: PIECE_FORMAT_VERSION, engine: ENGINE_VERSION,
@@ -215,7 +220,7 @@ function defaultPiece() {
     breathe: { depth: 0, time: 0.6 }, duck: { under: '', depth: 0, time: 0.25 },
     voicing: { continuity: 50, coverage: 50, stacking: 25, spacing: 25, variation: 25, spread: 100, top: 88, bassMode: 'root', bassOctave: 2 },
     motion: { order: 'together', stagger: 0 },
-    sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200 },
+    sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200, ensemble: 0, saturation: 0, eq: { low: 0, mid: 0, high: 0 } },
     view: { mode: 'auto', labels: 'notes', trace: { look: 'theme', glow: 60, weight: 1, custom: { line: '#39ff88', line2: '#39ff88', bg: '#020604' } } }
   };
 }
@@ -251,6 +256,8 @@ function normalizePiece(p) {
   out.sound.tone = pickFrom(out.sound.tone, Object.keys(TONES), 'soft');
   out.sound.detune = num(out.sound.detune, 0, 20, 4); out.sound.width = num(out.sound.width, 0, 100, 70);
   out.sound.reverb = num(out.sound.reverb, 0, 100, 38); out.sound.brightness = num(out.sound.brightness, 800, 12000, 4200);
+  out.sound.ensemble = num(out.sound.ensemble, 0, 100, 0); out.sound.saturation = num(out.sound.saturation, 0, 100, 0); // the main part's ensemble; warmth for the whole piece
+  { const q = (out.sound.eq && typeof out.sound.eq === 'object') ? out.sound.eq : {}; out.sound.eq = { low: num(q.low, -12, 12, 0), mid: num(q.mid, -12, 12, 0), high: num(q.high, -12, 12, 0) }; } // tone controls for the whole piece, in dB
   out.view.mode = pickFrom(out.view.mode, ['auto', 'scroll', 'whole'], 'auto'); out.view.labels = pickFrom(out.view.labels, ['notes', 'hz'], 'notes');
   { // trace look: how the lines are drawn (saved with the piece, used for video)
     const tr = (p.view && p.view.trace && typeof p.view.trace === 'object') ? p.view.trace : {}, c = (tr.custom && typeof tr.custom === 'object') ? tr.custom : {};
@@ -558,7 +565,9 @@ function normalizePart(q, P, i, used) {
   const PL = q.plays, plays = Array.isArray(PL) ? [...new Set(PL.map(x => String(x).slice(0, 40)).filter(Boolean))].slice(0, 64) : undefined; // the sections it plays in (all if none)
   const part = { id, name: String(q.name || id).slice(0, 40), preset,
     sound: { tone: TONES[s.tone] ? s.tone : P.sound.tone, level: num(s.level, -60, 12, 0), pan: num(s.pan, -1, 1, 0),
-      width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune) },
+      width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune),
+      ensemble: num(s.ensemble, 0, 100, 0), reverb: num(s.reverb, 0, 300, 100), // a chorus; its reverb as a percentage of the piece's
+      brightness: num(s.brightness, 200, OPEN_HZ, OPEN_HZ), opens: num(s.opens, 0, 100, 0), openTime: num(s.openTime, 0.02, 3, 0.3) }, // its own filter (open at the top), and how far and how long each note opens it
     envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release), curve: e.curve === 'exp' ? 'exp' : 'linear' } };
   if (plays) part.plays = plays;
   part.echo = normalizeEcho(q.echo);

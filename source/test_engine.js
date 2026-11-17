@@ -117,7 +117,7 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const nb = E.buildPiece(E.parseProgression('Dm7, Cmaj7/D').items, vo({ bassMode: 'nearest' }));
   const pc = nb.events[1].targets[0] % 12;
   check('Nearest chord tone ignores a slash note outside the chord', [0, 4, 7, 11].includes(pc), E.noteName(nb.events[1].targets[0]));
-  let refused = false; try { E.normalizePiece({ formatVersion: 6, chords: 'C' }); } catch (e) { refused = /newer/.test(e.message); }
+  let refused = false; try { E.normalizePiece({ formatVersion: 7, chords: 'C' }); } catch (e) { refused = /newer/.test(e.message); }
   check('A newer file format is refused, not silently downgraded', refused);
   const kept = E.normalizePiece({ formatVersion: 3, chords: 'C', myNotes: { a: 1 } });
   check('Unknown fields are kept', kept.myNotes && kept.myNotes.a === 1);
@@ -647,6 +647,18 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('How long an echo rings: 50 dB down, at the tempo', E.echoRing({ time: '1/4', mix: 0.5, feedback: 0.9 }, 0.5) === 49 * 0.5 && E.echoRing({ time: '1/4', mix: 0, feedback: 0.9 }, 0.5) === 0 && E.echoRing({ time: '3/16', mix: 1, feedback: 0 }, 1) === 0.75);
   const line = mk({ plays: [], parts: [{ id: 'l', preset: 'line', line: 'C5 -:7', step: '1/4', transpose: [0], envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.1 }, echo: { time: '1/4', mix: 0.5, feedback: 0.5 } }] });
   check('An echo on a line rings on from its last note\'s release, not the end of the piece: an early note\'s echo has died away by the end, so nothing is added', line.total === 8, line.total);
+}
+{ // 4.3's sound: file format 6 only when a piece uses it
+  const fv = p => E.normalizePiece(Object.assign({ chords: 'C, F' }, p)).formatVersion;
+  const part = sound => ({ parts: [{ id: 'l', preset: 'line', line: 'C4', sound }] });
+  check('A piece that uses none of 4.3\'s sound keeps its older format', fv({}) === 3 && fv(part({ level: -3 })) === 4 && fv(part({ reverb: 100, brightness: 16000, opens: 50, ensemble: 0 })) === 4, [fv({}), fv(part({ level: -3 }))]);
+  check('The Noise tone needs format 6, on the main part or another', fv({ sound: { tone: 'noise' } }) === 6 && fv(part({ tone: 'noise' })) === 6);
+  check('Ensemble, tone controls and saturation need format 6', fv({ sound: { ensemble: 20 } }) === 6 && fv({ sound: { eq: { mid: -3 } } }) === 6 && fv({ sound: { saturation: 10 } }) === 6 && fv(part({ ensemble: 5 })) === 6);
+  check('A part\'s own reverb or brightness needs format 6', fv(part({ reverb: 0 })) === 6 && fv(part({ reverb: 150 })) === 6 && fv(part({ brightness: 2000 })) === 6);
+  const n = E.normalizePiece({ chords: 'C', sound: { eq: { low: 40, high: 'x' }, saturation: 500, ensemble: -3 }, parts: [{ id: 'l', preset: 'line', line: 'C4', sound: { reverb: 900, brightness: 5, opens: 400, openTime: 0 } }] });
+  check('The new settings are kept in range', n.sound.eq.low === 12 && n.sound.eq.mid === 0 && n.sound.eq.high === 0 && n.sound.saturation === 100 && n.sound.ensemble === 0 && n.parts[0].sound.reverb === 300 && n.parts[0].sound.brightness === 200 && n.parts[0].sound.opens === 100 && n.parts[0].sound.openTime === 0.02, JSON.stringify([n.sound, n.parts[0].sound]));
+  const d = E.normalizePiece({ chords: 'C', parts: [{ id: 'l', preset: 'line', line: 'C4' }] }).parts[0].sound;
+  check('A part starts with the piece\'s reverb, no filter and no ensemble', d.reverb === 100 && d.brightness === 16000 && d.opens === 0 && d.ensemble === 0);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;
