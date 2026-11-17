@@ -1,6 +1,6 @@
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.4';
+const APP_VERSION = '4.5';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -26,6 +26,7 @@ const EXAMPLE_NOTES = {
   'Sketchbook': 'Arcs, ramps and accents in a written line, with an echo that turns it into a canon.',
   'Breathing Room': 'A groove where what doesn\'t play matters: rests, sections, a pad that swells in, a bell that rings out.',
   'Bounce of the Spheres': 'The full-length showcase: sections, patterns, a kick and echoes, in parts that never stop.',
+  'Bells at Dusk': 'The struck instruments: a tolling bell and gong, marimba, drum and triangle, a bell that bends as it rings, and an FM melody shaped over each note.',
   'Three Parts': 'A pad, a bass line and a melody: written lines with rests and vibrato.'
 };
 const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
@@ -117,6 +118,11 @@ function drawEq() {
   path.setAttribute('d', d);
   const flat = $('eqflat'); if (flat) flat.disabled = !(q.low || q.mid || q.high);
 }
+/* The struck instruments' and FM's settings show only for those tones (for the part the tabs edit) */
+function syncToneCtl(src) {
+  const pn = typeof selNorm === 'function' ? selNorm() : null, tone = (src ? getPath(src('tone'), 'sound.tone') : null) || (pn ? pn.sound.tone : piece.sound.tone);
+  document.querySelectorAll('.tonectl').forEach(el => { el.hidden = el.dataset.for === 'struck' ? !STRUCK[tone] : tone !== 'fm'; });
+}
 /* ---------- Controls ---------- */
 const pct = v => Math.round(v) + '%';
 const SLIDERS = [
@@ -125,6 +131,7 @@ const SLIDERS = [
   ['spacing', 'voicing.spacing', pct], ['variation', 'voicing.variation', pct], ['spread', 'voicing.spread', pct],
   ['glide', 'timing.glide', v => (+v).toFixed(1) + ' s'], ['stagger', 'motion.stagger', pct],
   ['detune', 'sound.detune', v => (+v).toFixed(1) + ' ¢'], ['width', 'sound.width', pct], ['reverb', 'sound.reverb', pct], ['ensemble', 'sound.ensemble', v => +v ? pct(v) : 'off'],
+  ['hardness', 'sound.hardness', pct], ['ring', 'sound.ring', v => '×' + (+v).toFixed(2)], ['fmindex', 'sound.fmIndex', v => (+v).toFixed(1)], ['fmsustain', 'sound.fmSustain', v => (+v).toFixed(1)], ['fmtime', 'sound.fmTime', v => fmtSec(+v)],
   ['eqlow', 'sound.eq.low', v => fmtDb(+v)], ['eqmid', 'sound.eq.mid', v => fmtDb(+v)], ['eqhigh', 'sound.eq.high', v => fmtDb(+v)], ['saturation', 'sound.saturation', v => +v ? pct(v) : 'off'],
   ['brightness', 'sound.brightness', v => (v / 1000).toFixed(1) + ' kHz'], ['tempo', 'timing.tempo', v => v + ' BPM'],
   ['breathedepth', 'breathe.depth', v => +v ? '−' + Math.round(-20 * Math.log10(1 - v) * 10) / 10 + ' dB' : 'off'], ['breathetime', 'breathe.time', v => (+v).toFixed(2) + ' s'],
@@ -132,7 +139,7 @@ const SLIDERS = [
   ['duckdepth', 'duck.depth', v => +v ? '−' + Math.round(-20 * Math.log10(1 - v) * 10) / 10 + ' dB' : 'off'], ['ducktime', 'duck.time', v => Math.round(v * 1000) + ' ms']
 ];
 const SELECTS = [['top', 'voicing.top', Number], ['bassoct', 'voicing.bassOctave', Number], ['bassmode', 'voicing.bassMode', String],
-  ['easing', 'timing.easing', String], ['mix', 'mix', String], ['tuning', 'tuning', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String], ['meter', 'timing.meter', Number], ['duckunder', 'duck.under', String], ['echopan', 'echo.pingpong', v => v === 'true']];
+  ['easing', 'timing.easing', String], ['mix', 'mix', String], ['tuning', 'tuning', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String], ['meter', 'timing.meter', Number], ['duckunder', 'duck.under', String], ['echopan', 'echo.pingpong', v => v === 'true'], ['stopend', 'sound.stop', v => v === 'true'], ['fmratio', 'sound.fmRatio', Number]];
 (() => { const sel = $('top'); for (let m = 96; m >= 67; m--) { const o = document.createElement('option'); o.value = m; o.textContent = noteName(m); sel.appendChild(o); } })();
 
 function syncUI() {
@@ -145,6 +152,7 @@ function syncUI() {
     if ([...dk.options].map(o => o.value + o.textContent).join() !== others.map(([v, t]) => v + t).join()) { dk.textContent = ''; for (const [v, t] of others) { const o = document.createElement('option'); o.value = v; o.textContent = t; dk.appendChild(o); } } }
   for (const [id, path] of SELECTS) $(id).value = String(getPath(src(id), path));
   drawEq(); if (typeof syncPartColor === 'function' && arr.rows) syncPartColor();
+  syncToneCtl(src);
   { const e = getPath(src('echotime'), 'echo'), on = !!(e && e.mix > 0); $('echotime').value = on ? e.time : 'off';
     for (const id of ['echomix', 'echofb', 'echopan']) $(id).closest('.slider, .group').hidden = !on; } // the echo's level and repeats, once it's on
   $('mix').value = piece.mix === 'voices' ? 'voices' : 'parts'; $('tuning').value = piece.tuning === 'just' ? 'just' : 'equal'; // (neither saved at its default)
@@ -432,7 +440,7 @@ const textBytes = s => new TextEncoder().encode(s).length;
 const fmtSize = n => n < 1024 ? n + ' bytes' : n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
 const fmtWhen = iso => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''; };
 const fmtDay = iso => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''; };
-const OPENS_IN = { 3: 'app 3 and later', 4: 'app 4.1 and later', 5: 'app 4.2 and later', 6: 'app 4.3 and later' };
+const OPENS_IN = { 3: 'app 3 and later', 4: 'app 4.1 and later', 5: 'app 4.2 and later', 6: 'app 4.3 and later', 7: 'app 4.5 and later' };
 const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's'), ver = v => String(v).replace(/-/g, '\u2011'); // (a version never breaks at its hyphen)
 function openEntries() {
   const q = libView.q.trim().toLowerCase(), hit = e => !q || e.name.toLowerCase().includes(q);
@@ -741,6 +749,31 @@ function noiseVoice(ctx, at) {
   return { frequency: cs.offset, detunes: [f1.detune, f2.detune], connect: n => f2.connect(n), setPeriodicWave() {},
     start: t => { src.start(t, ((at % 4) + 4) % 4); cs.start(t); }, stop: t => { src.stop(t); cs.stop(t); } };
 }
+/* A struck voice's share of its part's shape over time (ducking, breathing), without an envelope: it rings by its modes */
+function modMoves(b, v, from) { if (b.voices) { const r = b.voices[v]; return modMoves(r.b, r.v, from); } if (!b.mod) return null; return [{ t: from, g: polyAt(b.mod, from) }, ...b.mod.filter(p => p.t > from)]; }
+/* A struck instrument's voice: one sine per mode, each detuned by its fixed ratio (in cents) from one shared frequency, so every mode
+   follows the voice's glides; each mode has its own gain, which the strikes set and let decay. Shaped like an oscillator for the
+   scheduler (`frequency`, `detunes` for vibrato, start and stop). */
+function struckVoice(ctx, modes, cents) {
+  const cs = ctx.createConstantSource(), out = ctx.createGain(), oscs = [], gains = [];
+  for (const [ratio] of modes) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 0; cs.connect(o.frequency); o.detune.value = 1200 * Math.log2(ratio) + cents; g.gain.value = 0; o.connect(g); g.connect(out); oscs.push(o); gains.push(g); }
+  return { frequency: cs.offset, detunes: oscs.map(o => o.detune), gains, connect: n => out.connect(n), setPeriodicWave() {},
+    start: t => { cs.start(t); oscs.forEach(o => o.start(t)); }, stop: t => { cs.stop(t); oscs.forEach(o => o.stop(t)); } };
+}
+/* FM: a sine carrier whose frequency is swung by a sine modulator at `ratio` times it, by index × the modulator's frequency (so its
+   brightness is the same at every pitch, and follows glides). index: the AudioParam that sets it (scheduled per note). */
+function fmVoice(ctx, ratio, cents) {
+  const cs = ctx.createConstantSource(), car = ctx.createOscillator(), mod = ctx.createOscillator(), scale = ctx.createGain(), dev = ctx.createGain();
+  for (const o of [car, mod]) { o.frequency.value = 0; cs.connect(o.frequency); }
+  car.detune.value = cents; mod.detune.value = 1200 * Math.log2(ratio) + cents;
+  scale.gain.value = 0; cs.connect(scale); // the carrier's frequency × ratio × index (the index arrives on scale.gain) …
+  dev.gain.value = 0; scale.connect(dev.gain); mod.connect(dev); dev.connect(car.frequency); // … times the modulator: the swing in Hz
+  return { frequency: cs.offset, detunes: [car.detune, mod.detune], index: scale.gain, ratio, connect: n => car.connect(n), setPeriodicWave() {},
+    start: t => { cs.start(t); car.start(t); mod.start(t); }, stop: t => { cs.stop(t); car.stop(t); mod.stop(t); } };
+}
+/* When a voice is struck (a struck instrument, or FM's brightness): each note's start and loudness, and its end, as the part plays
+   them; a part that sounds throughout (the main part, a pad) at each chord change */
+const strikesOf = (pt, lv) => struckHits(pt.sub, lv); // (in the engine, which also works out how long the rings last)
 /* A sine at `rate` Hz that is at `phase` (radians) when it starts, for effects that must be the same wherever playback begins */
 function phasedLFO(ctx, rate, phase) {
   const o = ctx.createOscillator(); o.frequency.value = rate;
@@ -807,7 +840,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const silent = pt => !!(pt.sub.gates && pt.sub.gates.every(g => g && !g.length)); // a part that plays in no section
   const eqN = b.parts.reduce((a, pt) => a + (silent(pt) ? 0 : pt.sub.N), 0) || 1; // the voices that sound
   const parts = b.parts, levelN = equal ? eqN : parts[0].sub.N; // the main part's level, exactly as before (balanced by part)
-  const oscs = [], gains = [], moves = [], envs = [], vibs = [], lfos = [], opens = [];
+  const oscs = [], gains = [], moves = [], envs = [], vibs = [], lfos = [], opens = [], strikeJobs = [], struckOuts = [];
   const hasBass = P.voicing.bassMode !== 'none';
   /* With other parts, the mix is given headroom: every voice is scaled by one over the sum of the parts' levels (as amplitudes;
      the main part counts as 1), so the parts' peaks can line up without clipping, and a part at −60 dB changes nothing. Measured:
@@ -820,7 +853,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const headroom = !multi ? 1 : 1 / (parts.reduce((a, pt) => a + partAmp(pt), 0) || 1);
   if (satOn) { const ref = !multi ? 1 : Math.min(1, headroom * Math.sqrt(parts.reduce((a, pt) => a + partAmp(pt) * partAmp(pt), 0)) || 1); satIn.gain.value = 1 / ref; satOut.gain.value = ref; }
   for (const pt of parts) {
-    const snd = pt.main ? S : pt.sound, noise = snd.tone === 'noise';
+    const snd = pt.main ? S : pt.sound, noise = snd.tone === 'noise', modes = struckModes(snd.tone, snd.hardness, snd.ring), fm = snd.tone === 'fm';
     /* The part's own path: its voices (those that sound throughout through `held`), then its filter and ensemble, then on to the
        two buses by its reverb amount. */
     const bus = ctx.createGain(), held = ctx.createGain(); held.connect(bus); helds.push(held);
@@ -849,21 +882,23 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     if (pt.sub.vibrato) { lfo = ctx.createOscillator(); lfo.frequency.value = pt.sub.vibrato.rate; lfos.push(lfo); }
     for (let lv = 0; lv < pt.sub.N; lv++) {
       const v = pt.first + lv, dz = r() * 2 - 1, pz = r() * 2 - 1;
-      const osc = noise ? noiseVoice(ctx, from + r() * 4) : ctx.createOscillator();
-      if (!noise) { osc.setPeriodicWave(waveOf(snd.tone)); osc.detune.value = dz * snd.detune; }
+      const osc = noise ? noiseVoice(ctx, from + r() * 4) : modes ? struckVoice(ctx, modes, dz * snd.detune) : fm ? fmVoice(ctx, snd.fmRatio, dz * snd.detune) : ctx.createOscillator();
+      if (!noise && !modes && !fm) { osc.setPeriodicWave(waveOf(snd.tone)); osc.detune.value = dz * snd.detune; }
+      if (modes || fm) strikeJobs.push({ osc, modes, snd, hits: strikesOf(pt, lv) }); // struck, or FM's brightness: scheduled once the clock is read
       const mv = pitchMoves(b, v, from); // the glides themselves, so accuracy never depends on the piece's length
       osc.frequency.value = hz(mv[0].p); // set before the clock is read below, so it can never land inside a glide
       const g = ctx.createGain(); g.gain.value = lvl;
-      const em = gainMoves(b, v, from); // a voice that rests: its envelope
+      const em = modes ? modMoves(b, v, from) : gainMoves(b, v, from); // a voice that rests: its envelope (a struck one rings by its modes instead, keeping only its part's ducking or breathing)
       let env = null;
       if (em) { env = ctx.createGain(); env.gain.value = em[0].g; osc.connect(env); env.connect(g); } else osc.connect(g);
       const vm = lfo ? vibratoMoves(b, v, from) : null;
       let depth = null;
       if (vm) { depth = ctx.createGain(); depth.gain.value = vm.moves[0].g; lfo.connect(depth); for (const p of osc.detunes || [osc.detune]) depth.connect(p); }
       const pan = pt.main ? ((hasBass && lv === 0) ? 0 : pz * (S.width / 100)) : Math.max(-1, Math.min(1, snd.pan + pz * (snd.width / 100) * (1 - Math.abs(snd.pan))));
-      const to = em && !pt.sub.held && !(pt.sub.heldV && pt.sub.heldV[lv]) ? bus : held; // a voice that sounds throughout fades with the piece (also one gated to sections, or an echo's that enters late); one with notes ends by its own envelope
+      const to = modes || (em && !pt.sub.held && !(pt.sub.heldV && pt.sub.heldV[lv])) ? bus : held; // (a struck voice rings out by itself, not by the closing fade) // a voice that sounds throughout fades with the piece (also one gated to sections, or an echo's that enters late); one with notes ends by its own envelope
       if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(via(to)); }
       else g.connect(via(to));
+      if (modes) struckOuts.push(g);
       oscs.push(osc); gains.push(g); moves.push(mv); envs.push(env ? { p: env.gain, m: em } : null); vibs.push(depth ? { p: depth.gain, m: vm.moves } : null);
     }
   }
@@ -881,15 +916,18 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
      If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
      past; Chrome then plays it late, or holds the voice at the start pitch set above, so the sound drifts from the picture. */
   const now = offline ? 0 : ctx.currentTime + lead;
-  { const end = now + span + TAIL; for (const og of echoOuts) { og.gain.setValueAtTime(1, Math.max(now, end - 3)); og.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 1)); } } // (the last second for its reverb)
+  { const end = now + span + TAIL; for (const g of struckOuts) { const lv0 = g.gain.value; g.gain.setValueAtTime(lv0, Math.max(now, end - 1.2)); g.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 0.05)); }
+    for (const og of echoOuts) { og.gain.setValueAtTime(1, Math.max(now, end - 3)); og.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 1)); } } // (the last second for its reverb)
   /* Fade in, hold, then the closing fade (FADE). In a piece whose voices all sound throughout, the fade is on the master, after
      the compressor, exactly as it always was. In a piece with lines or saved notes (voices that rest), it's on the voices that
      sound throughout (`held`) instead, so a line's last notes ring out by their own release while the held chord fades; the
      master then just fades in and carries the volume. Started inside the fade (from past the end), pick it up where it is. */
   const M = b.musicEnd !== undefined ? b.musicEnd : T; // the music's end: the fade starts here even when a long release lengthens the piece
   const into = Math.max(0, from - M), fadeLeft = Math.max(0.05, FADE - into), left = Math.max(0, 1 - into / FADE), top = level * left;
-  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(Math.max(0.05, M - from), attack);
-  const fadeOnMaster = !envs.some(x => x);
+  // (a piece with a struck instrument starts at once, or the first strike would be swallowed by the fade in)
+  const struckIn = parts.some(pt => STRUCK[(pt.main ? S : pt.sound).tone]);
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : struckIn ? 0.005 : from > 0 ? 0.15 : 0.4, hold = Math.max(Math.max(0.05, M - from), attack);
+  const fadeOnMaster = !envs.some(x => x) && !struckOuts.length; // (with a struck instrument the closing fade is on the voices that sound throughout, so its rings carry on)
   if (fadeOnMaster) {
     master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
     master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
@@ -922,6 +960,24 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     if (o.was) { o.p.setValueAtTime(openAt(o, o.was, from), now); o.p.setTargetAtTime(o.base, now, o.tc); o.was = null; } // the note already sounding
     for (; o.k < o.hits.length && o.hits[o.k][0] < until; o.k++) { const [t, v] = o.hits[o.k], s = Math.max(now, at(t));
       o.p.setValueAtTime(openAt(o, o.hits[o.k], t), s); o.p.setTargetAtTime(o.base, s, o.tc); } } };
+  /* Strikes. A struck mode jumps to its level × the note's loudness (in 1.5 ms, so it doesn't click) and decays by its T60; if the
+     instrument stops at the note's end, it's damped there in about 50 ms. FM's index jumps to its strike value × loudness and settles
+     to its held value over the fall time. Starting part-way (a seek, a resume or a change while playing), each picks up the last
+     strike before here where it has got to, as it would have been. */
+  const tau60 = T => T / Math.log(1000);
+  for (const J of strikeJobs) {
+    const past = J.hits.filter(h => h.on < from - 1e-6), last = past[past.length - 1], ahead = J.hits.filter(h => h.on >= from - 1e-6);
+    if (J.modes) J.modes.forEach(([, a, T], k) => {
+      const p = J.osc.gains[k].gain, tc = tau60(T), stopTc = 0.05 / 3;
+      let g0 = 0; if (last) { g0 = a * last.v * Math.exp(-(from - last.on) / tc); if (J.snd.stop && last.off < from) g0 *= Math.exp(-(from - last.off) / stopTc); }
+      p.setValueAtTime(g0, now); p.setTargetAtTime(0, now, tc);
+      if (last && J.snd.stop && last.off >= from && last.off < Infinity) p.setTargetAtTime(0, at(last.off), stopTc);
+      for (const h of ahead) { const s0 = at(h.on); p.setTargetAtTime(a * h.v, s0, 0.0015); p.setTargetAtTime(0, s0 + 0.006, tc); if (J.snd.stop && h.off < Infinity) p.setTargetAtTime(0, at(h.off), stopTc); }
+    });
+    else { const p = J.osc.index, I0 = J.snd.fmIndex, I1 = J.snd.fmSustain, tc = J.snd.fmTime / 3, ix = h => I1 + (I0 * h.v - I1); // (the index at a strike)
+      p.setValueAtTime(J.osc.ratio * (last ? I1 + (ix(last) - I1) * Math.exp(-(from - last.on) / tc) : I1), now); p.setTargetAtTime(J.osc.ratio * I1, now, tc);
+      for (const h of ahead) { const s0 = at(h.on); p.setTargetAtTime(J.osc.ratio * ix(h), s0, 0.002); p.setTargetAtTime(J.osc.ratio * I1, s0 + 0.008, tc); } }
+  }
   oscs.forEach((osc, v) => { schedule(v, soon); osc.start(now); osc.stop(now + span + TAIL); });
   openTo(soon);
   lfos.forEach(o => { o.start(now); o.stop(now + span + TAIL); });
@@ -2034,7 +2090,7 @@ function starterLine(kind) {
   }).join(' | ');
 }
 /* The tabs' controls that belong to a part, and which kinds of part have them */
-const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', ensemble: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
+const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', ensemble: 'all', hardness: 'all', ring: 'all', stopend: 'all', fmratio: 'all', fmindex: 'all', fmsustain: 'all', fmtime: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
 const applies = (id, n) => PART_CTRL[id] === 'all' || (PART_CTRL[id] === 'pad' && n.preset === 'pad');
 ['chords', 'seed-harmony', 'tu-sec', 'chordsec', 'chordbars', 'tempo', 'meter', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'eqlow', 'mix', 'tuning', 'vshape']
   .forEach(id => { const w = $(id).closest('.tabpanel > *'); if (w) w.dataset.whole = ''; }); // shared by every part
@@ -2426,12 +2482,16 @@ function renderPartBlocks(n) {
     slider('Each note opens it', 0, 100, 1, n.sound.opens, v => v ? pct(v) : 'off', v => { own('sound').opens = v; }),
     slider('Closing time', 0.02, 3, 0.01, n.sound.openTime, fmtSec, v => { own('sound').openTime = v; }),
     mk('p', { className: 'hint help', dataset: { on: 'partbright' }, textContent: 'This part\'s own filter, under the piece\'s: lower is darker and rounder. With "Each note opens it", every note starts brighter (up to four octaves, louder notes further) and closes back over the closing time, as a plucked or struck sound does. It needs Brightness below open.' }));
-  if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
+  if (n.preset !== 'pad' && n.preset !== 'copy' && STRUCK[n.sound.tone]) put('sound', sect('Envelope'), mk('p', { className: 'hint', textContent: 'A struck instrument rings by itself, so this part\'s envelope isn\'t used: Hardness, Ring length and At note end, below, shape it.' }));
+  else if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
     slider('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }),
     slider('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }),
     slider('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }),
     slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }),
-    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }));
+    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }),
+    named(select('Over each note', opts([['none', 'Steady'], ['swell', 'Swells in'], ['fade', 'Fades away'], ['arch', 'Swells in, then eases off']]), n.envelope.shape || 'none', v => { if (v === 'none') { delete own('envelope').shape; delete own('envelope').depth; } else own('envelope').shape = v; renderPartBlocks(selNorm()); }), 'noteshape'),
+    ...(n.envelope.shape ? [slider('Shape depth', 0, 1, 0.01, n.envelope.depth === undefined ? 1 : n.envelope.depth, v => Math.round(v * 100) + '%', v => { own('envelope').depth = v; })] : []),
+    mk('p', { className: 'hint help', dataset: { on: 'noteshape' }, textContent: 'A shape in each note\'s own time, on top of the envelope, so short and long notes take the same shape: Swells in rises from about a third over the first quarter of the note; Fades away eases to 40% by its end; Swells in, then eases off does both (to 55%). Depth blends from steady to the full shape.' }));
 }
 /* The part bar's menus */
 function closePops() { for (const [pop, btn] of [['addpop', 'partadd'], ['morepop', 'partmore']]) { $(pop).hidden = true; $(btn).setAttribute('aria-expanded', 'false'); } }
@@ -2495,9 +2555,10 @@ $('echotime').addEventListener('change', () => {
 for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => {
   const tgt = partTarget(id);
   if (STRUCTURAL.has(id) || (id === 'meter' && usesMusicalTime(piece))) { if (tgt === piece) unfreeze(); else delete tgt.realization; } setDeep(tgt, path, conv($(id).value));
-  if (tgt !== piece) { rebuild(true); refreshPartBar(); commit(); return; }
-  const swap = id === 'tone' && playing && !recording && live && piece.sound.tone !== 'noise' && live.tone !== 'noise'; // tone doesn't change any pitch, so the running voices can just change waveform (noise isn't a waveform: that starts the sound again)
+  if (tgt !== piece) { rebuild(true); refreshPartBar(); commit(); if (id === 'tone') { syncToneCtl(); renderPartBlocks(selNorm()); } return; }
+  const notWave = t => t === 'noise' || t === 'fm' || !!STRUCK[t], swap = id === 'tone' && playing && !recording && live && !notWave(piece.sound.tone) && !notWave(live.tone); // tone doesn't change any pitch, so the running voices can just change waveform (noise isn't a waveform: that starts the sound again)
   rebuild(true, !swap); if (swap) swapToneLive(piece.sound.tone);
+  if (id === 'tone') { syncToneCtl(); renderPartBlocks(selNorm()); } // its own settings, and (for a part) whether its envelope is used
   commit();
 });
 /* Time: chords without a length of their own last chordSec seconds, or chordBars bars. Switching converts the length at the

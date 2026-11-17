@@ -212,6 +212,7 @@ canvas.trace { position: absolute; inset: 0; width: 100%; height: 100%; display:
 .arr-name { width: var(--arr-names); flex: none; display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 6px 0 2px; box-sizing: border-box; position: sticky; left: 0; z-index: 2; background: var(--stage); border-radius: 5px; }
 .arr-row.sel .arr-name { background: color-mix(in srgb, var(--ink) 9%, var(--stage)); }
 .arr-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 100%; border: 0; background: none; padding: 0 0 0 6px; text-align: left; color: var(--ink); font: inherit; }
+.tonectl { display: grid; gap: 14px; }
 .pcolor-row { display: flex; align-items: center; gap: 8px; }
 .pcolor-row input[type=color] { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--rule); border-radius: 4px; background: transparent; cursor: pointer; }
 .arr-sw { position: relative; flex: none; width: 22px; height: 26px; display: grid; place-items: center; cursor: pointer; border-radius: 4px; }
@@ -539,7 +540,7 @@ figure.vl circle { fill: var(--ink); }
 <div class="wrap">
   <header>
     <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="cg-logo-g" gradientUnits="userSpaceOnUse" x1="0" y1="52" x2="0" y2="12"><stop offset="0" stop-color="#00e2a2"/><stop offset=".38" stop-color="#19c6ff"/><stop offset=".7" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ccf"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#03060c"/><g fill="none" stroke="url(#cg-logo-g)" stroke-width="4.6" stroke-linecap="round"><path d="M13 32C31 32 33 14 51 14"/><path d="M13 32C31 32 33 23 51 23"/><path d="M13 32C31 32 33 32 51 32"/><path d="M13 32C31 32 33 41 51 41"/><path d="M13 32C31 32 33 50 51 50"/></g><circle cx="13" cy="32" r="5" fill="#fff"/></svg>Chord Glide</h1>
-    <span class="ver" id="ver">Version 4.4 · engine 3.1 · by Noizgenie</span>
+    <span class="ver" id="ver">Version 4.5 · engine 3.1 · by Noizgenie</span>
     <p>Write chords and hear them as gliding voices. Lock what you like and reroll the rest.</p>
   </header>
 
@@ -790,8 +791,21 @@ figure.vl circle { fill: var(--ink); }
           <p class="hint help" style="grid-column:1/-1">Sets each voice's detune and stereo position, and the shape of the reverb.</p>
         </div>
         <div class="group"><label for="tone">Tone</label>
-          <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup><optgroup label="Unpitched"><option value="noise">Noise (drums, wind)</option></optgroup></select>
-          <p class="hint help">Noise is hiss in a band around each note instead of a pitch, for drums and wind: with a short envelope, a low note is a thump, a middle one a snare and a high one (C8 and up) a hi-hat. A glide sweeps it. Detune does nothing to it.</p>
+          <select id="tone"><optgroup label="Gentle"><option value="pure">Pure (sine)</option><option value="soft">Soft</option><option value="warm">Warm</option><option value="air">Air</option></optgroup><optgroup label="Classic waves"><option value="triangle">Triangle</option><option value="square">Square</option><option value="pulse">Pulse</option><option value="saw">Saw</option></optgroup><optgroup label="Instruments"><option value="reed">Reed</option><option value="organ">Organ</option><option value="brass">Brass</option><option value="harp">Harp</option><option value="bowed">Bowed</option><option value="cello">Cello</option></optgroup><optgroup label="Spectral"><option value="glass">Glass</option><option value="chime">Chime</option><option value="octaves">Octaves</option></optgroup><optgroup label="Struck (they ring on)"><option value="bell">Bell</option><option value="gong">Gong (plate)</option><option value="marimba">Marimba</option><option value="drum">Drum (membrane)</option><option value="metaltri">Metal triangle</option></optgroup><optgroup label="Moving"><option value="fm">FM (bright at each note)</option></optgroup><optgroup label="Unpitched"><option value="noise">Noise (drums, wind)</option></optgroup></select>
+          <p class="hint help"><b>Struck</b> instruments ring on by themselves after each note, every partial with its own decay, and follow glides (a bell that bends); the line on the stage is the struck pitch, fading as the ring dies. <b>FM</b> is bright as each note starts and mellows as it settles. Noise is hiss in a band around each note instead of a pitch, for drums and wind: with a short envelope, a low note is a thump, a middle one a snare and a high one (C8 and up) a hi-hat. A glide sweeps it. Detune does nothing to it.</p>
+        </div>
+        <div class="tonectl" data-for="struck" hidden>
+          <div class="slider"><label for="hardness" id="hardness-lbl">Hardness</label><output id="o-hardness"></output><input id="hardness" type="range" min="0" max="100" step="1"><span class="ends"><span>softer mallet: darker</span><span>harder: brighter</span></span></div>
+          <div class="slider"><label for="ring">Ring length</label><output id="o-ring"></output><input id="ring" type="range" min="0.1" max="4" step="0.05"></div>
+          <div class="group"><label for="stopend">At note end</label><select id="stopend"><option value="false">Rings on</option><option value="true">Stops (damped)</option></select></div>
+          <p class="hint help" data-on="hardness-lbl">Hardness: a harder strike brings out the upper partials. Ring length: every partial rings this many times as long. At note end: rings on, as a real instrument does after it's struck, or is damped at the note's end, like a hand on a cymbal. Each note strikes afresh; a slide (<code>~</code>) glides the ringing note without a new strike. The partials' ratios come from simple physics (a drumhead, a bar, a rod, a plate) and, for the bell, tradition: musical approximations, not recordings.</p>
+        </div>
+        <div class="tonectl" data-for="fm" hidden>
+          <div class="group"><label for="fmratio" id="fmratio-lbl">Ratio</label><select id="fmratio"><option value="0.5">0.5 (an octave below)</option><option value="1">1</option><option value="1.414">1.414 (bell-like)</option><option value="2">2</option><option value="3">3</option><option value="3.5">3.5 (metallic)</option><option value="4">4</option><option value="5">5</option><option value="7">7</option></select></div>
+          <div class="slider"><label for="fmindex">Brightness at each note</label><output id="o-fmindex"></output><input id="fmindex" type="range" min="0" max="12" step="0.1"></div>
+          <div class="slider"><label for="fmsustain">Brightness held</label><output id="o-fmsustain"></output><input id="fmsustain" type="range" min="0" max="12" step="0.1"></div>
+          <div class="slider"><label for="fmtime">Settles over</label><output id="o-fmtime"></output><input id="fmtime" type="range" min="0.02" max="4" step="0.01"></div>
+          <p class="hint help" data-on="fmratio-lbl">FM (frequency modulation): a second, inaudible sine swings the note's pitch very fast, which adds partials. Ratio: how fast, against the note (whole numbers sound harmonic; 1.414 and 3.5 bell-like and metallic). Brightness: how far it swings, so how many partials, as each note starts (louder notes brighter) and once it has settled, over the time set. Very high brightness on high notes can fold harsh partials back down.</p>
         </div>
         <div class="group pcolor" id="pcolor-box" hidden><label for="pcolor" id="pcolor-lbl">Color</label>
           <div class="pcolor-row"><input type="color" id="pcolor"><button type="button" class="small" id="pcolor-auto">Automatic</button></div>
@@ -1053,7 +1067,7 @@ figure.vl circle { fill: var(--ink); }
         </section>
         <section class="guide-page" id="g-parts" role="tabpanel" aria-labelledby="gt-parts" hidden>
           <h3>Parts and sections</h3>
-          <p class="lede">Beyond the chords: patterns that follow them, a kick, echoes, sections to arrange it all in, and a tuning that lets a whole piece drift. The examples show it a piece at a time: <b>Pure Drift</b> tuning and sections, <b>Sketchbook</b> written lines and an echo, <b>Breathing Room</b> patterns, sections and space, and <b>Bounce of the Spheres</b> most of it at once.</p>
+          <p class="lede">Beyond the chords: patterns that follow them, a kick, echoes, sections to arrange it all in, and a tuning that lets a whole piece drift. The examples show it a piece at a time: <b>Pure Drift</b> tuning and sections, <b>Sketchbook</b> written lines and an echo, <b>Breathing Room</b> patterns, sections and space, <b>Bounce of the Spheres</b> most of it at once, and <b>Bells at Dusk</b> the instruments that ring.</p>
 
           <h4><span class="step">1</span>Keep time in bars</h4>
           <p>On the Harmony tab, <b>Time</b> says how chords without a length of their own are timed: in seconds, or in <b>bars</b> at the <b>Tempo</b> and <b>Beats per bar</b> beside it. Any chord can give its own length: <code>Am:6</code> is six seconds, <code>Am:2bar</code> two bars, <code>Am:3beat</code> three beats. Switching keeps what you hear. Adding your first pattern offers to switch a piece to bars, so chords change on the beat.</p>
@@ -1203,6 +1217,9 @@ figure.vl circle { fill: var(--ink); }
         <section class="guide-page" id="g-history" role="tabpanel" aria-labelledby="gt-history" hidden>
           <h3>Version history</h3>
           <p class="lede">Every release of the app so far, newest first. The releases tagged with an engine version changed how pieces are voiced; Engine history has the details.</p>
+
+          <h4><span class="step ver">4.5</span>Instruments that ring<span class="when">16 Nov 2026</span></h4>
+          <p>Tone has new choices. <b>Struck</b>: a <b>Bell</b>, a <b>Gong</b>, a <b>Marimba</b>, a <b>Drum</b> and a <b>Metal triangle</b>, each made of several partials at the instrument's own ratios, each with its own decay, struck at every note and ringing on by itself, following glides, so a bell can bend. Each has <b>Hardness</b>, <b>Ring length</b> and whether it rings on or <b>Stops</b> at the note's end. <b>FM</b>: bright as each note starts and mellowing as it settles, with a ratio, the brightness at each note and held, and how long it takes to settle. And any part's envelope can take a shape <b>Over each note</b> (swelling in, fading away, or both), in each note's own time, so one part plays short and long notes alike. A piece that uses these is saved as file format 7; every other piece is unchanged. A new example, <b>Bells at Dusk</b>, plays them all.</p>
 
           <h4><span class="step ver">4.4</span>The arrangement<span class="when">16 Nov 2026</span></h4>
           <p>A piece with parts or sections now has an <b>Arrangement</b> under the player bar: a row for each part and a column for each section as it falls in time, as wide as it is long. Each cell shows what the part does there (plays, rests on the chords, or is silent), and clicking it changes whether the part plays in that section, which replaces the <b>Plays in</b> buttons on the Harmony tab. A section's heading jumps to it, and again loops it. Each row has the part's level as it plays, and <b>M</b> and <b>S</b> to mute or solo it while you listen; clicking its name chooses it for the tabs. A line shows where the music is. The arrow at the top folds it away. A line written straight through now keeps its timing when you change where it plays, so turning a section off silences just that section (it used to start again from its first note after the gap, moving everything after it). Each part now has a colour, set from its swatch in the grid or <b>Color</b> on the Sound tab and saved with the piece, and the view options' <b>Line colors: By part</b> draws every line in its part's colour on any look. Clicking a part's name highlights its lines on the stage in its colour, with the rest in grey (again, or Esc, to let go), pointing at one previews it, and muted parts dim; videos and exports are unaffected. The file formats don't change.</p>
@@ -1379,6 +1396,9 @@ figure.vl circle { fill: var(--ink); }
           <p class="lede">A piece file (<b>Export</b>, then <b>Piece file</b>) holds everything needed to play a piece again: its chords, seeds, settings and parts, and the notes it was voiced with. Its format has a version, which goes up only when a piece can hold something older versions of the app can't play.</p>
           <p>Chord Glide always saves a piece in the oldest format that holds everything it uses, so it opens in as many versions as it can. A piece you haven't given parts to is still format 3, and opens in every version since app 3. Every version opens every older format. Since app 3.1, a version given a newer format than it knows says so and leaves the file alone, rather than playing it with parts missing.</p>
 
+          <h4><span class="step ver">7</span>Struck instruments, FM and note shapes<span class="when">app 4.5 and later</span></h4>
+          <p>Saved only when a piece uses something new in 4.5: a <b>struck</b> instrument (Bell, Gong, Marimba, Drum, Metal triangle), <b>FM</b>, or a part's shape <b>Over each note</b>.</p>
+
           <h4><span class="step ver">6</span>Noise, ensemble and tone<span class="when">app 4.3 and later</span></h4>
           <p>Saved only when a piece uses something new in 4.3: the <b>Noise</b> tone, <b>Ensemble</b>, the <b>Tone controls</b>, <b>Saturation</b>, or a part's own <b>Reverb</b> or <b>Brightness</b>.</p>
 
@@ -1392,10 +1412,10 @@ figure.vl circle { fill: var(--ink); }
           <p>The main part: chords, the four seeds and every setting. App 3.1 added the notes a piece was voiced with, so it plays exactly the same under a later engine, and app 3.3 the look of the trace. Older versions of app 3 ignore those and voice the piece themselves. Piece files began with app 3, so there's no format 1 or 2.</p>
 
           <h4>Three version numbers</h4>
-          <p>The <b>app</b> version (4.4) is the release. The <b>engine</b> version (3.1) changes only when the same chords and settings would be voiced differently; Engine history has them. The <b>file format</b> (3, 4, 5 or 6) changes only when a piece can hold something new. Most releases change neither of the last two.</p>
+          <p>The <b>app</b> version (4.5) is the release. The <b>engine</b> version (3.1) changes only when the same chords and settings would be voiced differently; Engine history has them. The <b>file format</b> (3 to 7) changes only when a piece can hold something new. Most releases change neither of the last two.</p>
 
           <h4>For programs that write piece files</h4>
-          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. A piece that uses anything added in app 4.2 is <code>"formatVersion": 5</code>: time in bars (<code>"unit": "bar"</code> in <code>timing</code>, or a chord length like <code>:2bar</code>), sections in the chords or <code>plays</code> on a part, more than 12 parts, pattern parts and echoes (<code>preset</code> <code>"pattern"</code> or <code>"copy"</code>), a pitch drop, natural decays (<code>envelope.curve</code>), a glide shape or portamento over 2 seconds, slides, loudness, glide times or section markers in a line (<code>~</code>, <code>@</code>, <code>/</code>, <code>[</code>), loudness or glide shapes in any saved notes (<code>vel</code>, <code>ease</code>), breathing or ducking, <b>Never stops</b> (<code>nonstop</code>), <b>Every voice equal</b> (<code>"mix": "voices"</code>) or <b>Just</b> tuning (<code>"tuning": "just"</code>). Saving always writes the lowest version that holds what the piece uses, so a piece without those is still saved as 3 or 4 and older versions open it. A program writing piece files should do the same: a file that uses format 5's fields but says 4 opens in app 4.1, which then plays it without them. Top-level fields this version doesn't know are kept when a piece is saved again. A piece can also say when it was made and last changed (<code>created</code>, <code>modified</code>), and which version of the app made it and last saved it (<code>madeWith</code>, <code>app</code>); the Open window shows them, and they're optional. A piece that uses anything added in app 4.3 is <code>"formatVersion": 6</code>: the tone <code>"noise"</code>, <code>sound.ensemble</code> (0 to 100) on the piece or a part, <code>sound.eq</code> (<code>low</code>, <code>mid</code>, <code>high</code> in dB) or <code>sound.saturation</code> (0 to 100) on the piece, or on a part <code>sound.reverb</code> (a percentage of the piece's, 100 if not set) or <code>sound.brightness</code> (Hz, below 16000; with <code>opens</code>, 0 to 100, and <code>openTime</code> in seconds).</p>
+          <p>Piece files are JSON, marked <code>"format": "chord-glide-piece"</code>. A piece with only its main part is <code>"formatVersion": 3</code>, as since app 3; its later fields are optional, so older versions ignore them: saved notes (<code>realization</code>, app 3.1) and trace looks (<code>view.trace</code>, app 3.3). A piece with more parts, or a volume shape, is <code>"formatVersion": 4</code> (app 4.1), with <code>parts</code> and <code>volume</code>; older versions refuse it rather than open it without them. Each pad part saves its own resolved notes too, so a later engine plays it exactly as it was. A piece that uses anything added in app 4.2 is <code>"formatVersion": 5</code>: time in bars (<code>"unit": "bar"</code> in <code>timing</code>, or a chord length like <code>:2bar</code>), sections in the chords or <code>plays</code> on a part, more than 12 parts, pattern parts and echoes (<code>preset</code> <code>"pattern"</code> or <code>"copy"</code>), a pitch drop, natural decays (<code>envelope.curve</code>), a glide shape or portamento over 2 seconds, slides, loudness, glide times or section markers in a line (<code>~</code>, <code>@</code>, <code>/</code>, <code>[</code>), loudness or glide shapes in any saved notes (<code>vel</code>, <code>ease</code>), breathing or ducking, <b>Never stops</b> (<code>nonstop</code>), <b>Every voice equal</b> (<code>"mix": "voices"</code>) or <b>Just</b> tuning (<code>"tuning": "just"</code>). Saving always writes the lowest version that holds what the piece uses, so a piece without those is still saved as 3 or 4 and older versions open it. A program writing piece files should do the same: a file that uses format 5's fields but says 4 opens in app 4.1, which then plays it without them. Top-level fields this version doesn't know are kept when a piece is saved again. A piece can also say when it was made and last changed (<code>created</code>, <code>modified</code>), and which version of the app made it and last saved it (<code>madeWith</code>, <code>app</code>); the Open window shows them, and they're optional. A piece that uses anything added in app 4.3 is <code>"formatVersion": 6</code>: the tone <code>"noise"</code>, <code>sound.ensemble</code> (0 to 100) on the piece or a part, <code>sound.eq</code> (<code>low</code>, <code>mid</code>, <code>high</code> in dB) or <code>sound.saturation</code> (0 to 100) on the piece, or on a part <code>sound.reverb</code> (a percentage of the piece's, 100 if not set) or <code>sound.brightness</code> (Hz, below 16000; with <code>opens</code>, 0 to 100, and <code>openTime</code> in seconds). A piece that uses anything added in app 4.5 is <code>"formatVersion": 7</code>: the tones <code>"bell"</code>, <code>"gong"</code>, <code>"marimba"</code>, <code>"drum"</code>, <code>"metaltri"</code> or <code>"fm"</code> (with <code>hardness</code> 0 to 100, <code>ring</code> 0.1 to 4 and <code>stop</code> for the struck ones, and <code>fmRatio</code>, <code>fmIndex</code>, <code>fmSustain</code> and <code>fmTime</code> for FM, in <code>sound</code>), or <code>envelope.shape</code> (<code>"swell"</code>, <code>"fade"</code> or <code>"arch"</code>, with <code>depth</code> 0 to 1) on a part.</p>
           <p class="guide-next"><button type="button" class="small" data-goto="about">Next: About →</button></p>
         </section>
         <section class="guide-page" id="g-about" role="tabpanel" aria-labelledby="gt-about" hidden>
@@ -1527,7 +1547,7 @@ const defaultChordSec = P => P.timing.unit === 'bar' ? P.timing.chordBars * barS
 function itemSeconds(it, P) { return it.dur == null ? null : it.unit === 'bar' ? it.dur * barSec(P) : it.unit === 'beat' ? it.dur * beatSec(P) : it.dur; }
 // whether a piece needs file format 5: it keeps time in bars, or a chord's length is in bars or beats
 const usesMusicalTime = p => !!(p && ((p.timing && p.timing.unit === 'bar') || /:\d+(?:\.\d+)?(?:bars?|beats?)(?=[\s,|\]]|$)/m.test(String(p.chords || ''))));
-/* The file format a piece needs: 6 with 4.3's sound, 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
+/* The file format a piece needs: 7 with 4.5's instruments and shapes, 6 with 4.3's sound, 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
    play and refuse what they'd get wrong */
 const shaped = x => !!x && ((x.breathe && +x.breathe.depth > 0) || (x.duck && +x.duck.depth > 0 && x.duck.under));
 const accented = r => !!(r && Array.isArray(r.events) && r.events.some(e => e && (e.vel || e.ease))); // saved notes with loudness or glide shapes
@@ -1535,7 +1555,8 @@ const echoing = x => !!(x && x.echo && +x.echo.mix > 0);
 /* 4.3's sound: a noise tone, an ensemble, tone controls (EQ) and saturation for the piece, and a part's own reverb and brightness */
 const soundOf = x => (x && x.sound && typeof x.sound === 'object') ? x.sound : {};
 const newSound = (s, part) => s.tone === 'noise' || +s.ensemble > 0 || (!part && (+s.saturation > 0 || (s.eq && (+s.eq.low || +s.eq.mid || +s.eq.high)))) || (part && ((s.reverb !== undefined && +s.reverb !== 100) || (s.brightness !== undefined && +s.brightness < OPEN_HZ)));
-function formatFor(p) { return newSound(soundOf(p), false) || (p.parts || []).some(x => newSound(soundOf(x), true)) ? 6 : echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
+const new45 = x => !!x && (!!STRUCK[soundOf(x).tone] || soundOf(x).tone === 'fm' || !!(x.envelope && NOTE_SHAPES[x.envelope.shape] && x.envelope.shape !== 'none'));
+function formatFor(p) { return new45(p) || (p.parts || []).some(new45) ? 7 : newSound(soundOf(p), false) || (p.parts || []).some(x => newSound(soundOf(x), true)) ? 6 : echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
 
 /* ---- Sections ----
    A line that is only a header in brackets starts a section: its name, then optionally a repeat (x2) and a key change in
@@ -1619,6 +1640,8 @@ const TONES = {
   chime: harmonics(21, n => { const fib = [1, 2, 3, 5, 8, 13, 21], k = fib.indexOf(n); return k < 0 ? 0 : Math.pow((1 + Math.sqrt(5)) / 2, -k); }), // only
   // Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each 1/φ the strength of the one before: a harmonic chime, not a real bell
   noise: [0, 1], // not a wave: hiss centred on each note's pitch (the app plays it from noise; anything else falls back to a sine)
+  // the struck instruments and FM aren't waves (the app builds them from several oscillators); here they fall back to a sine
+  bell: [0, 1], gong: [0, 1], marimba: [0, 1], drum: [0, 1], metaltri: [0, 1], fm: [0, 1],
   air: harmonics(20, n => n === 1 ? 1 : n === 2 ? 0.1 : n === 3 ? 0.03 : n >= 5 ? 0.01 : 0) // a nearly pure fundamental with a faint, flat
   // shelf of high harmonics (5–20), the nearest a fixed mix gets to a breathy flute
 };
@@ -1633,12 +1656,47 @@ function besselJ(k, x) {
 /* Gains for the formula tones, measured so a reference piece at default settings reaches Soft's loudness (the original five stay
    at 1, unchanged). Brightness, register and voicing change each tone's level differently, so this keeps changes reasonable, not exact. */
 const OPEN_HZ = 16000; // a part's brightness at its top: no filter
-const TONE_GAIN = { noise: 2, triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft (noise: set by its RMS, 2 dB under Soft, as its peaks stand far above its average)
+/* Struck instruments (4.5): each voice is a few sine "modes", each at a fixed ratio to the note, with its own level and its own
+   decay (T60: seconds to fall 60 dB), struck afresh at each note and ringing on by itself, following the voice's glides.
+   [ratio, level, T60]. The ratios come from physics where there is a simple model, and from tradition for the bell:
+   - drum: an ideal circular membrane, ratios of the Bessel-function zeros j(m,n)/j(0,1) (Rossing, The Science of Sound)
+   - marimba: a bar tuned so its first overtones sit two octaves and about three octaves and a major third up (1 : 4 : 10)
+   - metal triangle: a straight free-free rod, roots of cosh(b)cos(b) = 1, ratios (b_n/b_1)^2 (a bent rod is close, not exact)
+   - gong: a flat circular plate with a free edge, Chladni's modes (2,0) (0,1) (3,0) (1,1) (4,0) (5,0) (2,1) (0,2) (Rossing)
+   - bell: a church bell's named partials against its strike note: hum, prime, tierce, quint, nominal, deciem, upper partials
+   These are approximations for musical use, not measured instruments. */
+const STRUCK = {
+  bell: { name: 'Bell', modes: [[0.5, 0.45, 9], [1, 0.55, 6], [1.2, 0.5, 4.5], [1.5, 0.22, 3.5], [2, 0.8, 3.2], [2.5, 0.2, 2], [3, 0.28, 1.6], [4, 0.16, 1]] },
+  gong: { name: 'Gong (plate)', modes: [[1, 0.75, 5], [1.73, 0.6, 4.2], [2.33, 0.5, 3.6], [3.91, 0.38, 2.8], [4.11, 0.34, 2.6], [6.3, 0.22, 1.9], [6.71, 0.2, 1.8], [7.34, 0.16, 1.5]] },
+  marimba: { name: 'Marimba', modes: [[1, 1, 1.5], [3.99, 0.32, 0.5], [10, 0.12, 0.16]] },
+  drum: { name: 'Drum (membrane)', modes: [[1, 1, 0.6], [1.594, 0.6, 0.45], [2.136, 0.42, 0.36], [2.296, 0.3, 0.33], [2.653, 0.24, 0.28], [2.918, 0.18, 0.24], [3.156, 0.14, 0.21], [3.501, 0.1, 0.18], [3.6, 0.1, 0.17]] },
+  metaltri: { name: 'Metal triangle', modes: [[1, 0.45, 7], [2.756, 0.7, 6], [5.404, 0.8, 5], [8.933, 0.6, 4], [13.344, 0.45, 3.2], [18.638, 0.3, 2.6]] }
+};
+const STRUCK_DEF = { hardness: 50, ring: 1, stop: false }, FM_DEF = { fmRatio: 2, fmIndex: 4, fmSustain: 1, fmTime: 0.4 }; // the settings a new part (or a piece) starts with
+const FM_RATIOS = [0.5, 1, 1.414, 2, 3, 3.5, 4, 5, 7]; // modulator : carrier (whole numbers are harmonic; 1.414 and 3.5 bell-like)
+/* A struck sound's modes for a hardness (0 to 100): harder lifts the upper modes (a mallet's contact is shorter), softer darkens;
+   the levels are then scaled to add up to 1. With ring (a multiplier on every T60). */
+function struckModes(tone, hardness = 50, ring = 1) {
+  const S = STRUCK[tone]; if (!S) return null;
+  const tilt = (hardness - 50) / 50 * 1.2, raw = S.modes.map(([f, a, t]) => [f, a * Math.pow(f, tilt), t * ring]), sum = raw.reduce((x, m) => x + m[1], 0) || 1;
+  return raw.map(([f, a, t]) => [f, a / sum, t]);
+}
+/* What a struck part's notes look like on the stage, and how long they ring: an exponential fall over the longest-lasting audible mode
+   (as the part's envelope, used for the drawing and the piece's length), cut short at the note's end if it stops there */
+function struckEnvelope(sound) {
+  const m = struckModes(sound.tone, sound.hardness, sound.ring); const T = Math.max(...m.filter(x => x[1] > 0.05).map(x => x[2]));
+  return { attack: 0.003, decay: T, sustain: 0, release: sound.stop ? 0.06 : T, curve: 'exp' };
+}
+/* Shape over each note: the envelope times a curve in the note's own time (0 at its start, 1 at its end), so short and long notes
+   take the same shape. Points [u, level]; `depth` blends from steady (0) to the full curve (1). */
+const NOTE_SHAPES = { none: null, swell: [[0, 0.35], [0.25, 1], [1, 1]], fade: [[0, 1], [1, 0.4]], arch: [[0, 0.35], [0.25, 1], [1, 0.55]] };
+const TONE_GAIN = { noise: 2, bell: 1.8, gong: 1.6, marimba: 1.7, drum: 3.3, metaltri: 1.1, fm: 0.65, // (4.5's: a quarter-note melody's loudness against Soft's, struck ones about 1 dB under, their attacks being far above their average)
+  triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft (noise: set by its RMS, 2 dB under Soft, as its peaks stand far above its average)
 /* The tone as the two coefficient arrays the Web Audio API wants, of equal length */
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
-const PIECE_FORMAT_VERSION = 6; // 4 adds parts and a volume shape, 5 musical time (bars and beats), 6 noise, ensemble, tone controls, saturation and a part's own reverb and brightness; a piece is written as the oldest format that holds it (formatFor())
+const PIECE_FORMAT_VERSION = 7; // 4 adds parts and a volume shape, 5 musical time (bars and beats), 6 noise, ensemble, tone controls, saturation and a part's own reverb and brightness, 7 struck instruments, FM and shapes over each note; a piece is written as the oldest format that holds it (formatFor())
 function defaultPiece() {
   return {
     format: PIECE_FORMAT, formatVersion: PIECE_FORMAT_VERSION, engine: ENGINE_VERSION,
@@ -1651,7 +1709,7 @@ function defaultPiece() {
     breathe: { depth: 0, time: 0.6 }, duck: { under: '', depth: 0, time: 0.25 },
     voicing: { continuity: 50, coverage: 50, stacking: 25, spacing: 25, variation: 25, spread: 100, top: 88, bassMode: 'root', bassOctave: 2 },
     motion: { order: 'together', stagger: 0 },
-    sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200, ensemble: 0, saturation: 0, eq: { low: 0, mid: 0, high: 0 } },
+    sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200, ensemble: 0, saturation: 0, eq: { low: 0, mid: 0, high: 0 }, hardness: 50, ring: 1, stop: false, fmRatio: 2, fmIndex: 4, fmSustain: 1, fmTime: 0.4 },
     view: { mode: 'auto', labels: 'notes', trace: { look: 'theme', glow: 60, weight: 1, custom: { line: '#39ff88', line2: '#39ff88', bg: '#020604' } } }
   };
 }
@@ -1687,7 +1745,8 @@ function normalizePiece(p) {
   out.sound.tone = pickFrom(out.sound.tone, Object.keys(TONES), 'soft');
   out.sound.detune = num(out.sound.detune, 0, 20, 4); out.sound.width = num(out.sound.width, 0, 100, 70);
   out.sound.reverb = num(out.sound.reverb, 0, 100, 38); out.sound.brightness = num(out.sound.brightness, 800, 12000, 4200);
-  out.sound.ensemble = num(out.sound.ensemble, 0, 100, 0); out.sound.saturation = num(out.sound.saturation, 0, 100, 0); // the main part's ensemble; warmth for the whole piece
+  out.sound.ensemble = num(out.sound.ensemble, 0, 100, 0); out.sound.saturation = num(out.sound.saturation, 0, 100, 0);
+  Object.assign(out.sound, strikeAndFm(out.sound, num)); // the struck instruments' and FM's settings (used when the tone is one of them) // the main part's ensemble; warmth for the whole piece
   { const q = (out.sound.eq && typeof out.sound.eq === 'object') ? out.sound.eq : {}; out.sound.eq = { low: num(q.low, -12, 12, 0), mid: num(q.mid, -12, 12, 0), high: num(q.high, -12, 12, 0) }; } // tone controls for the whole piece, in dB
   out.view.mode = pickFrom(out.view.mode, ['auto', 'scroll', 'whole'], 'auto'); out.view.labels = pickFrom(out.view.labels, ['notes', 'hz'], 'notes');
   { // trace look: how the lines are drawn (saved with the piece, used for video)
@@ -1986,6 +2045,9 @@ function partSeed(seed, id, salt) {
   h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; h = Math.imul(h, 0x297A2D39); h ^= h >>> 15;
   return h >>> 0;
 }
+// the struck instruments' and FM's settings, checked (the defaults where missing)
+const strikeAndFm = (s, num) => ({ hardness: num(s.hardness, 0, 100, STRUCK_DEF.hardness), ring: num(s.ring, 0.1, 4, STRUCK_DEF.ring), stop: !!s.stop,
+  fmRatio: FM_RATIOS.includes(+s.fmRatio) ? +s.fmRatio : FM_DEF.fmRatio, fmIndex: num(s.fmIndex, 0, 12, FM_DEF.fmIndex), fmSustain: num(s.fmSustain, 0, 12, FM_DEF.fmSustain), fmTime: num(s.fmTime, 0.02, 4, FM_DEF.fmTime) });
 function normalizePart(q, P, i, used) {
   if (!q || typeof q !== 'object') return null;
   const num = (v, lo, hi, dflt) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt; };
@@ -2000,8 +2062,9 @@ function normalizePart(q, P, i, used) {
     sound: { tone: TONES[s.tone] ? s.tone : P.sound.tone, level: num(s.level, -60, 12, 0), pan: num(s.pan, -1, 1, 0),
       width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune),
       ensemble: num(s.ensemble, 0, 100, 0), reverb: num(s.reverb, 0, 300, 100), // a chorus; its reverb as a percentage of the piece's
-      brightness: num(s.brightness, 200, OPEN_HZ, OPEN_HZ), opens: num(s.opens, 0, 100, 0), openTime: num(s.openTime, 0.02, 3, 0.3) }, // its own filter (open at the top), and how far and how long each note opens it
+      brightness: num(s.brightness, 200, OPEN_HZ, OPEN_HZ), opens: num(s.opens, 0, 100, 0), openTime: num(s.openTime, 0.02, 3, 0.3), ...strikeAndFm(s, num) }, // its own filter (open at the top), and how far and how long each note opens it
     envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release), curve: e.curve === 'exp' ? 'exp' : 'linear' } };
+  if (NOTE_SHAPES[e.shape] && e.shape !== 'none') { part.envelope.shape = e.shape; part.envelope.depth = num(e.depth, 0, 1, 1); } // a shape over each note (4.5)
   if (plays) part.plays = plays;
   if (/^#[0-9a-f]{6}$/i.test(String(q.color))) part.color = String(q.color).toLowerCase(); // its colour (automatic if not set): only how it's shown
   part.echo = normalizeEcho(q.echo);
@@ -2322,7 +2385,7 @@ function buildPart(part, P, items, until, budget, lay = null, timeline = null, k
     sub = buildPiece(items, { name: P.name, chords: P.chords, voices: part.voices, timing: P.timing, voicing: part.voicing, motion: part.motion, sound: P.sound,
       seeds: { harmony: S.harmony, voicing: partSeed(S.voicing, part.id, 'voicing'), motion: partSeed(S.motion, part.id, 'motion'), sound: partSeed(S.sound, part.id, 'sound') } });
   }
-  if (sub) sub.env = part.envelope;
+  if (sub) sub.env = STRUCK[part.sound.tone] ? struckEnvelope(part.sound) : part.envelope; // a struck part rings by its instrument, not its envelope
   return sub;
 }
 /* The whole score: the main part (as built by buildPiece or builtFromRealization) and the piece's other parts.
@@ -2378,6 +2441,22 @@ function maskGates(sub, spans, end, held) {
   }
   sub.gates = out; sub.envCache = null; if (!sub.env) sub.env = ENVELOPES.pad; sub.held = !!held;
 }
+/* When a struck voice is struck (also FM's brightness): its notes' starts, loudness and ends; for a part that sounds throughout (the main
+   part, a pad, an echo of one), each chord change, ending at the next (within its sections, if it has any, where its gates are those
+   stretches); for a part that never stops, its notes. */
+function struckHits(s, lv) {
+  const v = g => g.v === undefined ? 1 : g.v;
+  if (s.strikes && s.strikes[lv]) return s.strikes[lv].map(g => ({ on: g.on, off: g.off, v: v(g) }));
+  const gs = s.gates && s.gates[lv], held = !gs || s.held || (s.heldV && s.heldV[lv]);
+  if (!held) return gs.map(g => ({ on: g.on, off: g.off, v: v(g) }));
+  const ev = (s.events || []).map((e, k) => k ? e.t : 0), out = [];
+  const add = (ts, end, vel) => ts.forEach((t, i) => out.push({ on: t, off: i + 1 < ts.length ? ts[i + 1] : end, v: vel }));
+  const end = s.total > 0 ? s.total : Infinity; // the end of its music (a held gate runs on into the closing fade; a strike doesn't)
+  if (!gs) add(ev.filter(t => t < end - 1e-6), end, 1);
+  else for (const g of gs) { const off = Math.min(g.off, end); if (g.on >= off - 1e-6) continue; // (nothing is struck after the music: an echo's later chords fall in its closing fade)
+    const ts = ev.filter(t => t >= g.on - 1e-6 && t < off - 1e-6); if (!ts.length || ts[0] > g.on + 1e-6) ts.unshift(g.on); add(ts, off, v(g)); }
+  return out;
+}
 function buildScore(main, items) {
   const P = main.piece;
   const runs = sectionRuns(main), spansFor = plays => !plays ? null : !plays.length ? [] : runs.length ? playSpans(runs, plays) : null; // in no section: silent
@@ -2407,13 +2486,13 @@ function buildScore(main, items) {
   // … then copies: their source's notes as it plays them (in its sections), later and moved, then gated to their own sections
   const beat = 60 / P.timing.tempo;
   others.forEach((part, k) => { if (part.preset !== 'copy') return; const j = others.findIndex(x => x.id === part.of && x.preset !== 'copy');
-    if (j >= 0 && subs[j]) { subs[k] = shiftSub(subs[j], part.delay * beat, part.shift, part.voices); if (subs[k]) { total = Math.max(total, subs[k].total); mask(part, subs[k]); } } });
+    if (j >= 0 && subs[j]) { subs[k] = shiftSub(subs[j], part.delay * beat, part.shift, part.voices); if (subs[k]) { total = Math.max(total, subs[k].total); mask(part, subs[k]); if (STRUCK[part.sound.tone] && !subs[k].held) { subs[k].env = struckEnvelope(part.sound); subs[k].envCache = null; } } } });
   others.forEach((part, k) => { if (subs[k]) list.push(Object.assign({}, part, { sub: subs[k] })); });
   const mainPt = list[0]; mainPt.breathe = P.breathe; mainPt.duck = P.duck; shapeParts(list, main);
   /* Three ends: the music's (`total`, where the parts that sound throughout begin their closing fade); each line's last release,
      which rings on at its own level into the tail while they fade; and the end of the tail. A release only extends the music
      by what wouldn't fit in the tail (with 0.2 s to spare), so the usual releases end within it and change nothing. */
-  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env && !pt.sub.held) pt.sub.gates.forEach((gs, v) => { if (gs && gs.length && !(pt.sub.heldV && pt.sub.heldV[v])) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release); });
+  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env && !pt.sub.held && !STRUCK[(pt.main ? P.sound : pt.sound).tone]) /* (a struck part's ring is counted below) */ pt.sub.gates.forEach((gs, v) => { if (gs && gs.length && !(pt.sub.heldV && pt.sub.heldV[v])) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release); });
   const musicEnd = total; // where the held parts' closing fade begins, whatever the releases do
   /* An echo (the Echo setting) rings on after its part's last sound: the held parts' closing fade, or a line's last release. The
      piece lasts until its repeats have died away, like a long release, but no more than ECHO_ROOM past the music's end (the
@@ -2425,7 +2504,17 @@ function buildScore(main, items) {
     if (gs) for (const g of gs) if (g && g.length) end = Math.max(end, pt.sub.held ? Math.min(g[g.length - 1].off, musicEnd + FADE) : g[g.length - 1].off + (pt.sub.env ? pt.sub.env.release : 0));
     if (end > 0) echoEnd = Math.max(echoEnd, Math.min(end + echoRing(ec, 60 / P.timing.tempo), musicEnd + ECHO_ROOM));
   }
-  total = Math.max(total, ring - (TAIL - 0.2), echoEnd - (TAIL - 0.2));
+  /* A struck instrument rings on after its last strike, whatever kind of part it is (the main part and pads are struck at each chord
+     change, and aren't faded by the closing fade): the piece lasts until that ring has fallen 50 dB, like an echo, and no more than
+     ECHO_ROOM past the music's end (the ring then fades out with the end of the tail). Damped at the note's end (Stops), it ends there. */
+  let struckEnd = 0;
+  for (const pt of list) {
+    const snd = pt.main ? P.sound : pt.sound; if (!STRUCK[snd.tone]) continue;
+    const T50 = struckEnvelope(snd).decay * 5 / 6;
+    for (let v = 0; v < pt.sub.N; v++) { const h = struckHits(pt.sub, v); if (!h.length) continue; const last = h[h.length - 1];
+      struckEnd = Math.max(struckEnd, Math.min(snd.stop && last.off < Infinity ? last.off + 0.06 : last.on + T50, musicEnd + ECHO_ROOM)); }
+  }
+  total = Math.max(total, ring - (TAIL - 0.2), echoEnd - (TAIL - 0.2), struckEnd - (TAIL - 0.2));
   total = Math.min(total, REALIZATION_LIMITS.seconds);
   const voices = [];
   list.forEach((pt, k) => { pt.first = voices.length; for (let v = 0; v < pt.sub.N; v++) voices.push({ p: k, b: pt.sub, v }); });
@@ -2450,6 +2539,13 @@ function cutPoly(pts, T) { const out = pts.filter(p => p.t < T); if (out.length 
    as real strings and bells do: exponentially, fast at first and then slower, sampled at 16 points a segment (the release reaches
    −60 dB at its end, then silence). */
 const CURVE_POINTS = 16;
+/* An envelope's points through one note (on to off) times its shape over the note, sampled finely enough to follow both */
+function shapeNote(loc, on, off, shape, depth) {
+  const L = off - on, mult = u => { u = Math.max(0, Math.min(1, u)); let k = 0; while (k < shape.length - 2 && u > shape[k + 1][0]) k++;
+    const [u0, a] = shape[k], [u1, b] = shape[k + 1], x = u1 > u0 ? (u - u0) / (u1 - u0) : 0; return 1 - depth * (1 - (a + (b - a) * Math.max(0, Math.min(1, x)))); };
+  const ts = new Set(loc.map(p => p.t)); for (const [u] of shape) ts.add(on + u * L); for (let i = 1; i < 16; i++) ts.add(on + L * i / 16);
+  return [...ts].filter(t => t >= loc[0].t - 1e-9 && t <= loc[loc.length - 1].t + 1e-9).sort((a, b) => a - b).map(t => ({ t, g: polyAt(loc, t) * (t < on ? 1 : mult((t - on) / L)) }));
+}
 function envelopePoints(gates, env) {
   const { attack: A, decay: D, sustain: S, release: R } = env, curved = env.curve === 'exp', pts = [{ t: 0, g: 0 }];
   // from (t0, g0) toward g1 over T: straight, or exponential (reaching within 0.7% of g1 at T, or −60 dB of g0 when g1 is silence)
@@ -2460,6 +2556,7 @@ function envelopePoints(gates, env) {
     const top = { t: gt.on + A, g: V };
     let loc = cutPoly([{ t: gt.on, g: polyAt(pts, gt.on) }, top, ...seg(top.t, V, S * V, D)], Math.max(gt.on, gt.off));
     if (gt.off > loc[loc.length - 1].t) loc.push({ t: gt.off, g: loc[loc.length - 1].g });
+    if (env.shape && NOTE_SHAPES[env.shape] && gt.off - gt.on > 1e-3) loc = shapeNote(loc, gt.on, gt.off, NOTE_SHAPES[env.shape], env.depth === undefined ? 1 : env.depth);
     const end = loc[loc.length - 1]; loc.push(...seg(Math.max(gt.on, gt.off), end.g, 0, R));
     pts.push(...cutPoly(loc, nextOn));
   });
@@ -3312,10 +3409,11 @@ const EXAMPLE_PIECES = [{"format":"chord-glide-piece","formatVersion":3,"name":"
 {"format":"chord-glide-piece","formatVersion":5,"name":"Pure Drift","chords":"=E4:1bar\n[Loop x2]\nC Am Dm G\n[Lift x2]\nC Am Dm G\n[Home]\nC:2bar","voices":6,"tuning":"just","timing":{"chordSec":2.6087,"glide":0.8,"easing":"smooth","tempo":92,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":60,"coverage":80,"stacking":15,"spacing":30,"variation":10,"spread":70,"top":72,"bassMode":"root","bassOctave":2},"motion":{"order":"together","stagger":0},"sound":{"tone":"organ","detune":0,"width":70,"reverb":40,"brightness":4800},"breathe":{"depth":0.35,"time":0.8},"seeds":{"harmony":1,"voicing":494814386,"motion":1510773729,"sound":871413869},"locks":{"harmony":true,"voicing":false,"motion":false,"sound":false},"view":{"mode":"auto","labels":"notes","trace":{"look":"amber","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"id":"harp","name":"Harp","preset":"pattern","pattern":"1 2 3 4 5 4 3 2 | 1 3 5 3 4 5 6 5","from":60,"step":"1/8","plays":["Loop","Lift"],"transpose":[0],"portamento":0,"sound":{"tone":"harp","level":-5,"pan":0.25,"width":30,"detune":0},"envelope":{"attack":0.003,"decay":0.9,"sustain":0,"release":0.4,"curve":"exp"}},{"id":"melody","name":"Melody","preset":"line","line":"[Lift] E5:3 D5:1 C5:4 | E5:2 A5:2 G5:2 E5:2 | F5:3 E5:1 D5:2 A4:2 | B4:4 D5:2 G5:2","step":"1/8","transpose":[0],"portamento":0.05,"glideShape":"smooth","vibrato":{"cents":12,"rate":5.2,"delay":0.35},"sound":{"tone":"triangle","level":-2,"pan":-0.2,"width":0,"detune":0},"envelope":{"attack":0.03,"decay":0.3,"sustain":0.7,"release":0.25}}]},
 {"format":"chord-glide-piece","formatVersion":5,"name":"Sketchbook","chords":"[Draw]\nD Bm7 Gmaj7 A\nD Bm7 Gmaj7 A\n[Canon]\nD Bm7 Gmaj7 A\nD Bm7 Gmaj7 A\n[End]\nDmaj9:2bar","voices":5,"timing":{"chordSec":2.6667,"glide":0.6,"easing":"smooth","tempo":90,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":70,"coverage":70,"stacking":20,"spacing":30,"variation":10,"spread":55,"top":69,"bassMode":"root","bassOctave":2},"motion":{"order":"together","stagger":0},"sound":{"tone":"soft","detune":5,"width":80,"reverb":45,"brightness":5000},"seeds":{"harmony":1,"voicing":240941617,"motion":2065814728,"sound":615116907},"locks":{"harmony":true,"voicing":false,"motion":false,"sound":false},"view":{"mode":"auto","labels":"notes","trace":{"look":"laserblue","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"id":"melody","name":"Melody","preset":"line","line":"[Draw Canon]\nD5:1 ~A5:2/0.667 ~D5:2/0.667 F#5:1 E5:2 | B4:1 ~F#5:2/0.667 ~B4:2/0.667 D5:1 E5:2 |\nG4:2 B4:2/0.15l D5:2/0.15l F#5:2/0.15l | E5:4@0.9 ~C#5:2/0.667 ~E5:2/0.667 |\nA5:1 ~D6:2/0.667 ~A5:2/0.667 F#5:1 A5:2 | D6:3@0.85 C#6:1@0.6 B5:2@0.7 A5:2@0.6 |\nB5:2 ~G5:2/0.667 ~B5:2/0.667 D6:2/0.2s | E6:2 ~C#6:2/0.667 ~A5:4/1.334","step":"1/8","transpose":[0],"portamento":0,"glideShape":"arc","vibrato":{"cents":15,"rate":5.5,"delay":0.3},"sound":{"tone":"triangle","level":0,"pan":0.3,"width":0,"detune":3},"envelope":{"attack":0.02,"decay":0.4,"sustain":0.75,"release":0.25}},{"id":"echo","name":"Echo","preset":"copy","of":"melody","delay":4,"shift":-12,"plays":["Canon","End"],"sound":{"tone":"triangle","level":-5,"pan":-0.3,"width":0,"detune":3}}]},
 {"format":"chord-glide-piece","formatVersion":5,"name":"Breathing Room","chords":"[Groove x4]\nAm7 D9\n[Swell]\nFmaj9 E7sus4\n[Groove2 x2]\nAm7 D9\n[Last]\nAm9:3bar","voices":5,"plays":["Groove","Groove2"],"timing":{"chordSec":2.4,"glide":0.35,"easing":"smooth","tempo":100,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":70,"coverage":75,"stacking":20,"spacing":30,"variation":10,"spread":60,"top":74,"bassMode":"root","bassOctave":3},"motion":{"order":"together","stagger":0},"sound":{"tone":"warm","detune":5,"width":80,"reverb":35,"brightness":4600},"volume":[{"t":0,"db":-10},{"t":4.8,"db":0},{"t":33.6,"db":0},{"t":40.8,"db":-24}],"seeds":{"harmony":1,"voicing":1585060873,"motion":255565094,"sound":1640276712},"locks":{"harmony":true,"voicing":false,"motion":false,"sound":false},"view":{"mode":"auto","labels":"notes","trace":{"look":"phosphor","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"id":"bass","name":"Bass","preset":"pattern","pattern":"R . - R - R' 5th -","from":33,"step":"1/8","plays":["Groove","Groove2"],"transpose":[0],"portamento":0,"sound":{"tone":"square","level":-2,"pan":0,"width":0,"detune":3},"envelope":{"attack":0.004,"decay":0.35,"sustain":0.25,"release":0.06,"curve":"exp"}},{"id":"plucks","name":"Plucks","preset":"pattern","pattern":"- 3 - - 2 - 3 -","from":64,"step":"1/8","plays":["Groove","Groove2"],"transpose":[0,12],"portamento":0,"sound":{"tone":"chime","level":-6,"pan":0.15,"width":40,"detune":2},"envelope":{"attack":0.002,"decay":0.25,"sustain":0,"release":0.1,"curve":"exp"},"echo":{"time":"3/16","mix":0.55,"feedback":0.55,"pingpong":true}},{"id":"strings","name":"Strings","preset":"pad","voices":4,"voicing":{"spread":70,"top":84,"bassMode":"root","bassOctave":3,"variation":10},"plays":["Swell","Groove2","Last"],"sound":{"tone":"cello","level":-4,"pan":0,"width":70,"detune":5},"envelope":{"attack":1.6,"decay":0,"sustain":1,"release":2.5,"curve":"exp"}},{"id":"bell","name":"Last bell","preset":"pattern","pattern":"1:16 -:8","from":57,"step":"1/8","plays":["Last"],"transpose":[0,12,19],"portamento":0,"sound":{"tone":"glass","level":-3,"pan":0,"width":50,"detune":3},"envelope":{"attack":0.004,"decay":9,"sustain":0,"release":3,"curve":"exp"}}]},
-{"format":"chord-glide-piece","formatVersion":5,"name":"Bounce of the Spheres","chords":"=G4:2beat\n[Bloom]\nCadd9:2bar\n[Intro]\nC G7\n[A]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[A2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[B]\nAm Dm7 G7 Cmaj7 Fmaj7 Bm7b5 E7 Am\n[Breakdown]\nFmaj9 Am9 Dm9 G7sus4 Abmaj7 Abmaj9 Bb Bb\n[Build]\nGm Em7b5 A7sus4 A7:2beat A7[A2 A3 A4 A5 A6]:2beat\n[Drop +2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[Coda]\nG D/F# Em7:2beat A7:2beat Bm G D/F# Em7:2beat A7:2beat Bb C D:2bar\n[Final]\nD","voices":5,"mix":"voices","timing":{"chordSec":2,"glide":0.22,"easing":"smooth","tempo":120,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":70,"coverage":60,"stacking":25,"spacing":30,"variation":15,"spread":70,"top":72,"bassMode":"none","bassOctave":3},"motion":{"order":"low-high","stagger":20},"sound":{"tone":"saw","detune":6,"width":85,"reverb":40,"brightness":3800},"seeds":{"harmony":1,"voicing":722083045,"motion":1358565869,"sound":993611272},"locks":{"harmony":true,"voicing":true,"motion":true,"sound":true},"view":{"mode":"auto","labels":"notes","trace":{"look":"aurora","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":5,"pan":0,"width":0,"detune":6},"id":"bass","name":"Bass","pattern":"B:2 B':2\n[Bloom] ~B:32\n[Breakdown] ~B:16\n[Build] B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 | B B' B B' B B' B B' ~A2:8","from":36,"transpose":[0,0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown"]},{"id":"sub","name":"Sub","preset":"copy","of":"bass","voices":1,"delay":0,"shift":-12,"sound":{"tone":"pure","level":6,"pan":0,"width":0,"detune":0}},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"pure","level":5,"pan":0,"width":0,"detune":6},"id":"kick","name":"Kick","pattern":"B,:4\n[Bloom] ~B,:32\n[Intro] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:2 B,:2\n[Breakdown] ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:8 B,:4 B,:4\n[Build] B,:4 B,:4 B,:4 B,:4 | B,:4 B,:4 B,:2 B,:2 B,:2 B,:2 | B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 | B, B, B, B, B, B, B, B, B, B, B, B, -:4\n[Coda] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4\n[Final] B,:16","from":36,"transpose":[0,0],"drop":{"semis":36,"time":0.117},"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown","Final"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"alberti","name":"Alberti","pattern":"1 3 2 3\n[Breakdown] 1':4 2':4 3':4 4':4\n[Build] 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Breakdown"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"pump","name":"Pump","pattern":"3rd:2 3rd':2\n[Intro] -:16 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2\n[Build] 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda"]},{"preset":"pattern","step":"1/16","portamento":0,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"whistle","name":"Whistles","pattern":"[A B] 3rd:2 3rd':2\n[A2] ~C7:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~E6:16 ~F6:16 ~E6:16\n[Drop] ~D7:16 ~C#7:16 ~B6:16 ~A6:16 ~G6:16 ~F#6:16 ~G6:16 ~F#6:16\n[Breakdown] ~G5:4 ~C6:4 ~E6:4 ~G6:4 ~C7:6 ~B6:2 ~C7:4 ~G6:4 ~D7:6 ~C7:2 ~B6:4 ~A6:4 ~G6:8 ~D6:8 ~C6:4 ~Eb6:4 ~Ab6:4 ~C7:4 ~Bb6:6 ~Ab6:2 ~G6:4 ~Ab6:4 ~D7:6 ~C7:2 ~Bb6:4 ~F6:4 ~F6:16\n[Coda] ~G6:16 ~F#6:16 ~G6:16 ~F#6:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~G6:16 ~A6:16 ~A6:16\n[Final] ~D7:16","from":52,"transpose":[0,0],"vibrato":{"cents":22,"rate":6,"delay":0.15}},{"id":"melody","name":"Melody","preset":"line","line":"[A A2 Drop] G4:2 C5:2 E5:2 G5:2 C6:3 B5:1 C6:2 G5:2 | D6:3 C6:1 B5:2 A5:2 G5:4 D5:4 | E5:2 A5:2 C6:2 E6:2 D6:3 C6:1 B5:2 C6:2 | B5:3 A5:1 G5:2 E5:2 B4:2 C5:2 D5:2 E5:2 | F5:2 A5:2 C6:2 F6:2 E6:3 D6:1 C6:2 A5:2 | G5:3 F5:1 E5:2 C5:2 E5:4 G5:4 | F5:2 A5:2 D6:2 C6:2 B5:3 A5:1 G5:2 F5:2 | E5:4 G5:2 E5:2 C5:8\n[B] C6:6 E5:2 A5:2 E6:3 D6:1 C6:2 | C6:6 D6:2 F5:2 A5:2 D6:2 C6:2 | B5:6 D5:2 G5:2 D6:3 C6:1 B5:2 | B5:6 C6:2 E5:2 G5:2 C6:2 B5:2 | A5:6 C5:2 F5:2 C6:3 B5:1 A5:2 | A5:6 B5:2 D5:2 F5:2 B5:2 A5:2 | G#5:6 B4:2 E5:2 B5:3 A5:1 G#5:2 | A5:6 E5:2 A5:2 C6:2 E6:4\n[Build] D5:2 G5:2 Bb5:2 D6:2 D5:2 G5:2 Bb5:2 D6:2 | E5:2 G5:2 Bb5:2 D6:2 E5:2 G5:2 Bb5:2 D6:2 | E5:2 A5:2 D6:2 E6:2 E5:2 A5:2 D6:2 E6:2 | E5:2 A5:2 C#6:2 E6:2 E6:8\n[Coda] G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | F#5:4 A5:2 F#5:2 D5:8 | G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | D6:6 F6:2 D6:2 Bb5:2 C6:2 D6:2 | E6:6 G6:2 E6:2 C6:2 D6:2 E6:2 | F#6:6 A6:2 F#6:2 D6:2 E6:2 F#6:2 | A6:3 F#6:1 D6:2 A5:2 B5:3 C#6:1 D6:2 E6:2 | D6:16","step":"1/16","transpose":[0,0,0,0,0,-12],"portamento":0.017,"glideShape":"straight","nonstop":true,"vibrato":{"cents":12,"rate":6,"delay":0.25},"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6}},{"id":"echo-1","name":"Echo","preset":"copy","of":"melody","voices":1,"delay":0.75,"shift":0,"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"echo-2","name":"Echo 2","preset":"copy","of":"melody","voices":1,"delay":1.5,"shift":0,"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}},{"id":"whistle-echo-1","name":"Whistle echo","preset":"copy","of":"whistle","voices":1,"delay":1,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"whistle-echo-2","name":"Whistle echo 2","preset":"copy","of":"whistle","voices":1,"delay":2,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}}]}];
+{"format":"chord-glide-piece","formatVersion":5,"name":"Bounce of the Spheres","chords":"=G4:2beat\n[Bloom]\nCadd9:2bar\n[Intro]\nC G7\n[A]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[A2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[B]\nAm Dm7 G7 Cmaj7 Fmaj7 Bm7b5 E7 Am\n[Breakdown]\nFmaj9 Am9 Dm9 G7sus4 Abmaj7 Abmaj9 Bb Bb\n[Build]\nGm Em7b5 A7sus4 A7:2beat A7[A2 A3 A4 A5 A6]:2beat\n[Drop +2]\nC G/B Am Em/G F C/E Dm7:2beat G7:2beat C\n[Coda]\nG D/F# Em7:2beat A7:2beat Bm G D/F# Em7:2beat A7:2beat Bb C D:2bar\n[Final]\nD","voices":5,"mix":"voices","timing":{"chordSec":2,"glide":0.22,"easing":"smooth","tempo":120,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":70,"coverage":60,"stacking":25,"spacing":30,"variation":15,"spread":70,"top":72,"bassMode":"none","bassOctave":3},"motion":{"order":"low-high","stagger":20},"sound":{"tone":"saw","detune":6,"width":85,"reverb":40,"brightness":3800},"seeds":{"harmony":1,"voicing":722083045,"motion":1358565869,"sound":993611272},"locks":{"harmony":true,"voicing":true,"motion":true,"sound":true},"view":{"mode":"auto","labels":"notes","trace":{"look":"aurora","glow":70,"weight":1,"custom":{"line":"#39ff88","line2":"#39ff88","bg":"#020604"}}},"parts":[{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":5,"pan":0,"width":0,"detune":6},"id":"bass","name":"Bass","pattern":"B:2 B':2\n[Bloom] ~B:32\n[Breakdown] ~B:16\n[Build] B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 B:2 B':2 | B B' B B' B B' B B' ~A2:8","from":36,"transpose":[0,0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown"]},{"id":"sub","name":"Sub","preset":"copy","of":"bass","voices":1,"delay":0,"shift":-12,"sound":{"tone":"pure","level":6,"pan":0,"width":0,"detune":0}},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"pure","level":5,"pan":0,"width":0,"detune":6},"id":"kick","name":"Kick","pattern":"B,:4\n[Bloom] ~B,:32\n[Intro] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:2 B,:2\n[Breakdown] ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:16 ~B,:8 B,:4 B,:4\n[Build] B,:4 B,:4 B,:4 B,:4 | B,:4 B,:4 B,:2 B,:2 B,:2 B,:2 | B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 B,:2 | B, B, B, B, B, B, B, B, B, B, B, B, -:4\n[Coda] B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4 B,:4\n[Final] B,:16","from":36,"transpose":[0,0],"drop":{"semis":36,"time":0.117},"plays":["Intro","A","A2","B","Build","Drop","Coda","Bloom","Breakdown","Final"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"alberti","name":"Alberti","pattern":"1 3 2 3\n[Breakdown] 1':4 2':4 3':4 4':4\n[Build] 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 1 3 2 3 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda","Breakdown"]},{"preset":"pattern","step":"1/16","portamento":0.017,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"pump","name":"Pump","pattern":"3rd:2 3rd':2\n[Intro] -:16 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2\n[Build] 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 3rd:2 3rd':2 -:8","from":52,"transpose":[0],"plays":["Intro","A","A2","B","Build","Drop","Coda"]},{"preset":"pattern","step":"1/16","portamento":0,"glideShape":"straight","nonstop":true,"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6},"id":"whistle","name":"Whistles","pattern":"[A B] 3rd:2 3rd':2\n[A2] ~C7:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~E6:16 ~F6:16 ~E6:16\n[Drop] ~D7:16 ~C#7:16 ~B6:16 ~A6:16 ~G6:16 ~F#6:16 ~G6:16 ~F#6:16\n[Breakdown] ~G5:4 ~C6:4 ~E6:4 ~G6:4 ~C7:6 ~B6:2 ~C7:4 ~G6:4 ~D7:6 ~C7:2 ~B6:4 ~A6:4 ~G6:8 ~D6:8 ~C6:4 ~Eb6:4 ~Ab6:4 ~C7:4 ~Bb6:6 ~Ab6:2 ~G6:4 ~Ab6:4 ~D7:6 ~C7:2 ~Bb6:4 ~F6:4 ~F6:16\n[Coda] ~G6:16 ~F#6:16 ~G6:16 ~F#6:16 ~B6:16 ~A6:16 ~G6:16 ~F6:16 ~G6:16 ~A6:16 ~A6:16\n[Final] ~D7:16","from":52,"transpose":[0,0],"vibrato":{"cents":22,"rate":6,"delay":0.15}},{"id":"melody","name":"Melody","preset":"line","line":"[A A2 Drop] G4:2 C5:2 E5:2 G5:2 C6:3 B5:1 C6:2 G5:2 | D6:3 C6:1 B5:2 A5:2 G5:4 D5:4 | E5:2 A5:2 C6:2 E6:2 D6:3 C6:1 B5:2 C6:2 | B5:3 A5:1 G5:2 E5:2 B4:2 C5:2 D5:2 E5:2 | F5:2 A5:2 C6:2 F6:2 E6:3 D6:1 C6:2 A5:2 | G5:3 F5:1 E5:2 C5:2 E5:4 G5:4 | F5:2 A5:2 D6:2 C6:2 B5:3 A5:1 G5:2 F5:2 | E5:4 G5:2 E5:2 C5:8\n[B] C6:6 E5:2 A5:2 E6:3 D6:1 C6:2 | C6:6 D6:2 F5:2 A5:2 D6:2 C6:2 | B5:6 D5:2 G5:2 D6:3 C6:1 B5:2 | B5:6 C6:2 E5:2 G5:2 C6:2 B5:2 | A5:6 C5:2 F5:2 C6:3 B5:1 A5:2 | A5:6 B5:2 D5:2 F5:2 B5:2 A5:2 | G#5:6 B4:2 E5:2 B5:3 A5:1 G#5:2 | A5:6 E5:2 A5:2 C6:2 E6:4\n[Build] D5:2 G5:2 Bb5:2 D6:2 D5:2 G5:2 Bb5:2 D6:2 | E5:2 G5:2 Bb5:2 D6:2 E5:2 G5:2 Bb5:2 D6:2 | E5:2 A5:2 D6:2 E6:2 E5:2 A5:2 D6:2 E6:2 | E5:2 A5:2 C#6:2 E6:2 E6:8\n[Coda] G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | F#5:4 A5:2 F#5:2 D5:8 | G5:2 B5:2 D6:2 G6:2 F#6:3 E6:1 D6:2 B5:2 | A5:3 G5:1 F#5:2 D5:2 F#5:4 A5:4 | G5:2 B5:2 E6:2 D6:2 C#6:3 B5:1 A5:2 G5:2 | D6:6 F6:2 D6:2 Bb5:2 C6:2 D6:2 | E6:6 G6:2 E6:2 C6:2 D6:2 E6:2 | F#6:6 A6:2 F#6:2 D6:2 E6:2 F#6:2 | A6:3 F#6:1 D6:2 A5:2 B5:3 C#6:1 D6:2 E6:2 | D6:16","step":"1/16","transpose":[0,0,0,0,0,-12],"portamento":0.017,"glideShape":"straight","nonstop":true,"vibrato":{"cents":12,"rate":6,"delay":0.25},"sound":{"tone":"saw","level":0,"pan":0,"width":85,"detune":6}},{"id":"echo-1","name":"Echo","preset":"copy","of":"melody","voices":1,"delay":0.75,"shift":0,"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"echo-2","name":"Echo 2","preset":"copy","of":"melody","voices":1,"delay":1.5,"shift":0,"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}},{"id":"whistle-echo-1","name":"Whistle echo","preset":"copy","of":"whistle","voices":1,"delay":1,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":-0.7,"width":0,"detune":6}},{"id":"whistle-echo-2","name":"Whistle echo 2","preset":"copy","of":"whistle","voices":1,"delay":2,"shift":0,"plays":["Breakdown"],"sound":{"tone":"saw","level":0,"pan":0.7,"width":0,"detune":6}}]},
+{"format":"chord-glide-piece","formatVersion":7,"name":"Bells at Dusk","chords":"[Toll]\nDm:2bar Bb:2bar\nGm:2bar A:2bar\n[Dance]\nDm Bb F C\nDm Bb Gm A\n[Dance2]\nDm Bb F C\nGm Bb A:2bar\n[Bend]\nBb:2bar F/A:2bar\nGm:2bar A:2bar\n[Final]\nDm:2bar Bb:2bar\nGm A Dm:2bar","voices":4,"plays":["Toll","Bend","Final"],"color":"#f2c46b","timing":{"chordSec":2.86,"glide":0.9,"easing":"smooth","tempo":84,"meter":4,"unit":"bar","chordBars":1},"voicing":{"continuity":75,"coverage":80,"stacking":30,"spacing":45,"variation":10,"spread":55,"top":79,"bassMode":"root","bassOctave":2},"motion":{"order":"together","stagger":0},"sound":{"tone":"bell","detune":3,"width":70,"reverb":46,"brightness":7000,"hardness":42,"ring":1.1,"stop":false},"seeds":{"harmony":1,"voicing":4505,"motion":31415,"sound":2718},"locks":{"harmony":true,"voicing":false,"motion":false,"sound":false},"view":{"mode":"auto","labels":"notes","trace":{"look":"neon","glow":55,"weight":1,"byPart":true}},"parts":[{"id":"gong","name":"Gong","preset":"line","line":"[Toll] D2:16 G1:16\n[Final] D2:16 -:8 D2:8","step":"1/4","plays":["Toll","Final"],"color":"#e0864f","sound":{"tone":"gong","level":4,"pan":-0.15,"width":10,"detune":3,"hardness":35,"ring":1.4},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"marimba","name":"Marimba","preset":"pattern","pattern":"1 3 2 4 3 5 4 3","from":50,"step":"1/8","plays":["Dance","Dance2","Final"],"color":"#c98bff","sound":{"tone":"marimba","level":-8,"pan":-0.35,"width":30,"detune":3,"hardness":58,"ring":1},"envelope":{"attack":0.003,"decay":0.5,"sustain":0,"release":0.5,"curve":"exp"}},{"id":"drum","name":"Drum","preset":"pattern","pattern":"D2 - - D2 - D2 A2 -","step":"1/8","plays":["Dance","Dance2"],"color":"#ff6b6b","sound":{"tone":"drum","level":-1,"pan":0.05,"width":5,"detune":3,"hardness":45,"ring":1.1},"envelope":{"attack":0.003,"decay":0.5,"sustain":0,"release":0.5,"curve":"exp"}},{"id":"triangle","name":"Metal triangle","preset":"line","line":"[Dance2] E6:8 E6:8 E6:8 E6:4 E6:2 E6:2\n[Final] E6:8 -:16 E6:8","step":"1/4","plays":["Dance2","Final"],"color":"#9be7ff","sound":{"tone":"metaltri","level":-5,"pan":0.4,"width":10,"detune":3,"hardness":70,"ring":0.8},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"lead","name":"FM melody","preset":"line","line":"[Dance] A4:2 D5:2 F5:3 E5:1 | D5:2 F5:2 Bb5:3 A5:1 | A5:3 G5:1 F5:2 C5:2 | E5:6 G5:2 | F5:2 E5:2 D5:3 A4:1 | Bb4:2 D5:2 F5:4 | G5:3 F5:1 D5:2 Bb4:2 | C#5:4 E5:2 A4:2\n[Dance2] F5:2 A5:2 D6:3 C6:1 | Bb5:2 A5:2 F5:3 D5:1 | C6:3 A5:1 F5:2 A5:2 | G5:6 E5:2 | Bb5:3 A5:1 G5:2 D5:2 | F5:3 G5:1 A5:2 Bb5:2 | A5:6 G5:1 F5:1 | E5:4 C#5:4","step":"1/8","plays":["Dance","Dance2"],"color":"#5ee0b0","sound":{"tone":"fm","level":-2,"pan":0.1,"width":15,"detune":3,"fmRatio":2,"fmIndex":5,"fmSustain":1.1,"fmTime":0.5,"reverb":110},"envelope":{"attack":0.01,"decay":0.3,"sustain":0.75,"release":0.25,"curve":"exp","shape":"arch","depth":0.7},"vibrato":{"cents":9,"rate":5.4,"delay":0.35}},{"id":"bend","name":"Bending bell","preset":"line","line":"[Bend] D5:4 ~F5:4/1.6 | C5:4 ~A4:4/2 | Bb4:4 ~D5:4/1.6 | C#5:4 ~E5:4/2.4","step":"1/4","plays":["Bend"],"color":"#ffe08a","sound":{"tone":"bell","level":-1,"pan":0.2,"width":10,"detune":3,"hardness":55,"ring":1.6},"envelope":{"attack":0.003,"decay":1,"sustain":0,"release":1,"curve":"exp"}},{"id":"strings","name":"Swelling strings","preset":"line","line":"[Bend] F3:8 A3:8 D3:8 C#3:8\n[Final] D3:8 F3:8 D3:4 C#3:4 D3:8","step":"1/4","plays":["Bend","Final"],"color":"#7fa8ff","transpose":[0,12],"sound":{"tone":"bowed","level":-9,"pan":-0.25,"width":40,"detune":3,"ensemble":45},"envelope":{"attack":0.08,"decay":0.4,"sustain":0.85,"release":0.6,"curve":"exp","shape":"swell","depth":1},"vibrato":{"cents":6,"rate":5.2,"delay":0.5}},{"id":"bed","name":"String bed","preset":"pad","voices":4,"plays":["Dance","Dance2"],"color":"#8fb5d9","sound":{"tone":"bowed","level":-13,"pan":0,"width":60,"detune":3,"ensemble":50},"voicing":{"top":72,"bassMode":"none"}}]}];
 
 /* ===== App: pieces, library, controls, audio, drawing, exports ===== */
-const APP_VERSION = '4.4';
+const APP_VERSION = '4.5';
 /* The examples, in the order the Open window lists them: the piece files in source/examples/ (each teaching one thing, in file-name
    order, so the first is the piece a first visit opens), then Three Parts, written here */
 const EXAMPLES = [
@@ -3341,6 +3439,7 @@ const EXAMPLE_NOTES = {
   'Sketchbook': 'Arcs, ramps and accents in a written line, with an echo that turns it into a canon.',
   'Breathing Room': 'A groove where what doesn\'t play matters: rests, sections, a pad that swells in, a bell that rings out.',
   'Bounce of the Spheres': 'The full-length showcase: sections, patterns, a kick and echoes, in parts that never stop.',
+  'Bells at Dusk': 'The struck instruments: a tolling bell and gong, marimba, drum and triangle, a bell that bends as it rings, and an FM melody shaped over each note.',
   'Three Parts': 'A pad, a bass line and a melody: written lines with rests and vibrato.'
 };
 const LAYERS = ['harmony', 'voicing', 'motion', 'sound'];
@@ -3432,6 +3531,11 @@ function drawEq() {
   path.setAttribute('d', d);
   const flat = $('eqflat'); if (flat) flat.disabled = !(q.low || q.mid || q.high);
 }
+/* The struck instruments' and FM's settings show only for those tones (for the part the tabs edit) */
+function syncToneCtl(src) {
+  const pn = typeof selNorm === 'function' ? selNorm() : null, tone = (src ? getPath(src('tone'), 'sound.tone') : null) || (pn ? pn.sound.tone : piece.sound.tone);
+  document.querySelectorAll('.tonectl').forEach(el => { el.hidden = el.dataset.for === 'struck' ? !STRUCK[tone] : tone !== 'fm'; });
+}
 /* ---------- Controls ---------- */
 const pct = v => Math.round(v) + '%';
 const SLIDERS = [
@@ -3440,6 +3544,7 @@ const SLIDERS = [
   ['spacing', 'voicing.spacing', pct], ['variation', 'voicing.variation', pct], ['spread', 'voicing.spread', pct],
   ['glide', 'timing.glide', v => (+v).toFixed(1) + ' s'], ['stagger', 'motion.stagger', pct],
   ['detune', 'sound.detune', v => (+v).toFixed(1) + ' ¢'], ['width', 'sound.width', pct], ['reverb', 'sound.reverb', pct], ['ensemble', 'sound.ensemble', v => +v ? pct(v) : 'off'],
+  ['hardness', 'sound.hardness', pct], ['ring', 'sound.ring', v => '×' + (+v).toFixed(2)], ['fmindex', 'sound.fmIndex', v => (+v).toFixed(1)], ['fmsustain', 'sound.fmSustain', v => (+v).toFixed(1)], ['fmtime', 'sound.fmTime', v => fmtSec(+v)],
   ['eqlow', 'sound.eq.low', v => fmtDb(+v)], ['eqmid', 'sound.eq.mid', v => fmtDb(+v)], ['eqhigh', 'sound.eq.high', v => fmtDb(+v)], ['saturation', 'sound.saturation', v => +v ? pct(v) : 'off'],
   ['brightness', 'sound.brightness', v => (v / 1000).toFixed(1) + ' kHz'], ['tempo', 'timing.tempo', v => v + ' BPM'],
   ['breathedepth', 'breathe.depth', v => +v ? '−' + Math.round(-20 * Math.log10(1 - v) * 10) / 10 + ' dB' : 'off'], ['breathetime', 'breathe.time', v => (+v).toFixed(2) + ' s'],
@@ -3447,7 +3552,7 @@ const SLIDERS = [
   ['duckdepth', 'duck.depth', v => +v ? '−' + Math.round(-20 * Math.log10(1 - v) * 10) / 10 + ' dB' : 'off'], ['ducktime', 'duck.time', v => Math.round(v * 1000) + ' ms']
 ];
 const SELECTS = [['top', 'voicing.top', Number], ['bassoct', 'voicing.bassOctave', Number], ['bassmode', 'voicing.bassMode', String],
-  ['easing', 'timing.easing', String], ['mix', 'mix', String], ['tuning', 'tuning', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String], ['meter', 'timing.meter', Number], ['duckunder', 'duck.under', String], ['echopan', 'echo.pingpong', v => v === 'true']];
+  ['easing', 'timing.easing', String], ['mix', 'mix', String], ['tuning', 'tuning', String], ['order', 'motion.order', String], ['tone', 'sound.tone', String], ['meter', 'timing.meter', Number], ['duckunder', 'duck.under', String], ['echopan', 'echo.pingpong', v => v === 'true'], ['stopend', 'sound.stop', v => v === 'true'], ['fmratio', 'sound.fmRatio', Number]];
 (() => { const sel = $('top'); for (let m = 96; m >= 67; m--) { const o = document.createElement('option'); o.value = m; o.textContent = noteName(m); sel.appendChild(o); } })();
 
 function syncUI() {
@@ -3460,6 +3565,7 @@ function syncUI() {
     if ([...dk.options].map(o => o.value + o.textContent).join() !== others.map(([v, t]) => v + t).join()) { dk.textContent = ''; for (const [v, t] of others) { const o = document.createElement('option'); o.value = v; o.textContent = t; dk.appendChild(o); } } }
   for (const [id, path] of SELECTS) $(id).value = String(getPath(src(id), path));
   drawEq(); if (typeof syncPartColor === 'function' && arr.rows) syncPartColor();
+  syncToneCtl(src);
   { const e = getPath(src('echotime'), 'echo'), on = !!(e && e.mix > 0); $('echotime').value = on ? e.time : 'off';
     for (const id of ['echomix', 'echofb', 'echopan']) $(id).closest('.slider, .group').hidden = !on; } // the echo's level and repeats, once it's on
   $('mix').value = piece.mix === 'voices' ? 'voices' : 'parts'; $('tuning').value = piece.tuning === 'just' ? 'just' : 'equal'; // (neither saved at its default)
@@ -3747,7 +3853,7 @@ const textBytes = s => new TextEncoder().encode(s).length;
 const fmtSize = n => n < 1024 ? n + ' bytes' : n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
 const fmtWhen = iso => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''; };
 const fmtDay = iso => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''; };
-const OPENS_IN = { 3: 'app 3 and later', 4: 'app 4.1 and later', 5: 'app 4.2 and later', 6: 'app 4.3 and later' };
+const OPENS_IN = { 3: 'app 3 and later', 4: 'app 4.1 and later', 5: 'app 4.2 and later', 6: 'app 4.3 and later', 7: 'app 4.5 and later' };
 const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's'), ver = v => String(v).replace(/-/g, '\u2011'); // (a version never breaks at its hyphen)
 function openEntries() {
   const q = libView.q.trim().toLowerCase(), hit = e => !q || e.name.toLowerCase().includes(q);
@@ -4056,6 +4162,31 @@ function noiseVoice(ctx, at) {
   return { frequency: cs.offset, detunes: [f1.detune, f2.detune], connect: n => f2.connect(n), setPeriodicWave() {},
     start: t => { src.start(t, ((at % 4) + 4) % 4); cs.start(t); }, stop: t => { src.stop(t); cs.stop(t); } };
 }
+/* A struck voice's share of its part's shape over time (ducking, breathing), without an envelope: it rings by its modes */
+function modMoves(b, v, from) { if (b.voices) { const r = b.voices[v]; return modMoves(r.b, r.v, from); } if (!b.mod) return null; return [{ t: from, g: polyAt(b.mod, from) }, ...b.mod.filter(p => p.t > from)]; }
+/* A struck instrument's voice: one sine per mode, each detuned by its fixed ratio (in cents) from one shared frequency, so every mode
+   follows the voice's glides; each mode has its own gain, which the strikes set and let decay. Shaped like an oscillator for the
+   scheduler (`frequency`, `detunes` for vibrato, start and stop). */
+function struckVoice(ctx, modes, cents) {
+  const cs = ctx.createConstantSource(), out = ctx.createGain(), oscs = [], gains = [];
+  for (const [ratio] of modes) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 0; cs.connect(o.frequency); o.detune.value = 1200 * Math.log2(ratio) + cents; g.gain.value = 0; o.connect(g); g.connect(out); oscs.push(o); gains.push(g); }
+  return { frequency: cs.offset, detunes: oscs.map(o => o.detune), gains, connect: n => out.connect(n), setPeriodicWave() {},
+    start: t => { cs.start(t); oscs.forEach(o => o.start(t)); }, stop: t => { cs.stop(t); oscs.forEach(o => o.stop(t)); } };
+}
+/* FM: a sine carrier whose frequency is swung by a sine modulator at `ratio` times it, by index × the modulator's frequency (so its
+   brightness is the same at every pitch, and follows glides). index: the AudioParam that sets it (scheduled per note). */
+function fmVoice(ctx, ratio, cents) {
+  const cs = ctx.createConstantSource(), car = ctx.createOscillator(), mod = ctx.createOscillator(), scale = ctx.createGain(), dev = ctx.createGain();
+  for (const o of [car, mod]) { o.frequency.value = 0; cs.connect(o.frequency); }
+  car.detune.value = cents; mod.detune.value = 1200 * Math.log2(ratio) + cents;
+  scale.gain.value = 0; cs.connect(scale); // the carrier's frequency × ratio × index (the index arrives on scale.gain) …
+  dev.gain.value = 0; scale.connect(dev.gain); mod.connect(dev); dev.connect(car.frequency); // … times the modulator: the swing in Hz
+  return { frequency: cs.offset, detunes: [car.detune, mod.detune], index: scale.gain, ratio, connect: n => car.connect(n), setPeriodicWave() {},
+    start: t => { cs.start(t); car.start(t); mod.start(t); }, stop: t => { cs.stop(t); car.stop(t); mod.stop(t); } };
+}
+/* When a voice is struck (a struck instrument, or FM's brightness): each note's start and loudness, and its end, as the part plays
+   them; a part that sounds throughout (the main part, a pad) at each chord change */
+const strikesOf = (pt, lv) => struckHits(pt.sub, lv); // (in the engine, which also works out how long the rings last)
 /* A sine at `rate` Hz that is at `phase` (radians) when it starts, for effects that must be the same wherever playback begins */
 function phasedLFO(ctx, rate, phase) {
   const o = ctx.createOscillator(); o.frequency.value = rate;
@@ -4122,7 +4253,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const silent = pt => !!(pt.sub.gates && pt.sub.gates.every(g => g && !g.length)); // a part that plays in no section
   const eqN = b.parts.reduce((a, pt) => a + (silent(pt) ? 0 : pt.sub.N), 0) || 1; // the voices that sound
   const parts = b.parts, levelN = equal ? eqN : parts[0].sub.N; // the main part's level, exactly as before (balanced by part)
-  const oscs = [], gains = [], moves = [], envs = [], vibs = [], lfos = [], opens = [];
+  const oscs = [], gains = [], moves = [], envs = [], vibs = [], lfos = [], opens = [], strikeJobs = [], struckOuts = [];
   const hasBass = P.voicing.bassMode !== 'none';
   /* With other parts, the mix is given headroom: every voice is scaled by one over the sum of the parts' levels (as amplitudes;
      the main part counts as 1), so the parts' peaks can line up without clipping, and a part at −60 dB changes nothing. Measured:
@@ -4135,7 +4266,7 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
   const headroom = !multi ? 1 : 1 / (parts.reduce((a, pt) => a + partAmp(pt), 0) || 1);
   if (satOn) { const ref = !multi ? 1 : Math.min(1, headroom * Math.sqrt(parts.reduce((a, pt) => a + partAmp(pt) * partAmp(pt), 0)) || 1); satIn.gain.value = 1 / ref; satOut.gain.value = ref; }
   for (const pt of parts) {
-    const snd = pt.main ? S : pt.sound, noise = snd.tone === 'noise';
+    const snd = pt.main ? S : pt.sound, noise = snd.tone === 'noise', modes = struckModes(snd.tone, snd.hardness, snd.ring), fm = snd.tone === 'fm';
     /* The part's own path: its voices (those that sound throughout through `held`), then its filter and ensemble, then on to the
        two buses by its reverb amount. */
     const bus = ctx.createGain(), held = ctx.createGain(); held.connect(bus); helds.push(held);
@@ -4164,21 +4295,23 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     if (pt.sub.vibrato) { lfo = ctx.createOscillator(); lfo.frequency.value = pt.sub.vibrato.rate; lfos.push(lfo); }
     for (let lv = 0; lv < pt.sub.N; lv++) {
       const v = pt.first + lv, dz = r() * 2 - 1, pz = r() * 2 - 1;
-      const osc = noise ? noiseVoice(ctx, from + r() * 4) : ctx.createOscillator();
-      if (!noise) { osc.setPeriodicWave(waveOf(snd.tone)); osc.detune.value = dz * snd.detune; }
+      const osc = noise ? noiseVoice(ctx, from + r() * 4) : modes ? struckVoice(ctx, modes, dz * snd.detune) : fm ? fmVoice(ctx, snd.fmRatio, dz * snd.detune) : ctx.createOscillator();
+      if (!noise && !modes && !fm) { osc.setPeriodicWave(waveOf(snd.tone)); osc.detune.value = dz * snd.detune; }
+      if (modes || fm) strikeJobs.push({ osc, modes, snd, hits: strikesOf(pt, lv) }); // struck, or FM's brightness: scheduled once the clock is read
       const mv = pitchMoves(b, v, from); // the glides themselves, so accuracy never depends on the piece's length
       osc.frequency.value = hz(mv[0].p); // set before the clock is read below, so it can never land inside a glide
       const g = ctx.createGain(); g.gain.value = lvl;
-      const em = gainMoves(b, v, from); // a voice that rests: its envelope
+      const em = modes ? modMoves(b, v, from) : gainMoves(b, v, from); // a voice that rests: its envelope (a struck one rings by its modes instead, keeping only its part's ducking or breathing)
       let env = null;
       if (em) { env = ctx.createGain(); env.gain.value = em[0].g; osc.connect(env); env.connect(g); } else osc.connect(g);
       const vm = lfo ? vibratoMoves(b, v, from) : null;
       let depth = null;
       if (vm) { depth = ctx.createGain(); depth.gain.value = vm.moves[0].g; lfo.connect(depth); for (const p of osc.detunes || [osc.detune]) depth.connect(p); }
       const pan = pt.main ? ((hasBass && lv === 0) ? 0 : pz * (S.width / 100)) : Math.max(-1, Math.min(1, snd.pan + pz * (snd.width / 100) * (1 - Math.abs(snd.pan))));
-      const to = em && !pt.sub.held && !(pt.sub.heldV && pt.sub.heldV[lv]) ? bus : held; // a voice that sounds throughout fades with the piece (also one gated to sections, or an echo's that enters late); one with notes ends by its own envelope
+      const to = modes || (em && !pt.sub.held && !(pt.sub.heldV && pt.sub.heldV[lv])) ? bus : held; // (a struck voice rings out by itself, not by the closing fade) // a voice that sounds throughout fades with the piece (also one gated to sections, or an echo's that enters late); one with notes ends by its own envelope
       if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; g.connect(pn); pn.connect(via(to)); }
       else g.connect(via(to));
+      if (modes) struckOuts.push(g);
       oscs.push(osc); gains.push(g); moves.push(mv); envs.push(env ? { p: env.gain, m: em } : null); vibs.push(depth ? { p: depth.gain, m: vm.moves } : null);
     }
   }
@@ -4196,15 +4329,18 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
      If the clock were read first and the work ran past the lead time, each glide would be scheduled to start in the
      past; Chrome then plays it late, or holds the voice at the start pitch set above, so the sound drifts from the picture. */
   const now = offline ? 0 : ctx.currentTime + lead;
-  { const end = now + span + TAIL; for (const og of echoOuts) { og.gain.setValueAtTime(1, Math.max(now, end - 3)); og.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 1)); } } // (the last second for its reverb)
+  { const end = now + span + TAIL; for (const g of struckOuts) { const lv0 = g.gain.value; g.gain.setValueAtTime(lv0, Math.max(now, end - 1.2)); g.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 0.05)); }
+    for (const og of echoOuts) { og.gain.setValueAtTime(1, Math.max(now, end - 3)); og.gain.linearRampToValueAtTime(0, Math.max(now + 0.01, end - 1)); } } // (the last second for its reverb)
   /* Fade in, hold, then the closing fade (FADE). In a piece whose voices all sound throughout, the fade is on the master, after
      the compressor, exactly as it always was. In a piece with lines or saved notes (voices that rest), it's on the voices that
      sound throughout (`held`) instead, so a line's last notes ring out by their own release while the held chord fades; the
      master then just fades in and carries the volume. Started inside the fade (from past the end), pick it up where it is. */
   const M = b.musicEnd !== undefined ? b.musicEnd : T; // the music's end: the fade starts here even when a long release lengthens the piece
   const into = Math.max(0, from - M), fadeLeft = Math.max(0.05, FADE - into), left = Math.max(0, 1 - into / FADE), top = level * left;
-  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : from > 0 ? 0.15 : 0.4, hold = Math.max(Math.max(0.05, M - from), attack);
-  const fadeOnMaster = !envs.some(x => x);
+  // (a piece with a struck instrument starts at once, or the first strike would be swallowed by the fade in)
+  const struckIn = parts.some(pt => STRUCK[(pt.main ? S : pt.sound).tone]);
+  const attack = into > 0 ? Math.min(0.05, fadeLeft / 2) : struckIn ? 0.005 : from > 0 ? 0.15 : 0.4, hold = Math.max(Math.max(0.05, M - from), attack);
+  const fadeOnMaster = !envs.some(x => x) && !struckOuts.length; // (with a struck instrument the closing fade is on the voices that sound throughout, so its rings carry on)
   if (fadeOnMaster) {
     master.gain.setValueAtTime(0, now); master.gain.linearRampToValueAtTime(top, now + attack);
     master.gain.setValueAtTime(top, now + hold); master.gain.linearRampToValueAtTime(0, now + hold + fadeLeft);
@@ -4237,6 +4373,24 @@ function buildGraph(ctx, b, from, outs, level, offline, lead = 0.08) {
     if (o.was) { o.p.setValueAtTime(openAt(o, o.was, from), now); o.p.setTargetAtTime(o.base, now, o.tc); o.was = null; } // the note already sounding
     for (; o.k < o.hits.length && o.hits[o.k][0] < until; o.k++) { const [t, v] = o.hits[o.k], s = Math.max(now, at(t));
       o.p.setValueAtTime(openAt(o, o.hits[o.k], t), s); o.p.setTargetAtTime(o.base, s, o.tc); } } };
+  /* Strikes. A struck mode jumps to its level × the note's loudness (in 1.5 ms, so it doesn't click) and decays by its T60; if the
+     instrument stops at the note's end, it's damped there in about 50 ms. FM's index jumps to its strike value × loudness and settles
+     to its held value over the fall time. Starting part-way (a seek, a resume or a change while playing), each picks up the last
+     strike before here where it has got to, as it would have been. */
+  const tau60 = T => T / Math.log(1000);
+  for (const J of strikeJobs) {
+    const past = J.hits.filter(h => h.on < from - 1e-6), last = past[past.length - 1], ahead = J.hits.filter(h => h.on >= from - 1e-6);
+    if (J.modes) J.modes.forEach(([, a, T], k) => {
+      const p = J.osc.gains[k].gain, tc = tau60(T), stopTc = 0.05 / 3;
+      let g0 = 0; if (last) { g0 = a * last.v * Math.exp(-(from - last.on) / tc); if (J.snd.stop && last.off < from) g0 *= Math.exp(-(from - last.off) / stopTc); }
+      p.setValueAtTime(g0, now); p.setTargetAtTime(0, now, tc);
+      if (last && J.snd.stop && last.off >= from && last.off < Infinity) p.setTargetAtTime(0, at(last.off), stopTc);
+      for (const h of ahead) { const s0 = at(h.on); p.setTargetAtTime(a * h.v, s0, 0.0015); p.setTargetAtTime(0, s0 + 0.006, tc); if (J.snd.stop && h.off < Infinity) p.setTargetAtTime(0, at(h.off), stopTc); }
+    });
+    else { const p = J.osc.index, I0 = J.snd.fmIndex, I1 = J.snd.fmSustain, tc = J.snd.fmTime / 3, ix = h => I1 + (I0 * h.v - I1); // (the index at a strike)
+      p.setValueAtTime(J.osc.ratio * (last ? I1 + (ix(last) - I1) * Math.exp(-(from - last.on) / tc) : I1), now); p.setTargetAtTime(J.osc.ratio * I1, now, tc);
+      for (const h of ahead) { const s0 = at(h.on); p.setTargetAtTime(J.osc.ratio * ix(h), s0, 0.002); p.setTargetAtTime(J.osc.ratio * I1, s0 + 0.008, tc); } }
+  }
   oscs.forEach((osc, v) => { schedule(v, soon); osc.start(now); osc.stop(now + span + TAIL); });
   openTo(soon);
   lfos.forEach(o => { o.start(now); o.stop(now + span + TAIL); });
@@ -5349,7 +5503,7 @@ function starterLine(kind) {
   }).join(' | ');
 }
 /* The tabs' controls that belong to a part, and which kinds of part have them */
-const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', ensemble: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
+const PART_CTRL = { voices: 'pad', continuity: 'pad', coverage: 'pad', stacking: 'pad', spacing: 'pad', variation: 'pad', spread: 'pad', top: 'pad', bassoct: 'pad', bassmode: 'pad', order: 'pad', stagger: 'pad', tone: 'all', detune: 'all', width: 'all', ensemble: 'all', hardness: 'all', ring: 'all', stopend: 'all', fmratio: 'all', fmindex: 'all', fmsustain: 'all', fmtime: 'all', breathedepth: 'pad', breathetime: 'pad', duckunder: 'all', duckdepth: 'all', ducktime: 'all', echotime: 'all', echomix: 'all', echofb: 'all', echopan: 'all' };
 const applies = (id, n) => PART_CTRL[id] === 'all' || (PART_CTRL[id] === 'pad' && n.preset === 'pad');
 ['chords', 'seed-harmony', 'tu-sec', 'chordsec', 'chordbars', 'tempo', 'meter', 'seed-voicing', 'seed-motion', 'glide', 'easing', 'seed-sound', 'reverb', 'brightness', 'eqlow', 'mix', 'tuning', 'vshape']
   .forEach(id => { const w = $(id).closest('.tabpanel > *'); if (w) w.dataset.whole = ''; }); // shared by every part
@@ -5741,12 +5895,16 @@ function renderPartBlocks(n) {
     slider('Each note opens it', 0, 100, 1, n.sound.opens, v => v ? pct(v) : 'off', v => { own('sound').opens = v; }),
     slider('Closing time', 0.02, 3, 0.01, n.sound.openTime, fmtSec, v => { own('sound').openTime = v; }),
     mk('p', { className: 'hint help', dataset: { on: 'partbright' }, textContent: 'This part\'s own filter, under the piece\'s: lower is darker and rounder. With "Each note opens it", every note starts brighter (up to four octaves, louder notes further) and closes back over the closing time, as a plucked or struck sound does. It needs Brightness below open.' }));
-  if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
+  if (n.preset !== 'pad' && n.preset !== 'copy' && STRUCK[n.sound.tone]) put('sound', sect('Envelope'), mk('p', { className: 'hint', textContent: 'A struck instrument rings by itself, so this part\'s envelope isn\'t used: Hardness, Ring length and At note end, below, shape it.' }));
+  else if (n.preset !== 'pad' && n.preset !== 'copy') put('sound', sect('Envelope'),
     slider('Attack', 0.001, 2, 0.001, n.envelope.attack, fmtSec, v => { own('envelope').attack = v; }),
     slider('Decay', 0, 3, 0.01, n.envelope.decay, fmtSec, v => { own('envelope').decay = v; }),
     slider('Sustain', 0, 1, 0.01, n.envelope.sustain, v => Math.round(v * 100) + '%', v => { own('envelope').sustain = v; }),
     slider('Release', 0.005, 5, 0.005, n.envelope.release, fmtSec, v => { own('envelope').release = v; }),
-    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }));
+    select('Decay and release', opts([['linear', 'Straight'], ['exp', 'Natural: fast, then fading away']]), n.envelope.curve, v => { own('envelope').curve = v; }),
+    named(select('Over each note', opts([['none', 'Steady'], ['swell', 'Swells in'], ['fade', 'Fades away'], ['arch', 'Swells in, then eases off']]), n.envelope.shape || 'none', v => { if (v === 'none') { delete own('envelope').shape; delete own('envelope').depth; } else own('envelope').shape = v; renderPartBlocks(selNorm()); }), 'noteshape'),
+    ...(n.envelope.shape ? [slider('Shape depth', 0, 1, 0.01, n.envelope.depth === undefined ? 1 : n.envelope.depth, v => Math.round(v * 100) + '%', v => { own('envelope').depth = v; })] : []),
+    mk('p', { className: 'hint help', dataset: { on: 'noteshape' }, textContent: 'A shape in each note\'s own time, on top of the envelope, so short and long notes take the same shape: Swells in rises from about a third over the first quarter of the note; Fades away eases to 40% by its end; Swells in, then eases off does both (to 55%). Depth blends from steady to the full shape.' }));
 }
 /* The part bar's menus */
 function closePops() { for (const [pop, btn] of [['addpop', 'partadd'], ['morepop', 'partmore']]) { $(pop).hidden = true; $(btn).setAttribute('aria-expanded', 'false'); } }
@@ -5810,9 +5968,10 @@ $('echotime').addEventListener('change', () => {
 for (const [id, path, conv] of SELECTS) $(id).addEventListener('change', () => {
   const tgt = partTarget(id);
   if (STRUCTURAL.has(id) || (id === 'meter' && usesMusicalTime(piece))) { if (tgt === piece) unfreeze(); else delete tgt.realization; } setDeep(tgt, path, conv($(id).value));
-  if (tgt !== piece) { rebuild(true); refreshPartBar(); commit(); return; }
-  const swap = id === 'tone' && playing && !recording && live && piece.sound.tone !== 'noise' && live.tone !== 'noise'; // tone doesn't change any pitch, so the running voices can just change waveform (noise isn't a waveform: that starts the sound again)
+  if (tgt !== piece) { rebuild(true); refreshPartBar(); commit(); if (id === 'tone') { syncToneCtl(); renderPartBlocks(selNorm()); } return; }
+  const notWave = t => t === 'noise' || t === 'fm' || !!STRUCK[t], swap = id === 'tone' && playing && !recording && live && !notWave(piece.sound.tone) && !notWave(live.tone); // tone doesn't change any pitch, so the running voices can just change waveform (noise isn't a waveform: that starts the sound again)
   rebuild(true, !swap); if (swap) swapToneLive(piece.sound.tone);
+  if (id === 'tone') { syncToneCtl(); renderPartBlocks(selNorm()); } // its own settings, and (for a part) whether its envelope is used
   commit();
 });
 /* Time: chords without a length of their own last chordSec seconds, or chordBars bars. Switching converts the length at the

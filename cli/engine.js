@@ -96,7 +96,7 @@ const defaultChordSec = P => P.timing.unit === 'bar' ? P.timing.chordBars * barS
 function itemSeconds(it, P) { return it.dur == null ? null : it.unit === 'bar' ? it.dur * barSec(P) : it.unit === 'beat' ? it.dur * beatSec(P) : it.dur; }
 // whether a piece needs file format 5: it keeps time in bars, or a chord's length is in bars or beats
 const usesMusicalTime = p => !!(p && ((p.timing && p.timing.unit === 'bar') || /:\d+(?:\.\d+)?(?:bars?|beats?)(?=[\s,|\]]|$)/m.test(String(p.chords || ''))));
-/* The file format a piece needs: 6 with 4.3's sound, 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
+/* The file format a piece needs: 7 with 4.5's instruments and shapes, 6 with 4.3's sound, 5 with 4.2's features, 4 with parts or a volume shape, else 3, so older versions open what they can
    play and refuse what they'd get wrong */
 const shaped = x => !!x && ((x.breathe && +x.breathe.depth > 0) || (x.duck && +x.duck.depth > 0 && x.duck.under));
 const accented = r => !!(r && Array.isArray(r.events) && r.events.some(e => e && (e.vel || e.ease))); // saved notes with loudness or glide shapes
@@ -104,7 +104,8 @@ const echoing = x => !!(x && x.echo && +x.echo.mix > 0);
 /* 4.3's sound: a noise tone, an ensemble, tone controls (EQ) and saturation for the piece, and a part's own reverb and brightness */
 const soundOf = x => (x && x.sound && typeof x.sound === 'object') ? x.sound : {};
 const newSound = (s, part) => s.tone === 'noise' || +s.ensemble > 0 || (!part && (+s.saturation > 0 || (s.eq && (+s.eq.low || +s.eq.mid || +s.eq.high)))) || (part && ((s.reverb !== undefined && +s.reverb !== 100) || (s.brightness !== undefined && +s.brightness < OPEN_HZ)));
-function formatFor(p) { return newSound(soundOf(p), false) || (p.parts || []).some(x => newSound(soundOf(x), true)) ? 6 : echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
+const new45 = x => !!x && (!!STRUCK[soundOf(x).tone] || soundOf(x).tone === 'fm' || !!(x.envelope && NOTE_SHAPES[x.envelope.shape] && x.envelope.shape !== 'none'));
+function formatFor(p) { return new45(p) || (p.parts || []).some(new45) ? 7 : newSound(soundOf(p), false) || (p.parts || []).some(x => newSound(soundOf(x), true)) ? 6 : echoing(p) || (p.parts || []).some(echoing) || p.mix === 'voices' || p.tuning === 'just' || accented(p.realization) || (p.parts || []).length > 12 || usesMusicalTime(p) || shaped(p) || (p.parts || []).some(shaped) || hasSections(p.chords) || Array.isArray(p.plays) || (p.parts || []).some(x => x && (Array.isArray(x.plays) || x.preset === 'pattern' || x.preset === 'copy' || (x.drop && +x.drop.semis) || (x.envelope && x.envelope.curve === 'exp') || (x.glideShape && x.glideShape !== 'smooth') || x.nonstop || (x.preset === 'copy' && +x.voices > 0) || +x.portamento > 2 || /[~@[\/]/.test(String(x.line || '')) || String(x.line || '').length > 20000 || /\[/.test(String(x.pattern || '')) || accented(x.realization))) ? 5 : (p.parts && p.parts.length) || (p.volume && p.volume.length) ? 4 : 3; }
 
 /* ---- Sections ----
    A line that is only a header in brackets starts a section: its name, then optionally a repeat (x2) and a key change in
@@ -188,6 +189,8 @@ const TONES = {
   chime: harmonics(21, n => { const fib = [1, 2, 3, 5, 8, 13, 21], k = fib.indexOf(n); return k < 0 ? 0 : Math.pow((1 + Math.sqrt(5)) / 2, -k); }), // only
   // Fibonacci harmonics (1, 2, 3, 5, 8, 13, 21), each 1/φ the strength of the one before: a harmonic chime, not a real bell
   noise: [0, 1], // not a wave: hiss centred on each note's pitch (the app plays it from noise; anything else falls back to a sine)
+  // the struck instruments and FM aren't waves (the app builds them from several oscillators); here they fall back to a sine
+  bell: [0, 1], gong: [0, 1], marimba: [0, 1], drum: [0, 1], metaltri: [0, 1], fm: [0, 1],
   air: harmonics(20, n => n === 1 ? 1 : n === 2 ? 0.1 : n === 3 ? 0.03 : n >= 5 ? 0.01 : 0) // a nearly pure fundamental with a faint, flat
   // shelf of high harmonics (5–20), the nearest a fixed mix gets to a breathy flute
 };
@@ -202,12 +205,47 @@ function besselJ(k, x) {
 /* Gains for the formula tones, measured so a reference piece at default settings reaches Soft's loudness (the original five stay
    at 1, unchanged). Brightness, register and voicing change each tone's level differently, so this keeps changes reasonable, not exact. */
 const OPEN_HZ = 16000; // a part's brightness at its top: no filter
-const TONE_GAIN = { noise: 2, triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft (noise: set by its RMS, 2 dB under Soft, as its peaks stand far above its average)
+/* Struck instruments (4.5): each voice is a few sine "modes", each at a fixed ratio to the note, with its own level and its own
+   decay (T60: seconds to fall 60 dB), struck afresh at each note and ringing on by itself, following the voice's glides.
+   [ratio, level, T60]. The ratios come from physics where there is a simple model, and from tradition for the bell:
+   - drum: an ideal circular membrane, ratios of the Bessel-function zeros j(m,n)/j(0,1) (Rossing, The Science of Sound)
+   - marimba: a bar tuned so its first overtones sit two octaves and about three octaves and a major third up (1 : 4 : 10)
+   - metal triangle: a straight free-free rod, roots of cosh(b)cos(b) = 1, ratios (b_n/b_1)^2 (a bent rod is close, not exact)
+   - gong: a flat circular plate with a free edge, Chladni's modes (2,0) (0,1) (3,0) (1,1) (4,0) (5,0) (2,1) (0,2) (Rossing)
+   - bell: a church bell's named partials against its strike note: hum, prime, tierce, quint, nominal, deciem, upper partials
+   These are approximations for musical use, not measured instruments. */
+const STRUCK = {
+  bell: { name: 'Bell', modes: [[0.5, 0.45, 9], [1, 0.55, 6], [1.2, 0.5, 4.5], [1.5, 0.22, 3.5], [2, 0.8, 3.2], [2.5, 0.2, 2], [3, 0.28, 1.6], [4, 0.16, 1]] },
+  gong: { name: 'Gong (plate)', modes: [[1, 0.75, 5], [1.73, 0.6, 4.2], [2.33, 0.5, 3.6], [3.91, 0.38, 2.8], [4.11, 0.34, 2.6], [6.3, 0.22, 1.9], [6.71, 0.2, 1.8], [7.34, 0.16, 1.5]] },
+  marimba: { name: 'Marimba', modes: [[1, 1, 1.5], [3.99, 0.32, 0.5], [10, 0.12, 0.16]] },
+  drum: { name: 'Drum (membrane)', modes: [[1, 1, 0.6], [1.594, 0.6, 0.45], [2.136, 0.42, 0.36], [2.296, 0.3, 0.33], [2.653, 0.24, 0.28], [2.918, 0.18, 0.24], [3.156, 0.14, 0.21], [3.501, 0.1, 0.18], [3.6, 0.1, 0.17]] },
+  metaltri: { name: 'Metal triangle', modes: [[1, 0.45, 7], [2.756, 0.7, 6], [5.404, 0.8, 5], [8.933, 0.6, 4], [13.344, 0.45, 3.2], [18.638, 0.3, 2.6]] }
+};
+const STRUCK_DEF = { hardness: 50, ring: 1, stop: false }, FM_DEF = { fmRatio: 2, fmIndex: 4, fmSustain: 1, fmTime: 0.4 }; // the settings a new part (or a piece) starts with
+const FM_RATIOS = [0.5, 1, 1.414, 2, 3, 3.5, 4, 5, 7]; // modulator : carrier (whole numbers are harmonic; 1.414 and 3.5 bell-like)
+/* A struck sound's modes for a hardness (0 to 100): harder lifts the upper modes (a mallet's contact is shorter), softer darkens;
+   the levels are then scaled to add up to 1. With ring (a multiplier on every T60). */
+function struckModes(tone, hardness = 50, ring = 1) {
+  const S = STRUCK[tone]; if (!S) return null;
+  const tilt = (hardness - 50) / 50 * 1.2, raw = S.modes.map(([f, a, t]) => [f, a * Math.pow(f, tilt), t * ring]), sum = raw.reduce((x, m) => x + m[1], 0) || 1;
+  return raw.map(([f, a, t]) => [f, a / sum, t]);
+}
+/* What a struck part's notes look like on the stage, and how long they ring: an exponential fall over the longest-lasting audible mode
+   (as the part's envelope, used for the drawing and the piece's length), cut short at the note's end if it stops there */
+function struckEnvelope(sound) {
+  const m = struckModes(sound.tone, sound.hardness, sound.ring); const T = Math.max(...m.filter(x => x[1] > 0.05).map(x => x[2]));
+  return { attack: 0.003, decay: T, sustain: 0, release: sound.stop ? 0.06 : T, curve: 'exp' };
+}
+/* Shape over each note: the envelope times a curve in the note's own time (0 at its start, 1 at its end), so short and long notes
+   take the same shape. Points [u, level]; `depth` blends from steady (0) to the full curve (1). */
+const NOTE_SHAPES = { none: null, swell: [[0, 0.35], [0.25, 1], [1, 1]], fade: [[0, 1], [1, 0.4]], arch: [[0, 0.35], [0.25, 1], [1, 0.55]] };
+const TONE_GAIN = { noise: 2, bell: 1.8, gong: 1.6, marimba: 1.7, drum: 3.3, metaltri: 1.1, fm: 0.65, // (4.5's: a quarter-note melody's loudness against Soft's, struck ones about 1 dB under, their attacks being far above their average)
+  triangle: 1.17, square: 0.81, pulse: 1.36, saw: 1.29, organ: 1.1, bowed: 1.24, cello: 1.84, brass: 0.79, harp: 1.16, octaves: 1, chime: 1.11, air: 1 }; // measured: EBU R128 loudness of the same piece, matched to Soft (noise: set by its RMS, 2 dB under Soft, as its peaks stand far above its average)
 /* The tone as the two coefficient arrays the Web Audio API wants, of equal length */
 function toneWave(name) { const t = TONES[name] || TONES.soft, imag = Array.isArray(t) ? t : t.imag, real = Array.isArray(t) ? imag.map(() => 0) : t.real; return { real, imag }; }
 /* ---- Piece defaults: everything needed to reopen a piece identically ---- */
 const PIECE_FORMAT = 'chord-glide-piece';
-const PIECE_FORMAT_VERSION = 6; // 4 adds parts and a volume shape, 5 musical time (bars and beats), 6 noise, ensemble, tone controls, saturation and a part's own reverb and brightness; a piece is written as the oldest format that holds it (formatFor())
+const PIECE_FORMAT_VERSION = 7; // 4 adds parts and a volume shape, 5 musical time (bars and beats), 6 noise, ensemble, tone controls, saturation and a part's own reverb and brightness, 7 struck instruments, FM and shapes over each note; a piece is written as the oldest format that holds it (formatFor())
 function defaultPiece() {
   return {
     format: PIECE_FORMAT, formatVersion: PIECE_FORMAT_VERSION, engine: ENGINE_VERSION,
@@ -220,7 +258,7 @@ function defaultPiece() {
     breathe: { depth: 0, time: 0.6 }, duck: { under: '', depth: 0, time: 0.25 },
     voicing: { continuity: 50, coverage: 50, stacking: 25, spacing: 25, variation: 25, spread: 100, top: 88, bassMode: 'root', bassOctave: 2 },
     motion: { order: 'together', stagger: 0 },
-    sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200, ensemble: 0, saturation: 0, eq: { low: 0, mid: 0, high: 0 } },
+    sound: { tone: 'soft', detune: 4, width: 70, reverb: 38, brightness: 4200, ensemble: 0, saturation: 0, eq: { low: 0, mid: 0, high: 0 }, hardness: 50, ring: 1, stop: false, fmRatio: 2, fmIndex: 4, fmSustain: 1, fmTime: 0.4 },
     view: { mode: 'auto', labels: 'notes', trace: { look: 'theme', glow: 60, weight: 1, custom: { line: '#39ff88', line2: '#39ff88', bg: '#020604' } } }
   };
 }
@@ -256,7 +294,8 @@ function normalizePiece(p) {
   out.sound.tone = pickFrom(out.sound.tone, Object.keys(TONES), 'soft');
   out.sound.detune = num(out.sound.detune, 0, 20, 4); out.sound.width = num(out.sound.width, 0, 100, 70);
   out.sound.reverb = num(out.sound.reverb, 0, 100, 38); out.sound.brightness = num(out.sound.brightness, 800, 12000, 4200);
-  out.sound.ensemble = num(out.sound.ensemble, 0, 100, 0); out.sound.saturation = num(out.sound.saturation, 0, 100, 0); // the main part's ensemble; warmth for the whole piece
+  out.sound.ensemble = num(out.sound.ensemble, 0, 100, 0); out.sound.saturation = num(out.sound.saturation, 0, 100, 0);
+  Object.assign(out.sound, strikeAndFm(out.sound, num)); // the struck instruments' and FM's settings (used when the tone is one of them) // the main part's ensemble; warmth for the whole piece
   { const q = (out.sound.eq && typeof out.sound.eq === 'object') ? out.sound.eq : {}; out.sound.eq = { low: num(q.low, -12, 12, 0), mid: num(q.mid, -12, 12, 0), high: num(q.high, -12, 12, 0) }; } // tone controls for the whole piece, in dB
   out.view.mode = pickFrom(out.view.mode, ['auto', 'scroll', 'whole'], 'auto'); out.view.labels = pickFrom(out.view.labels, ['notes', 'hz'], 'notes');
   { // trace look: how the lines are drawn (saved with the piece, used for video)
@@ -555,6 +594,9 @@ function partSeed(seed, id, salt) {
   h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; h = Math.imul(h, 0x297A2D39); h ^= h >>> 15;
   return h >>> 0;
 }
+// the struck instruments' and FM's settings, checked (the defaults where missing)
+const strikeAndFm = (s, num) => ({ hardness: num(s.hardness, 0, 100, STRUCK_DEF.hardness), ring: num(s.ring, 0.1, 4, STRUCK_DEF.ring), stop: !!s.stop,
+  fmRatio: FM_RATIOS.includes(+s.fmRatio) ? +s.fmRatio : FM_DEF.fmRatio, fmIndex: num(s.fmIndex, 0, 12, FM_DEF.fmIndex), fmSustain: num(s.fmSustain, 0, 12, FM_DEF.fmSustain), fmTime: num(s.fmTime, 0.02, 4, FM_DEF.fmTime) });
 function normalizePart(q, P, i, used) {
   if (!q || typeof q !== 'object') return null;
   const num = (v, lo, hi, dflt) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt; };
@@ -569,8 +611,9 @@ function normalizePart(q, P, i, used) {
     sound: { tone: TONES[s.tone] ? s.tone : P.sound.tone, level: num(s.level, -60, 12, 0), pan: num(s.pan, -1, 1, 0),
       width: num(s.width, 0, 100, preset === 'pad' ? P.sound.width : 30), detune: num(s.detune, 0, 20, P.sound.detune),
       ensemble: num(s.ensemble, 0, 100, 0), reverb: num(s.reverb, 0, 300, 100), // a chorus; its reverb as a percentage of the piece's
-      brightness: num(s.brightness, 200, OPEN_HZ, OPEN_HZ), opens: num(s.opens, 0, 100, 0), openTime: num(s.openTime, 0.02, 3, 0.3) }, // its own filter (open at the top), and how far and how long each note opens it
+      brightness: num(s.brightness, 200, OPEN_HZ, OPEN_HZ), opens: num(s.opens, 0, 100, 0), openTime: num(s.openTime, 0.02, 3, 0.3), ...strikeAndFm(s, num) }, // its own filter (open at the top), and how far and how long each note opens it
     envelope: { attack: num(e.attack, 0.001, 10, E0.attack), decay: num(e.decay, 0, 10, E0.decay), sustain: num(e.sustain, 0, 1, E0.sustain), release: num(e.release, 0.005, 20, E0.release), curve: e.curve === 'exp' ? 'exp' : 'linear' } };
+  if (NOTE_SHAPES[e.shape] && e.shape !== 'none') { part.envelope.shape = e.shape; part.envelope.depth = num(e.depth, 0, 1, 1); } // a shape over each note (4.5)
   if (plays) part.plays = plays;
   if (/^#[0-9a-f]{6}$/i.test(String(q.color))) part.color = String(q.color).toLowerCase(); // its colour (automatic if not set): only how it's shown
   part.echo = normalizeEcho(q.echo);
@@ -891,7 +934,7 @@ function buildPart(part, P, items, until, budget, lay = null, timeline = null, k
     sub = buildPiece(items, { name: P.name, chords: P.chords, voices: part.voices, timing: P.timing, voicing: part.voicing, motion: part.motion, sound: P.sound,
       seeds: { harmony: S.harmony, voicing: partSeed(S.voicing, part.id, 'voicing'), motion: partSeed(S.motion, part.id, 'motion'), sound: partSeed(S.sound, part.id, 'sound') } });
   }
-  if (sub) sub.env = part.envelope;
+  if (sub) sub.env = STRUCK[part.sound.tone] ? struckEnvelope(part.sound) : part.envelope; // a struck part rings by its instrument, not its envelope
   return sub;
 }
 /* The whole score: the main part (as built by buildPiece or builtFromRealization) and the piece's other parts.
@@ -947,6 +990,22 @@ function maskGates(sub, spans, end, held) {
   }
   sub.gates = out; sub.envCache = null; if (!sub.env) sub.env = ENVELOPES.pad; sub.held = !!held;
 }
+/* When a struck voice is struck (also FM's brightness): its notes' starts, loudness and ends; for a part that sounds throughout (the main
+   part, a pad, an echo of one), each chord change, ending at the next (within its sections, if it has any, where its gates are those
+   stretches); for a part that never stops, its notes. */
+function struckHits(s, lv) {
+  const v = g => g.v === undefined ? 1 : g.v;
+  if (s.strikes && s.strikes[lv]) return s.strikes[lv].map(g => ({ on: g.on, off: g.off, v: v(g) }));
+  const gs = s.gates && s.gates[lv], held = !gs || s.held || (s.heldV && s.heldV[lv]);
+  if (!held) return gs.map(g => ({ on: g.on, off: g.off, v: v(g) }));
+  const ev = (s.events || []).map((e, k) => k ? e.t : 0), out = [];
+  const add = (ts, end, vel) => ts.forEach((t, i) => out.push({ on: t, off: i + 1 < ts.length ? ts[i + 1] : end, v: vel }));
+  const end = s.total > 0 ? s.total : Infinity; // the end of its music (a held gate runs on into the closing fade; a strike doesn't)
+  if (!gs) add(ev.filter(t => t < end - 1e-6), end, 1);
+  else for (const g of gs) { const off = Math.min(g.off, end); if (g.on >= off - 1e-6) continue; // (nothing is struck after the music: an echo's later chords fall in its closing fade)
+    const ts = ev.filter(t => t >= g.on - 1e-6 && t < off - 1e-6); if (!ts.length || ts[0] > g.on + 1e-6) ts.unshift(g.on); add(ts, off, v(g)); }
+  return out;
+}
 function buildScore(main, items) {
   const P = main.piece;
   const runs = sectionRuns(main), spansFor = plays => !plays ? null : !plays.length ? [] : runs.length ? playSpans(runs, plays) : null; // in no section: silent
@@ -976,13 +1035,13 @@ function buildScore(main, items) {
   // … then copies: their source's notes as it plays them (in its sections), later and moved, then gated to their own sections
   const beat = 60 / P.timing.tempo;
   others.forEach((part, k) => { if (part.preset !== 'copy') return; const j = others.findIndex(x => x.id === part.of && x.preset !== 'copy');
-    if (j >= 0 && subs[j]) { subs[k] = shiftSub(subs[j], part.delay * beat, part.shift, part.voices); if (subs[k]) { total = Math.max(total, subs[k].total); mask(part, subs[k]); } } });
+    if (j >= 0 && subs[j]) { subs[k] = shiftSub(subs[j], part.delay * beat, part.shift, part.voices); if (subs[k]) { total = Math.max(total, subs[k].total); mask(part, subs[k]); if (STRUCK[part.sound.tone] && !subs[k].held) { subs[k].env = struckEnvelope(part.sound); subs[k].envCache = null; } } } });
   others.forEach((part, k) => { if (subs[k]) list.push(Object.assign({}, part, { sub: subs[k] })); });
   const mainPt = list[0]; mainPt.breathe = P.breathe; mainPt.duck = P.duck; shapeParts(list, main);
   /* Three ends: the music's (`total`, where the parts that sound throughout begin their closing fade); each line's last release,
      which rings on at its own level into the tail while they fade; and the end of the tail. A release only extends the music
      by what wouldn't fit in the tail (with 0.2 s to spare), so the usual releases end within it and change nothing. */
-  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env && !pt.sub.held) pt.sub.gates.forEach((gs, v) => { if (gs && gs.length && !(pt.sub.heldV && pt.sub.heldV[v])) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release); });
+  let ring = 0; for (const pt of list) if (pt.sub.gates && pt.sub.env && !pt.sub.held && !STRUCK[(pt.main ? P.sound : pt.sound).tone]) /* (a struck part's ring is counted below) */ pt.sub.gates.forEach((gs, v) => { if (gs && gs.length && !(pt.sub.heldV && pt.sub.heldV[v])) ring = Math.max(ring, gs[gs.length - 1].off + pt.sub.env.release); });
   const musicEnd = total; // where the held parts' closing fade begins, whatever the releases do
   /* An echo (the Echo setting) rings on after its part's last sound: the held parts' closing fade, or a line's last release. The
      piece lasts until its repeats have died away, like a long release, but no more than ECHO_ROOM past the music's end (the
@@ -994,7 +1053,17 @@ function buildScore(main, items) {
     if (gs) for (const g of gs) if (g && g.length) end = Math.max(end, pt.sub.held ? Math.min(g[g.length - 1].off, musicEnd + FADE) : g[g.length - 1].off + (pt.sub.env ? pt.sub.env.release : 0));
     if (end > 0) echoEnd = Math.max(echoEnd, Math.min(end + echoRing(ec, 60 / P.timing.tempo), musicEnd + ECHO_ROOM));
   }
-  total = Math.max(total, ring - (TAIL - 0.2), echoEnd - (TAIL - 0.2));
+  /* A struck instrument rings on after its last strike, whatever kind of part it is (the main part and pads are struck at each chord
+     change, and aren't faded by the closing fade): the piece lasts until that ring has fallen 50 dB, like an echo, and no more than
+     ECHO_ROOM past the music's end (the ring then fades out with the end of the tail). Damped at the note's end (Stops), it ends there. */
+  let struckEnd = 0;
+  for (const pt of list) {
+    const snd = pt.main ? P.sound : pt.sound; if (!STRUCK[snd.tone]) continue;
+    const T50 = struckEnvelope(snd).decay * 5 / 6;
+    for (let v = 0; v < pt.sub.N; v++) { const h = struckHits(pt.sub, v); if (!h.length) continue; const last = h[h.length - 1];
+      struckEnd = Math.max(struckEnd, Math.min(snd.stop && last.off < Infinity ? last.off + 0.06 : last.on + T50, musicEnd + ECHO_ROOM)); }
+  }
+  total = Math.max(total, ring - (TAIL - 0.2), echoEnd - (TAIL - 0.2), struckEnd - (TAIL - 0.2));
   total = Math.min(total, REALIZATION_LIMITS.seconds);
   const voices = [];
   list.forEach((pt, k) => { pt.first = voices.length; for (let v = 0; v < pt.sub.N; v++) voices.push({ p: k, b: pt.sub, v }); });
@@ -1019,6 +1088,13 @@ function cutPoly(pts, T) { const out = pts.filter(p => p.t < T); if (out.length 
    as real strings and bells do: exponentially, fast at first and then slower, sampled at 16 points a segment (the release reaches
    −60 dB at its end, then silence). */
 const CURVE_POINTS = 16;
+/* An envelope's points through one note (on to off) times its shape over the note, sampled finely enough to follow both */
+function shapeNote(loc, on, off, shape, depth) {
+  const L = off - on, mult = u => { u = Math.max(0, Math.min(1, u)); let k = 0; while (k < shape.length - 2 && u > shape[k + 1][0]) k++;
+    const [u0, a] = shape[k], [u1, b] = shape[k + 1], x = u1 > u0 ? (u - u0) / (u1 - u0) : 0; return 1 - depth * (1 - (a + (b - a) * Math.max(0, Math.min(1, x)))); };
+  const ts = new Set(loc.map(p => p.t)); for (const [u] of shape) ts.add(on + u * L); for (let i = 1; i < 16; i++) ts.add(on + L * i / 16);
+  return [...ts].filter(t => t >= loc[0].t - 1e-9 && t <= loc[loc.length - 1].t + 1e-9).sort((a, b) => a - b).map(t => ({ t, g: polyAt(loc, t) * (t < on ? 1 : mult((t - on) / L)) }));
+}
 function envelopePoints(gates, env) {
   const { attack: A, decay: D, sustain: S, release: R } = env, curved = env.curve === 'exp', pts = [{ t: 0, g: 0 }];
   // from (t0, g0) toward g1 over T: straight, or exponential (reaching within 0.7% of g1 at T, or −60 dB of g0 when g1 is silence)
@@ -1029,6 +1105,7 @@ function envelopePoints(gates, env) {
     const top = { t: gt.on + A, g: V };
     let loc = cutPoly([{ t: gt.on, g: polyAt(pts, gt.on) }, top, ...seg(top.t, V, S * V, D)], Math.max(gt.on, gt.off));
     if (gt.off > loc[loc.length - 1].t) loc.push({ t: gt.off, g: loc[loc.length - 1].g });
+    if (env.shape && NOTE_SHAPES[env.shape] && gt.off - gt.on > 1e-3) loc = shapeNote(loc, gt.on, gt.off, NOTE_SHAPES[env.shape], env.depth === undefined ? 1 : env.depth);
     const end = loc[loc.length - 1]; loc.push(...seg(Math.max(gt.on, gt.off), end.g, 0, R));
     pts.push(...cutPoly(loc, nextOn));
   });

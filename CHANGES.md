@@ -1,3 +1,17 @@
+# Chord Glide 4.5 · 16 Nov 2026
+
+Engine 3.1 is unchanged, and every piece that doesn't use the additions below sounds exactly as it did (the examples, rendered in 4.4 and 4.5, match to within rounding). A piece that uses them is saved as file format 7 (app 4.5 and later).
+
+- **Struck instruments**, a new group in Tone: **Bell**, **Gong (plate)**, **Marimba**, **Drum (membrane)** and **Metal triangle**. Each voice is several sine partials, each at a fixed ratio to the note with its own level and its own decay, struck afresh at every note and ringing on by itself. The partials follow the voice's glides, so a ringing bell can bend; a slide (`~`) glides without a new strike. A part that sounds throughout (the main part, a pad) is struck at each chord change.
+  - The ratios come from simple physics where there is one (the drum: an ideal circular membrane's Bessel-function zeros; the marimba: a bar tuned 1 : 4 : 10; the triangle: a straight free-free rod; the gong: a flat plate with a free edge, Chladni's modes) and from tradition for the bell (hum, prime, tierce, quint, nominal and upper partials). They're musical approximations, not recordings or measured instruments.
+  - **Hardness** brings out the upper partials (a harder mallet), **Ring length** multiplies every partial's ring, and **At note end** lets it ring on or damps it (Stops). A struck part's envelope isn't used: on the stage its line fades as the ring dies away. Whatever kind of part it is (a line, the main part, a pad, an echo), its last ring carries on past the end of the music rather than being cut by the closing fade, and the piece lasts until it has fallen about 50 dB (at most 20 seconds more, then fading out with the end); damped (Stops), a sustained part's last strike stops at the end of the music (or of its last section). A struck part still follows its ducking and breathing.
+  - Starting part-way (a seek, a resume, a change while playing) picks each ring up where it had got to.
+- **FM**, under Moving in Tone: a carrier and a modulator at a chosen **ratio** (0.5 to 7; 1.414 and 3.5 bell-like and metallic), with **Brightness at each note** (louder notes brighter), **Brightness held**, and how long it **Settles over**. Its brightness follows glides and is the same at every pitch.
+- **Shape over each note**, in a part's Envelope: **Swells in**, **Fades away**, or **Swells in, then eases off**, with a depth, applied in each note's own time on top of the envelope, so one part plays short and long notes with the same shape instead of needing two copies. It's drawn as it's heard.
+- **A new example, Bells at Dusk** (`6-bells-at-dusk.json`): a bell tolling at each chord change over a gong, then a dance of marimba, drum and triangle under an FM melody that swells into each note, a bell that bends from note to note as it rings over swelling strings, and a finale where they all ring out. Each part has its own colour, and the stage draws lines by part.
+- A piece with a struck instrument starts at full strength rather than fading in over its first 0.4 seconds, so a strike on the first beat isn't swallowed.
+- The new tones' levels are matched to Soft on a quarter-note melody (the struck ones about 2 dB under, their attacks being far above their average).
+
 # Chord Glide 4.4 · 16 Nov 2026
 
 Engine 3.1 and the file formats are unchanged. One change in how a line is laid out (below) can change how some pieces play; the examples and every piece without such a line sound exactly as before.

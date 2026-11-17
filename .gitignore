@@ -22,3 +22,6 @@ dist/
 
 # release zips (made by node source/release.js)
 releases/
+
+# compositions (not part of the app)
+compositions/

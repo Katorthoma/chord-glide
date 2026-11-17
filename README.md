@@ -1,6 +1,6 @@
 <img src="source/logo.svg" width="72" height="72" alt="Chord Glide logo">
 
-# Chord Glide 4.4
+# Chord Glide 4.5
 
 By Noizgenie. Write chord progressions and hear them as gliding, voice-led textures.
 
@@ -81,6 +81,14 @@ node cli/chord-glide-export.js "My piece.json" --artist "Your name"   # adds the
 - Parts: `"preset": "pattern"` (with `pattern`, `from`), `"preset": "copy"` (an echo: `of`, `delay` in beats, `shift`, optional `voices`), `nonstop: true`, `drop: { semis, time }`, `glideShape` (`"straight"`, `"arc"`), `portamento` over 2 s.
 - Notes: `~` (slide), `@0.6` (loudness) and `/0.4` (glide time, `l` or `s` for its shape) in lines; `envelope.curve: "exp"`; `vel` and `ease` in saved notes, the main part's or a part's.
 - Shaping and sound: `breathe: { depth, time }`, `duck: { under, depth, time }`, `"mix": "voices"`, `"tuning": "just"`.
+
+**Format 7 (app 4.5).** A piece that uses any of these is saved as `"formatVersion": 7`, which app 4.4 and older refuse:
+
+- The tones `"bell"`, `"gong"`, `"marimba"`, `"drum"` and `"metaltri"` (struck: several decaying partials per voice), with `sound.hardness` (0 to 100), `sound.ring` (0.1 to 4, a multiplier on every partial's ring) and `sound.stop` (damped at each note's end).
+- The tone `"fm"`, with `sound.fmRatio` (one of 0.5, 1, 1.414, 2, 3, 3.5, 4, 5, 7), `sound.fmIndex` (brightness at each note, 0 to 12), `sound.fmSustain` (held, 0 to 12) and `sound.fmTime` (seconds to settle).
+- On a part, `envelope.shape`: `"swell"`, `"fade"` or `"arch"`, with `envelope.depth` (0 to 1).
+
+The settings alone (a `hardness` on a part with another tone) don't need format 7.
 
 **Colours (app 4.4, any format).** A part can have `"color": "#rrggbb"`, and the piece one for its main part; `view.trace.byPart: true` draws each line in its part's colour. They only change how a piece is shown, so they don't change its format; older versions ignore them.
 

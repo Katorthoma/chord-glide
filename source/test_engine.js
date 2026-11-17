@@ -1,7 +1,7 @@
 // node test_engine.js — engine v3 checks
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
-const E = new Function(SRC + '; return {ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, echoRing, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES, buildScore, parseLine, gainAt, gainMoves, vibratoMoves, volumeAt, partSeed, partRealizations, realizationOf, LINE_LIMITS, landmarks, FADE, itemSeconds, defaultChordSec, formatFor, usesMusicalTime, hasSections, sectionRuns, parsePattern, patternNote, pitchMoves, parseLine, envelopePoints};')();
+const E = new Function(SRC + '; return {STRUCK, NOTE_SHAPES, struckHits, struckModes, struckEnvelope, envelopePoints, ENGINE_VERSION, realizationOf, builtFromRealization, validRealization, parseItem, parseProgression, buildPiece, pitchAt, hz, noteName, SHARP, echoRing, composeFromSeed, defaultPiece, normalizePiece, landmarks, TONES, TONE_GAIN, toneWave, realizationTooLarge, pitchMoves, parseNoteOct, MAX_VOICES, buildScore, parseLine, gainAt, gainMoves, vibratoMoves, volumeAt, partSeed, partRealizations, realizationOf, LINE_LIMITS, landmarks, FADE, itemSeconds, defaultChordSec, formatFor, usesMusicalTime, hasSections, sectionRuns, parsePattern, patternNote, pitchMoves, parseLine, envelopePoints};')();
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (d ? '  ' + d : '')); };
 console.log('engine v' + E.ENGINE_VERSION);
@@ -117,7 +117,7 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const nb = E.buildPiece(E.parseProgression('Dm7, Cmaj7/D').items, vo({ bassMode: 'nearest' }));
   const pc = nb.events[1].targets[0] % 12;
   check('Nearest chord tone ignores a slash note outside the chord', [0, 4, 7, 11].includes(pc), E.noteName(nb.events[1].targets[0]));
-  let refused = false; try { E.normalizePiece({ formatVersion: 7, chords: 'C' }); } catch (e) { refused = /newer/.test(e.message); }
+  let refused = false; try { E.normalizePiece({ formatVersion: 8, chords: 'C' }); } catch (e) { refused = /newer/.test(e.message); }
   check('A newer file format is refused, not silently downgraded', refused);
   const kept = E.normalizePiece({ formatVersion: 3, chords: 'C', myNotes: { a: 1 } });
   check('Unknown fields are kept', kept.myNotes && kept.myNotes.a === 1);
@@ -663,6 +663,26 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   const mk = notesOf(piece(['B'], { line: '[B] G4 A4' }));
   check('A line with section markers still plays each section\'s own notes there', mk.join() === '4:G4,5:A4', mk.join(' '));
 }
+{ // 4.5: struck instruments, FM and shapes over each note
+  for (const k of Object.keys(E.STRUCK)) { const m = E.struckModes(k), sum = m.reduce((a, x) => a + x[1], 0);
+    check('Struck instrument ' + k + ': its modes\' levels add up to 1, ratios rising from its lowest', Math.abs(sum - 1) < 1e-9 && m.every((x, i) => !i || x[0] > m[i - 1][0]), sum); }
+  const soft = E.struckModes('bell', 0), hard = E.struckModes('bell', 100), hi = m => m.filter(x => x[0] >= 2).reduce((a, x) => a + x[1], 0);
+  check('A harder strike brings out the upper modes', hi(hard) > hi(E.struckModes('bell', 50)) && hi(E.struckModes('bell', 50)) > hi(soft), [hi(soft), hi(hard)].map(x => x.toFixed(2)).join(' < '));
+  check('Ring length multiplies every mode\'s ring', E.struckModes('gong', 50, 2).every((x, i) => Math.abs(x[2] - 2 * E.struckModes('gong')[i][2]) < 1e-9));
+  check('The drum\'s modes are an ideal membrane\'s (Bessel zeros: 1.594, 2.136, 2.296 …)', E.STRUCK.drum.modes.slice(1, 4).map(x => x[0]).join() === '1.594,2.136,2.296');
+  const env = E.struckEnvelope({ tone: 'marimba', hardness: 50, ring: 1, stop: false }), envStop = E.struckEnvelope({ tone: 'marimba', hardness: 50, ring: 1, stop: true });
+  check('A struck part\'s drawn envelope falls over its longest audible ring, and stops quickly if damped at the note\'s end', env.decay === 1.5 && env.sustain === 0 && env.release === 1.5 && envStop.release === 0.06, JSON.stringify(env));
+  const mk = (tone, extra = {}) => E.normalizePiece(Object.assign({ chords: 'C', parts: [Object.assign({ id: 'l', preset: 'line', line: 'C4', sound: { tone } }, extra)] }));
+  check('A struck instrument, FM or a shape over each note needs file format 7', mk('bell').formatVersion === 7 && mk('fm').formatVersion === 7 && mk('soft', { envelope: { shape: 'arch' } }).formatVersion === 7 && E.normalizePiece({ chords: 'C', sound: { tone: 'drum' } }).formatVersion === 7);
+  check('… and their settings alone don\'t (a soft part with a hardness or an FM ratio stays format 4)', mk('soft', { sound: { tone: 'soft', hardness: 90, fmRatio: 3 } }).formatVersion === 4 && mk('soft', { envelope: { shape: 'none' } }).formatVersion === 4);
+  const n = mk('fm', { sound: { tone: 'fm', fmRatio: 2.2, fmIndex: 99, ring: 0 } }).parts[0].sound;
+  check('FM and struck settings are kept in range (a ratio not offered becomes 2)', n.fmRatio === 2 && n.fmIndex === 12 && n.ring === 0.1, JSON.stringify([n.fmRatio, n.fmIndex, n.ring]));
+  const gate = [{ on: 0, off: 4, v: 1 }], flat = { attack: 0.001, decay: 0, sustain: 1, release: 0.1 }, at = (pts, t) => { for (let i = 1; i < pts.length; i++) if (pts[i].t >= t) { const a = pts[i - 1], b = pts[i]; return b.t > a.t ? a.g + (b.g - a.g) * (t - a.t) / (b.t - a.t) : b.g; } return pts[pts.length - 1].g; };
+  const arch = E.envelopePoints(gate, Object.assign({ shape: 'arch' }, flat)), half = E.envelopePoints(gate, Object.assign({ shape: 'arch', depth: 0.5 }, flat)), none = E.envelopePoints(gate, flat);
+  check('Arch over a 4-second note: about 35% at the start, full at a quarter, 55% at the end', Math.abs(at(arch, 0.01) - 0.35) < 0.02 && Math.abs(at(arch, 1) - 1) < 1e-6 && Math.abs(at(arch, 3.999) - 0.55) < 0.01, [0.01, 1, 3.999].map(t => at(arch, t).toFixed(2)).join(' '));
+  check('… half depth goes half way (about 78% at the end), and a short note takes the same shape in its own time', Math.abs(at(half, 3.999) - 0.775) < 0.01 && Math.abs(at(E.envelopePoints([{ on: 0, off: 1 }], Object.assign({ shape: 'arch' }, flat)), 0.25) - 1) < 1e-6);
+  check('With no shape the envelope is as before', JSON.stringify(none) === JSON.stringify(E.envelopePoints(gate, Object.assign({ shape: undefined }, flat))));
+}
 { // 4.4: colours for parts, and lines by part: kept and checked, and no newer file format for them
   const n = E.normalizePiece({ chords: 'C', color: '#AABBCC', view: { trace: { byPart: true } }, parts: [{ id: 'a', preset: 'line', line: 'C4', color: '#12ab34' }, { id: 'b', preset: 'line', line: 'C4', color: 'red' }] });
   check('A part\'s colour and the main part\'s are kept (in lower case); one that isn\'t #rrggbb is dropped', n.color === '#aabbcc' && n.parts[0].color === '#12ab34' && n.parts[1].color === undefined, JSON.stringify([n.color, n.parts.map(p => p.color)]));
@@ -680,6 +700,26 @@ const WANT = ['D2 E3 F3 A3 C4 F4 A4 C5 D5 F5 A5', 'A#2 E3 F3 A3 D4 F4 A4 A#4 D5 
   check('The new settings are kept in range', n.sound.eq.low === 12 && n.sound.eq.mid === 0 && n.sound.eq.high === 0 && n.sound.saturation === 100 && n.sound.ensemble === 0 && n.parts[0].sound.reverb === 300 && n.parts[0].sound.brightness === 200 && n.parts[0].sound.opens === 100 && n.parts[0].sound.openTime === 0.02, JSON.stringify([n.sound, n.parts[0].sound]));
   const d = E.normalizePiece({ chords: 'C', parts: [{ id: 'l', preset: 'line', line: 'C4' }] }).parts[0].sound;
   check('A part starts with the piece\'s reverb, no filter and no ensemble', d.reverb === 100 && d.brightness === 16000 && d.opens === 0 && d.ensemble === 0);
+}
+
+{ // 4.5 fixes: struck instruments ring on after the music, whatever kind of part, unless damped (Stops)
+  const sc = q => { const p = E.normalizePiece(Object.assign({ chords: 'Dm:1 Bb:1 F:1 A:1', timing: { chordSec: 2, glide: 0.2, tempo: 120 } }, q)), it = E.parseProgression(p.chords).items; return E.buildScore(E.buildPiece(it, p), it); };
+  const plain = sc({ sound: { tone: 'soft' } }), ring = sc({ sound: { tone: 'bell', ring: 4 } }), stop = sc({ sound: { tone: 'bell', ring: 4, stop: true } });
+  check('A struck main part rings on past the music (its rings counted, capped)', ring.total > plain.total + 10 && ring.total <= plain.total + 20, ring.total);
+  check('… damped at its end (Stops), it ends with the music', stop.total === plain.total, stop.total);
+  const h = E.struckHits(ring.voices[0].b, ring.voices[0].v);
+  check('A part that sounds throughout is struck at each chord, each strike ending at the next and the last at the music\'s end', h.length === 4 && h.every((x, k) => k < 3 ? Math.abs(x.off - h[k + 1].on) < 1e-6 : x.off === 4), JSON.stringify(h));
+  const cp = sc({ sound: { tone: 'soft' }, parts: [{ id: 'p', preset: 'pad', sound: { tone: 'soft' } }, { id: 'c', preset: 'copy', of: 'p', delay: 1, sound: { tone: 'gong', ring: 4 } }] });
+  check('An echo of a pad played on a struck instrument rings on too', cp.total > plain.total + 8, cp.total);
+  const one = q => sc(Object.assign({ chords: 'C:1', timing: { chordSec: 1, glide: 0.2, tempo: 120 } }, q));
+  const cm = one({ sound: { tone: 'bell', ring: 4 } }), cl = one({ sound: { tone: 'soft' }, parts: [{ id: 'l', preset: 'line', line: 'C5:1', step: '1/2', sound: { tone: 'bell', ring: 4 } }] }),
+    cc = one({ sound: { tone: 'soft' }, parts: [{ id: 'l', preset: 'line', line: 'C5:1', step: '1/2' }, { id: 'c', preset: 'copy', of: 'l', delay: 0, sound: { tone: 'bell', ring: 4 } }] });
+  check('A long ring is capped the same on the main part, a line and an echo', cm.total === cl.total && cl.total === cc.total && cm.total < 1 + 20, [cm.total, cl.total, cc.total]);
+  const ss = sc({ chords: '[A]\nC:1\n[B]\nF:1', plays: ['B'], timing: { chordSec: 1, glide: 0.2, tempo: 120 }, sound: { tone: 'bell', ring: 4, stop: true } }), sh = E.struckHits(ss.voices[0].b, ss.voices[0].v);
+  const dc = sc({ timing: { chordSec: 1, glide: 0.2, tempo: 60 }, sound: { tone: 'soft' }, parts: [{ id: 'p', preset: 'pad', sound: { tone: 'soft' } }, { id: 'c', preset: 'copy', of: 'p', delay: 2, sound: { tone: 'bell', stop: true } }] });
+  { const subC = dc.parts.find(x => x.preset === 'copy').sub, hs = E.struckHits(subC, 0);
+    check('A delayed echo of a pad strikes nothing after the music ends', subC && hs.length > 0 && hs.every(h => h.on < 4 && h.off <= 4 && h.on < h.off), JSON.stringify(hs) + ' total ' + dc.total); }
+  check('… and damped (Stops) in its sections, its last strike ends with the music, not the closing fade', ss.total === 2 && sh.length === 1 && sh[0].on === 1 && sh[0].off === 2, JSON.stringify(sh));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;
